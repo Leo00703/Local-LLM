@@ -350,11 +350,14 @@ class SettingsFragment : Fragment() {
     private fun SoundHapticDetailPane() {
         val soundEnabled by soundHapticViewModel.soundEnabled.observeAsState(true)
         val hapticEnabled by soundHapticViewModel.hapticEnabled.observeAsState(true)
+        val showStatsEnabled by soundHapticViewModel.showStatsEnabled.observeAsState(true)
         SoundHapticContent(
             soundEnabled = soundEnabled,
             hapticEnabled = hapticEnabled,
+            showStatsEnabled = showStatsEnabled,
             onSoundChanged = { soundHapticViewModel.setSoundEnabled(it) },
             onHapticChanged = { soundHapticViewModel.setHapticEnabled(it) },
+            onShowStatsChanged = { soundHapticViewModel.setShowStatsEnabled(it) },
         )
     }
 

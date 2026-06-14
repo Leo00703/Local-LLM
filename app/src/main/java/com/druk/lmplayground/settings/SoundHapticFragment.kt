@@ -28,11 +28,14 @@ class SoundHapticFragment : Fragment() {
             PlaygroundTheme {
                 val soundEnabled by viewModel.soundEnabled.observeAsState(true)
                 val hapticEnabled by viewModel.hapticEnabled.observeAsState(true)
+                val showStatsEnabled by viewModel.showStatsEnabled.observeAsState(true)
                 SoundHapticScreen(
                     soundEnabled = soundEnabled,
                     hapticEnabled = hapticEnabled,
+                    showStatsEnabled = showStatsEnabled,
                     onSoundChanged = { viewModel.setSoundEnabled(it) },
                     onHapticChanged = { viewModel.setHapticEnabled(it) },
+                    onShowStatsChanged = { viewModel.setShowStatsEnabled(it) },
                     onBackClick = { findNavController().popBackStack() },
                 )
             }

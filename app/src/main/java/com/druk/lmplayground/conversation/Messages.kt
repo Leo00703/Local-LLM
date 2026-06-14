@@ -58,7 +58,13 @@ fun Messages(
     sessionModelHint: Pair<String, String>? = null,
     onSessionModelHintClick: ((String) -> Unit)? = null,
     onSessionModelHintDismiss: (() -> Unit)? = null,
-    onTokenCountClicked: (() -> Unit)? = null
+    onTokenCountClicked: (() -> Unit)? = null,
+    // Regenerate the latest assistant reply (only wired for the last message).
+    onRegenerate: (() -> Unit)? = null,
+    // Edit & resend a user message; receives the tapped message.
+    onEditUserMessage: ((Message) -> Unit)? = null,
+    // Whether to show the per-message generation-stats line (Settings toggle).
+    showStats: Boolean = true
 ) {
     val scope = rememberCoroutineScope()
 
@@ -82,10 +88,19 @@ fun Messages(
                 key = { _, msg -> msg.id }
             ) { index, content ->
                 val isLast = index == messages.lastIndex
+                val isUser = content.author == "User"
                 Message(
                     msg = content,
-                    isUserMe = content.author == "User",
+                    isUserMe = isUser,
                     showActions = !(isLast && isGenerating),
+                    showStats = showStats,
+                    // Regenerate only on the latest assistant reply, when idle.
+                    canRegenerate = !isUser && isLast && !isGenerating,
+                    onRegenerate = onRegenerate,
+                    // Edit only user messages, and not mid-generation.
+                    onEdit = if (isUser && !isGenerating && onEditUserMessage != null) {
+                        { onEditUserMessage.invoke(content) }
+                    } else null,
                     onTokenCountClicked = onTokenCountClicked
                 )
             }

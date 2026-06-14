@@ -25,6 +25,7 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -84,6 +85,7 @@ class ConversationFragment : Fragment() {
         // "Set up tools" button — re-checking here instead of on tap avoids the
         // button visibly disappearing under the user's finger.
         viewModel.refreshToolsSetupVisibility()
+        viewModel.refreshShowGenerationStats()
     }
 
     @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3WindowSizeClassApi::class)
@@ -104,6 +106,8 @@ class ConversationFragment : Fragment() {
             val supportsThinking by viewModel.supportsThinking.observeAsState(false)
             val supportsToolCalling by viewModel.supportsToolCalling.observeAsState(false)
             val showToolsSetup by viewModel.showToolsSetup.observeAsState(false)
+            val showGenerationStats by viewModel.showGenerationStats.observeAsState(true)
+            val contextUsed by viewModel.contextUsedTokens.observeAsState(0)
             val toolEnabledStates by viewModel.toolEnabledStates.observeAsState(emptyMap())
             val thinkingEnabled by viewModel.thinkingEnabled.observeAsState(false)
             val isModelReady by viewModel.isModelReady.observeAsState(false)
@@ -236,6 +240,7 @@ class ConversationFragment : Fragment() {
                 val topBarHeight = with(density) { topBarHeightPx.toDp() }
                 val bottomBarHeight = with(density) { bottomBarHeightPx.toDp() }
                 var modelReport by remember { mutableStateOf<String?>(null) }
+                var editingMessage by remember { mutableStateOf<Message?>(null) }
 
                 // When model finishes loading, jump to bottom and open keyboard
                 LaunchedEffect(isModelReady) {
@@ -380,6 +385,40 @@ class ConversationFragment : Fragment() {
                     )
                 }
 
+                // Edit & resend a user message. Confirming truncates the
+                // conversation from this message and regenerates.
+                editingMessage?.let { em ->
+                    var editText by remember(em.id) { mutableStateOf(em.content) }
+                    AlertDialog(
+                        onDismissRequest = { editingMessage = null },
+                        title = { Text(stringResource(R.string.edit)) },
+                        text = {
+                            OutlinedTextField(
+                                value = editText,
+                                onValueChange = { editText = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 3
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                enabled = editText.isNotBlank(),
+                                onClick = {
+                                    viewModel.editAndResend(em.id, editText)
+                                    editingMessage = null
+                                }
+                            ) {
+                                Text(stringResource(R.string.update))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { editingMessage = null }) {
+                                Text(stringResource(R.string.cancel))
+                            }
+                        }
+                    )
+                }
+
                 if (showParamsSheet) {
                     GenerationParamsSheet(
                         params = generationParams,
@@ -477,7 +516,14 @@ class ConversationFragment : Fragment() {
                                 },
                                 onTokenCountClicked = {
                                     modelReport = viewModel.getReport()
-                                }
+                                },
+                                onRegenerate = {
+                                    viewModel.regenerateLastResponse()
+                                },
+                                onEditUserMessage = { msg ->
+                                    editingMessage = msg
+                                },
+                                showStats = showGenerationStats
                             )
                         }
 
@@ -560,6 +606,9 @@ class ConversationFragment : Fragment() {
                                     UserInputStatus.GENERATING
                                 else
                                     UserInputStatus.IDLE,
+                                contextUsed = contextUsed,
+                                contextTotal = generationParams.contextSize,
+                                onContextClick = { modelReport = viewModel.getReport() },
                                 supportsThinking = supportsThinking,
                                 thinkingEnabled = thinkingEnabled,
                                 onThinkingToggle = { viewModel.toggleThinking() },

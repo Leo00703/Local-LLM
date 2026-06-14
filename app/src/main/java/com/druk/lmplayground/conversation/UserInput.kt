@@ -1,6 +1,9 @@
 package com.druk.lmplayground.conversation
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -46,8 +50,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.onFocusEvent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
@@ -105,6 +113,9 @@ fun UserInput(
     hazeState: HazeState? = null,
     hazeStyle: HazeStyle = HazeStyle.Unspecified,
     status: UserInputStatus = UserInputStatus.IDLE,
+    contextUsed: Int = 0,
+    contextTotal: Int = 0,
+    onContextClick: (() -> Unit)? = null,
     focusRequester: FocusRequester = remember { FocusRequester() },
     supportsThinking: Boolean = false,
     thinkingEnabled: Boolean = true,
@@ -166,6 +177,9 @@ fun UserInput(
             }
             UserInputText(
                 status,
+                contextUsed = contextUsed,
+                contextTotal = contextTotal,
+                onContextClick = onContextClick,
                 focusRequester = focusRequester,
                 supportsThinking = supportsThinking,
                 thinkingEnabled = thinkingEnabled,
@@ -232,6 +246,9 @@ var SemanticsPropertyReceiver.keyboardShownProperty by KeyboardShownKey
 @Composable
 private fun UserInputText(
     status: UserInputStatus,
+    contextUsed: Int = 0,
+    contextTotal: Int = 0,
+    onContextClick: (() -> Unit)? = null,
     focusRequester: FocusRequester,
     supportsThinking: Boolean = false,
     thinkingEnabled: Boolean = true,
@@ -265,7 +282,7 @@ private fun UserInputText(
             ) {
                 Icon(
                     imageVector = if (thinkingEnabled) Icons.Filled.Lightbulb else Icons.Outlined.Lightbulb,
-                    contentDescription = if (thinkingEnabled) "Disable thinking" else "Enable thinking",
+                    contentDescription = if (thinkingEnabled) stringResource(R.string.disable_thinking) else stringResource(R.string.enable_thinking),
                     modifier = if (isDisabled) Modifier.alpha(0.8f) else Modifier,
                     tint = LocalContentColor.current
                 )
@@ -285,6 +302,18 @@ private fun UserInputText(
                     contentDescription = a11ylabel
                     keyboardShownProperty = keyboardShown
                 }
+            )
+        }
+
+        // Context-window meter, sitting just left of the Send button. Hidden
+        // until a model/session exists (NOT_LOADED) so it doesn't show a
+        // meaningless 0% before load.
+        if (status != UserInputStatus.NOT_LOADED && contextTotal > 0) {
+            ContextWindowIndicator(
+                used = contextUsed,
+                total = contextTotal,
+                onClick = onContextClick,
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp)
             )
         }
 
@@ -388,5 +417,61 @@ private fun BoxScope.UserInputTextField(
             text = stringResource(R.string.textfield_hint),
             style = MaterialTheme.typography.bodyLarge.copy(color = disableContentColor)
         )
+    }
+}
+
+/**
+ * A compact circular gauge of how full the model's context window is
+ * (used / total KV tokens), shown next to the Send button. The arc turns from
+ * primary → tertiary → error as the window fills. Non-interactive.
+ */
+@Composable
+private fun ContextWindowIndicator(
+    used: Int,
+    total: Int,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    val fraction = if (total > 0) (used.toFloat() / total).coerceIn(0f, 1f) else 0f
+    val animated by animateFloatAsState(targetValue = fraction, label = "contextFraction")
+    val primary = MaterialTheme.colorScheme.primary
+    val tertiary = MaterialTheme.colorScheme.tertiary
+    val error = MaterialTheme.colorScheme.error
+    val track = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+    val arcColor = when {
+        fraction < 0.75f -> primary
+        fraction < 0.9f -> tertiary
+        else -> error
+    }
+    Box(
+        modifier = modifier
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(20.dp)) {
+            val strokeWidth = 2.dp.toPx()
+            val inset = strokeWidth / 2f
+            val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+            val topLeft = Offset(inset, inset)
+            drawArc(
+                color = track,
+                startAngle = 0f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            )
+            drawArc(
+                color = arcColor,
+                startAngle = -90f,
+                sweepAngle = 360f * animated,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            )
+        }
     }
 }

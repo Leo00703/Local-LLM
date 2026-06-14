@@ -29,19 +29,30 @@ class ConversationUiState(
     fun updateLastMessage(msg: String, thinkingTokens: Int = 0, responseTokens: Int = 0) {
         if (_messages.isEmpty()) return
         val message = _messages.last()
+        val now = System.currentTimeMillis()
         val isThinkingActive = message.thinkingStartTimeMs > 0
         val thinkingJustEnded = isThinkingActive && msg.contains("</think>")
 
         val duration = if (isThinkingActive) {
-            ((System.currentTimeMillis() - message.thinkingStartTimeMs) / 1000).toInt()
+            ((now - message.thinkingStartTimeMs) / 1000).toInt()
         } else {
             message.thinkingDurationSeconds
         }
 
         val responseDuration = if (message.responseStartTimeMs > 0) {
-            (System.currentTimeMillis() - message.responseStartTimeMs) / 1000f
+            (now - message.responseStartTimeMs) / 1000f
         } else {
             message.responseDurationSeconds
+        }
+
+        // Capture time-to-first-token exactly once, on the first streamed update
+        // (before any tool round resets responseStartTimeMs).
+        val captureFirst = message.firstTokenTimeMs == 0L && message.responseStartTimeMs > 0L
+        val firstTokenTimeMs = if (captureFirst) now else message.firstTokenTimeMs
+        val ttftMs = if (captureFirst) {
+            (now - message.responseStartTimeMs).toInt().coerceAtLeast(0)
+        } else {
+            message.ttftMs
         }
 
         _messages[_messages.size - 1] = message.copy(
@@ -50,7 +61,9 @@ class ConversationUiState(
             thinkingStartTimeMs = if (thinkingJustEnded) 0L else message.thinkingStartTimeMs,
             thinkingTokens = thinkingTokens,
             responseTokens = responseTokens,
-            responseDurationSeconds = responseDuration
+            responseDurationSeconds = responseDuration,
+            firstTokenTimeMs = firstTokenTimeMs,
+            ttftMs = ttftMs
         )
     }
 
@@ -136,6 +149,8 @@ data class Message(
     val responseTokens: Int = 0,
     val responseStartTimeMs: Long = 0,
     val responseDurationSeconds: Float = 0f,
+    val firstTokenTimeMs: Long = 0,
+    val ttftMs: Int = 0,
     val timestamp: Long = System.currentTimeMillis(),
     val id: Long = messageIdCounter.incrementAndGet(),
     val toolCalls: List<ToolCallInfo>? = null

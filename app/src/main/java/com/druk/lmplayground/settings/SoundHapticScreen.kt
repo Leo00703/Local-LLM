@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Vibration
 import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,8 +39,10 @@ import com.druk.lmplayground.R
 fun SoundHapticScreen(
     soundEnabled: Boolean,
     hapticEnabled: Boolean,
+    showStatsEnabled: Boolean,
     onSoundChanged: (Boolean) -> Unit,
     onHapticChanged: (Boolean) -> Unit,
+    onShowStatsChanged: (Boolean) -> Unit,
     onBackClick: () -> Unit,
 ) {
     Scaffold(
@@ -60,8 +63,10 @@ fun SoundHapticScreen(
         SoundHapticContent(
             soundEnabled = soundEnabled,
             hapticEnabled = hapticEnabled,
+            showStatsEnabled = showStatsEnabled,
             onSoundChanged = onSoundChanged,
             onHapticChanged = onHapticChanged,
+            onShowStatsChanged = onShowStatsChanged,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
@@ -73,8 +78,10 @@ fun SoundHapticScreen(
 fun SoundHapticContent(
     soundEnabled: Boolean,
     hapticEnabled: Boolean,
+    showStatsEnabled: Boolean,
     onSoundChanged: (Boolean) -> Unit,
     onHapticChanged: (Boolean) -> Unit,
+    onShowStatsChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.verticalScroll(rememberScrollState())) {
@@ -92,6 +99,14 @@ fun SoundHapticContent(
             description = stringResource(R.string.haptic_on_generation_desc),
             checked = hapticEnabled,
             onCheckedChange = onHapticChanged,
+        )
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        ToggleRow(
+            icon = Icons.Outlined.Speed,
+            title = stringResource(R.string.generation_stats_title),
+            description = stringResource(R.string.generation_stats_desc),
+            checked = showStatsEnabled,
+            onCheckedChange = onShowStatsChanged,
         )
     }
 }

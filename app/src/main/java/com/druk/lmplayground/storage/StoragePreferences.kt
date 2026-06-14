@@ -32,6 +32,11 @@ class StoragePreferences(context: Context) {
         get() = prefs.getBoolean("haptic_on_generation", true)
         set(value) = prefs.edit { putBoolean("haptic_on_generation", value) }
 
+    /** Show per-message generation stats (tokens, speed, time-to-first-token). */
+    var showGenerationStats: Boolean
+        get() = prefs.getBoolean("show_generation_stats", true)
+        set(value) = prefs.edit { putBoolean("show_generation_stats", value) }
+
     fun getCustomModelMetadata(filename: String): Pair<String, Boolean>? {
         val value = prefs.getString("custom_model_$filename", null) ?: return null
         val parts = value.split("|", limit = 2)

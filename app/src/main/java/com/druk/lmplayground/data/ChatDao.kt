@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 
 @Dao
@@ -56,4 +57,20 @@ interface ChatDao {
 
     @Query("DELETE FROM chat_sessions WHERE id = :sessionId")
     suspend fun deleteSession(sessionId: String)
+
+    @Query("DELETE FROM chat_messages WHERE sessionId = :sessionId")
+    suspend fun deleteMessagesForSession(sessionId: String)
+
+    /**
+     * Replace all persisted messages for a session with [messages] in one
+     * transaction. Used by edit/regenerate, which truncate the conversation
+     * to a point and then re-send: the caller passes the surviving prefix,
+     * and the resent user turn + new assistant reply are persisted afterwards
+     * by the normal generation path.
+     */
+    @Transaction
+    suspend fun replaceSessionMessages(sessionId: String, messages: List<ChatMessageEntity>) {
+        deleteMessagesForSession(sessionId)
+        messages.forEach { insertMessage(it) }
+    }
 }

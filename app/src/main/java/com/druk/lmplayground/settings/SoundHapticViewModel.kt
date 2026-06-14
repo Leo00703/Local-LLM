@@ -22,6 +22,9 @@ class SoundHapticViewModel(app: Application) : AndroidViewModel(app) {
     private val _hapticEnabled = MutableLiveData(prefs.hapticOnGeneration)
     val hapticEnabled: LiveData<Boolean> = _hapticEnabled
 
+    private val _showStatsEnabled = MutableLiveData(prefs.showGenerationStats)
+    val showStatsEnabled: LiveData<Boolean> = _showStatsEnabled
+
     fun setSoundEnabled(value: Boolean) {
         prefs.soundOnCompletion = value
         _soundEnabled.value = value
@@ -30,5 +33,10 @@ class SoundHapticViewModel(app: Application) : AndroidViewModel(app) {
     fun setHapticEnabled(value: Boolean) {
         prefs.hapticOnGeneration = value
         _hapticEnabled.value = value
+    }
+
+    fun setShowStatsEnabled(value: Boolean) {
+        prefs.showGenerationStats = value
+        _showStatsEnabled.value = value
     }
 }

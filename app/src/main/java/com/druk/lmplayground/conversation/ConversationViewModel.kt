@@ -126,6 +126,39 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         _showToolsSetup.value = !storagePreferences.toolsSetupSeen
     }
 
+    // Whether per-message generation stats are shown (Settings → Sound,
+    // Haptics & Stats). Re-read on resume so a change in Settings takes effect
+    // when the user returns to the chat.
+    private val _showGenerationStats = MutableLiveData(storagePreferences.showGenerationStats)
+    val showGenerationStats: LiveData<Boolean> = _showGenerationStats
+
+    @MainThread
+    fun refreshShowGenerationStats() {
+        _showGenerationStats.value = storagePreferences.showGenerationStats
+    }
+
+    // Context-window meter: tokens currently occupying the KV cache. `used` is
+    // parsed from the native session report after each turn; the total comes
+    // from the session's configured context size (GenerationParams.contextSize
+    // == llama_n_ctx). 0 when no session / fresh conversation.
+    private val _contextUsedTokens = MutableLiveData(0)
+    val contextUsedTokens: LiveData<Int> = _contextUsedTokens
+
+    /**
+     * Parse the "Context: <used> / <total> tokens" line emitted by the native
+     * session report (see LlamaGenerationSession.cpp getReport) and post the
+     * used count to [contextUsedTokens]. Best-effort: a missing or changed
+     * format leaves the meter at its last value rather than crashing.
+     */
+    private fun postContextFromReport(report: String?) {
+        val line = report?.lineSequence()?.firstOrNull { it.contains("Context:") } ?: return
+        val used = line.substringAfter("Context:")
+            .substringBefore("/")
+            .trim()
+            .toIntOrNull() ?: return
+        _contextUsedTokens.postValue(used.coerceAtLeast(0))
+    }
+
     val isGenerating: LiveData<Boolean> = _isGenerating
     val isModelReady: LiveData<Boolean> = _isModelReady
     val modelLoadingProgress: LiveData<Float> = _modelLoadingProgress
@@ -549,6 +582,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     _modelLoadingProgress.postValue(0f)
                     _loadedModelStatus.postValue(modelDescription)
                     _sessionModelHint.postValue(null)
+                    _contextUsedTokens.postValue(0)
 
                     // Replay history into the new session BEFORE marking the
                     // model ready. If a persisted message exceeds the
@@ -718,6 +752,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         }
         this@ConversationViewModel.llamaSession = newSession
         prevSession?.destroy()
+        // KV cache is rebuilt lazily on the next turn, so the context meter is
+        // empty until then. Covers params-change, system-prompt, load-session,
+        // and edit/regenerate (which re-fills it when generation completes).
+        _contextUsedTokens.postValue(0)
         return true
     }
 
@@ -806,6 +844,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
                 _currentSessionId.value = null
                 uiState.resetMessages()
+                _contextUsedTokens.postValue(0)
 
                 withContext(Dispatchers.Default) {
                     val newSession = createSessionWithParams(model, params, systemPrompt)
@@ -1157,6 +1196,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                             uiState.finalizeLastMessage()
                         }
                         _isGenerating.postValue(false)
+                        // Refresh the context-window meter from this turn's real
+                        // KV-cache usage (parsed from the session report).
+                        val ctxReport = try { llamaSession.getReport() } catch (_: Throwable) { null }
+                        postContextFromReport(ctxReport)
                         // Generation (or cancellation) is done — freeze the
                         // silent notification on "Response ready" with the
                         // final token count, and attach Copy/Share actions
@@ -1206,6 +1249,113 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    /**
+     * Re-run the most recent user turn to produce a fresh assistant reply.
+     * No-op while generating, with no model loaded, or when there's no user
+     * message to re-send. Everything after that user turn is discarded.
+     */
+    @MainThread
+    fun regenerateLastResponse() {
+        if (_isGenerating.value == true) return
+        if (llamaModel == null) return
+        val msgs = uiState.messages.toList()
+        val lastUserIdx = msgs.indexOfLast { it.author == "User" }
+        if (lastUserIdx < 0) return
+        val userContent = msgs[lastUserIdx].content
+        val prior = msgs.subList(0, lastUserIdx).toList()
+        resendUserTurn(prior, userContent)
+    }
+
+    /**
+     * Replace the text of the user message identified by [messageId] and
+     * re-send it, discarding everything after it (LM Studio-style edit &
+     * resend). No-op while generating, with no model loaded, when the target
+     * isn't a user message, or when the new text is blank.
+     */
+    @MainThread
+    fun editAndResend(messageId: Long, newText: String) {
+        if (_isGenerating.value == true) return
+        if (llamaModel == null) return
+        val trimmed = newText.trim()
+        if (trimmed.isEmpty()) return
+        val msgs = uiState.messages.toList()
+        val idx = msgs.indexOfFirst { it.id == messageId }
+        if (idx < 0 || msgs[idx].author != "User") return
+        val prior = msgs.subList(0, idx).toList()
+        resendUserTurn(prior, trimmed)
+    }
+
+    /**
+     * Shared core of regenerate / edit-and-resend: rebuild the native session
+     * so its KV cache reflects only [priorMessages], then re-send
+     * [newUserContent] through the normal [addMessage] path (which appends the
+     * user + assistant bubbles, persists them, and drives generation + tools).
+     *
+     * The native rebuild happens FIRST: if the engine is unavailable the
+     * conversation is left untouched rather than truncated with nothing to show.
+     */
+    private fun resendUserTurn(priorMessages: List<Message>, newUserContent: String) {
+        val model = llamaModel ?: return
+        val params = _generationParams.value ?: GenerationParams()
+        val systemPrompt = _systemPrompt.value.orEmpty()
+
+        // Size guards mirror addMessage / validateReplaySize so we never half-
+        // rebuild the session and then fail on an oversized payload.
+        val sizeBytes = newUserContent.length * 2
+        if (sizeBytes > InferenceLimits.MAX_PAYLOAD_BYTES) {
+            _userError.postValue(
+                app.getString(
+                    com.druk.lmplayground.R.string.message_too_large,
+                    sizeBytes / 1024,
+                    InferenceLimits.MAX_PAYLOAD_BYTES / 1024,
+                )
+            )
+            return
+        }
+        if (!validateReplaySize(systemPrompt, priorMessages)) return
+
+        val sessionId = _currentSessionId.value
+        viewModelScope.launch {
+            generatingJob?.cancel()
+            generatingJob?.join()
+            generatingJob = null
+
+            // Rebuild the native session to the surviving prefix before we touch
+            // any UI/persistence — a failure here leaves the prior session and
+            // conversation intact.
+            val prevSession = llamaSession
+            val ok = withContext(Dispatchers.Default) {
+                val newSession = createSessionWithParams(model, params, systemPrompt)
+                    ?: return@withContext false
+                swapInSessionWithReplay(newSession, prevSession, priorMessages)
+            }
+            if (!ok) return@launch
+
+            // Reset the visible conversation and persisted history to the prefix;
+            // addMessage re-persists the resent user turn and the new reply.
+            uiState.setMessages(priorMessages)
+            if (sessionId != null) {
+                chatRepository?.replaceSessionMessages(
+                    sessionId,
+                    priorMessages.map { it.toChatMessageEntity(sessionId) }
+                )
+            }
+
+            addMessage(Message("User", newUserContent))
+        }
+    }
+
+    private fun Message.toChatMessageEntity(sessionId: String) = ChatMessageEntity(
+        sessionId = sessionId,
+        author = author,
+        content = content,
+        thinkingDurationSeconds = thinkingDurationSeconds,
+        thinkingTokens = thinkingTokens,
+        responseTokens = responseTokens,
+        responseDurationSeconds = responseDurationSeconds,
+        timestamp = timestamp
+    )
 
     private suspend fun ensureSession(firstUserMessage: Message): String {
         val existing = _currentSessionId.value
@@ -1350,6 +1500,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
 
             uiState.setMessages(uiMessages)
+            // The new session's KV cache is rebuilt lazily on the next turn, so
+            // reset the meter to 0 until then.
+            _contextUsedTokens.postValue(0)
 
             // Recreate native session with restored params and replay history
             val model = llamaModel
@@ -1382,6 +1535,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             uiState.resetMessages()
             // Fresh conversation starts with no web_search references.
             toolRegistry.webLinkStore.clear()
+            _contextUsedTokens.postValue(0)
 
             // Recreate native session with clean KV cache
             val model = llamaModel
@@ -1616,6 +1770,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _supportsThinking.postValue(false)
             _supportsToolCalling.postValue(false)
             _toolEnabledStates.postValue(emptyMap())
+            _contextUsedTokens.postValue(0)
         }
     }
 

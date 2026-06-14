@@ -45,4 +45,7 @@ class ChatRepository(private val dao: ChatDao) {
 
     suspend fun deleteSession(sessionId: String) =
         dao.deleteSession(sessionId)
+
+    suspend fun replaceSessionMessages(sessionId: String, messages: List<ChatMessageEntity>) =
+        dao.replaceSessionMessages(sessionId, messages)
 }
