@@ -3,7 +3,9 @@
 # For more examples on how to use CMake, see https://github.com/android/ndk-samples.
 
 # Sets the minimum CMake version required for this project.
-cmake_minimum_required(VERSION 3.31.6)
+# 3.31.5 is the newest CMake the Android SDK ships (no 3.31.6 package exists),
+# so the minimum is capped there; the patch difference is behaviourally inert.
+cmake_minimum_required(VERSION 3.31.5)
 
 # Declares the project name first
 project("llamacpp")
