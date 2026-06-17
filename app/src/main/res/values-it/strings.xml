@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string-array name="thinking_phrases">
+        <item>Sto pensando</item>
+        <item>Sto riflettendo</item>
+        <item>Sto ragionando</item>
+        <item>Ci penso su</item>
+        <item>Sto elaborando</item>
+        <item>Sto valutando</item>
+        <item>Medito</item>
+        <item>Rimugino</item>
+        <item>Sto ponderando</item>
+    </string-array>
     <string name="navigation_drawer_open">Apri pannello di navigazione</string>
     <string name="navigation_drawer_close">Chiudi pannello di navigazione</string>
     <string name="nav_header_desc">Intestazione di navigazione</string>

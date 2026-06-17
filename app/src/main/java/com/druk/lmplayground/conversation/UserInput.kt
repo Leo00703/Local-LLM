@@ -308,7 +308,7 @@ private fun UserInputText(
         if (status != UserInputStatus.NOT_LOADED && contextTotal > 0) {
             var showContextCount by remember { mutableStateOf(false) }
             Row(
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+                modifier = Modifier.padding(start = 4.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (showContextCount) {

@@ -136,7 +136,25 @@ fun ChatItemBubble(
                 message.content.contains("<think>") &&
                 !message.content.contains("</think>")
 
-            if (thinkingStreaming) {
+            if (thinkingStreaming && hasThinking) {
+                // Live reasoning: an expandable card with a running token count
+                // so the thinking can be watched as it streams in. Expanded by
+                // default; no final duration yet. Becomes the collapsed card below
+                // once </think> arrives.
+                val phrase = thinkingPhrase(message.id)
+                CollapsibleSection(
+                    label = buildString {
+                        append(phrase)
+                        if (message.thinkingTokens > 0) {
+                            append(" \u00B7 ${message.thinkingTokens} tokens")
+                        }
+                    },
+                    content = split.thinkingContent,
+                    icon = Icons.Outlined.AutoAwesome,
+                    initiallyExpanded = true
+                )
+            } else if (thinkingStreaming) {
+                // <think> opened but no content yet \u2014 animated header.
                 ThinkingCardLive(message.id)
             } else if (hasThinking) {
                 val thinkingText = stringResource(R.string.thinking)
@@ -258,9 +276,10 @@ fun ChatItemBubble(
 private fun CollapsibleSection(
     label: String,
     content: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    initiallyExpanded: Boolean = false
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(initiallyExpanded) }
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         label = "chevron"
@@ -391,13 +410,7 @@ private fun prettyJson(raw: String): String {
  */
 @Composable
 private fun ThinkingCardLive(messageId: Long) {
-    val phrases = stringArrayResource(R.array.thinking_phrases)
-    // Deterministic per-message pick (stable across recompositions, varied per reply).
-    val phrase = if (phrases.isEmpty()) {
-        ""
-    } else {
-        phrases[kotlin.random.Random(messageId).nextInt(phrases.size)]
-    }
+    val phrase = thinkingPhrase(messageId)
     val transition = rememberInfiniteTransition(label = "thinkingLive")
     val dotCount by transition.animateFloat(
         initialValue = 0f,
@@ -432,5 +445,16 @@ private fun ThinkingCardLive(messageId: Long) {
                 fontStyle = FontStyle.Italic
             )
         }
+    }
+}
+
+/** Localized "reasoning" phrase, picked deterministically per message (varied per reply). */
+@Composable
+private fun thinkingPhrase(messageId: Long): String {
+    val phrases = stringArrayResource(R.array.thinking_phrases)
+    return if (phrases.isEmpty()) {
+        ""
+    } else {
+        phrases[kotlin.random.Random(messageId).nextInt(phrases.size)]
     }
 }
