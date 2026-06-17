@@ -42,8 +42,8 @@ jobs:
 
     # Pre-install the pinned NDK. CMake is left to AGP for now; if it fails to
     # resolve CMake 3.31.6, the "Surface failure" step below reports it.
-    - name: Install pinned NDK
-      run: yes | sdkmanager "ndk;27.2.12479018" >/dev/null 2>&1 || echo "::warning::sdkmanager ndk install returned non-zero"
+    - name: Install pinned NDK and CMake
+      run: yes | sdkmanager "ndk;27.2.12479018" "cmake;3.31.5" >/dev/null 2>&1 || echo "::warning::sdkmanager install returned non-zero"
 
     - name: Build debug APK
       run: |

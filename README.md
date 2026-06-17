@@ -62,7 +62,7 @@ If you're just looking to install LM Playground, you can find it on [Google Play
 Prerequisites:
 * Android Studio [2024.3.1+](https://developer.android.com/studio/releases)
 * NDK 27.2.12479018
-* CMake 3.31.6
+* CMake 3.31.5
 
 1. Clone the repository with submodules:
 ```
