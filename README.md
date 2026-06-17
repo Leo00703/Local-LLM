@@ -1,9 +1,10 @@
-
 <h1 align="center">LM Playground</h1>
 
 <p align="center">
 <img src="logo.png"/>
 </p>
+
+> **Personal fork of [andriydruk/LMPlayground](https://github.com/andriydruk/LMPlayground)**, with extra features layered on top of the original app — see [Additions in this fork](#additions-in-this-fork). Full credit for the original goes to [Andriy Druk](https://github.com/andriydruk); like upstream, this fork is MIT-licensed.
 
 LM Playground is an Android application for running Large Language Models locally on-device. Download models, load them in one tap, and chat - all offline, all private. Powered by [llama.cpp](https://github.com/ggml-org/llama.cpp) with GGUF-format models from [Hugging Face](https://huggingface.co/).
 
@@ -14,10 +15,21 @@ LM Playground is an Android application for running Large Language Models locall
 - **On-device inference** - no cloud, no API keys, fully offline
 - **Rich markdown** in chat responses - headers, code blocks, lists, and more
 - **Reasoning model support** - thinking steps from models like GPT-OSS, DeepSeek R1, and Nemotron are displayed in a styled section
+- **Tool calling** - capable models can search the web, fetch a page, and run JavaScript in an on-device sandbox
 - **Reliable background downloads** - custom download engine with OkHttp and WorkManager, progress notifications with speed and ETA, automatic resume on network interruptions
 - **Storage management** - choose where to keep multi-GB model files with Android's Storage Access Framework
 - **ARM optimized** - KleidiAI kernels and OpenMP for faster generation on arm64 devices
 - **Large-screen ready** - tablets, foldables, and Chromebooks get a permanent sessions sidebar, list-detail Settings, and freeform window resize support
+
+## Additions in this fork
+
+Features added on top of upstream LM Playground:
+
+- **Message actions** - copy any message, **edit & resend** one of your prompts, or **regenerate** the latest reply (LM Studio-style). Editing or regenerating rebuilds the conversation from that point and re-runs generation.
+- **Redesigned reasoning panel** - the model's "thinking" and tool-call details render as collapsible rounded cards with an animated chevron.
+- **Generation stats** - an optional line under each reply showing total tokens, tokens/second, **time-to-first-token**, and elapsed time. Toggle it in **Settings → Sound, Haptics & Stats**.
+- **Context-window meter** - a small circular gauge next to the composer shows how full the model's context window is, taken from the engine's real KV-cache usage; tap it to open the full session report.
+- **One-tap debug builds** - a GitHub Actions workflow builds an installable debug APK on every push and uploads it as an artifact, so a build can be sideloaded without a local Android toolchain.
 
 ## Supported Models
 
@@ -55,7 +67,7 @@ Most models use Q4_K_M quantization; Qwen 3.5 uses Q3_K_M, and GPT-OSS ships in 
 
 ## Install
 
-If you're just looking to install LM Playground, you can find it on [Google Play](https://play.google.com/store/apps/details?id=com.druk.lmplayground). If you're a developer wanting to contribute, read on.
+The original LM Playground is on [Google Play](https://play.google.com/store/apps/details?id=com.druk.lmplayground). **This fork is not published to the Play Store** - build it from source (see below), or download a debug APK from this repository's [GitHub Actions](https://github.com/Leo00703/Local-LLM/actions) artifacts and sideload `app-arm64-v8a-debug.apk` (the build for most phones). The debug build installs alongside the Play Store version.
 
 ## Build Instructions
 
@@ -66,20 +78,27 @@ Prerequisites:
 
 1. Clone the repository with submodules:
 ```
-git clone --recurse-submodules https://github.com/andriydruk/LMPlayground.git
+git clone --recurse-submodules https://github.com/Leo00703/Local-LLM.git
 ```
 2. Open the project in Android Studio: `File` > `Open` > Select the cloned repository.
 3. Connect an Android device or start an emulator.
 4. Run the application using `Run` > `Run 'app'` or the play button in Android Studio.
 
+Or build the APK from the command line:
+```
+./gradlew assembleDebug    # output in app/build/outputs/apk/debug/
+```
+
+No local toolchain? Push to any branch (or run the **Build Debug APK** workflow from the Actions tab) and download the resulting APK artifact.
+
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [MIT License](LICENSE), inherited from upstream LM Playground.
 
 ## Acknowledgments
 
-This project is built on [llama.cpp](https://github.com/ggml-org/llama.cpp). Models are GGUF-format with Q4_K_M quantization sourced from [Hugging Face](https://huggingface.co/).
+This is a fork of [LM Playground](https://github.com/andriydruk/LMPlayground) by [Andriy Druk](https://github.com/andriydruk), built on [llama.cpp](https://github.com/ggml-org/llama.cpp). Models are GGUF-format (mostly Q4_K_M quantization) sourced from [Hugging Face](https://huggingface.co/).
 
 ## Contact
 
-If you have any questions, suggestions, or issues, feel free to open an issue or contact me directly at [me@andriydruk.com](mailto:me@andriydruk.com).
+For questions, suggestions, or issues with this fork, please [open an issue](https://github.com/Leo00703/Local-LLM/issues) on this repository.
