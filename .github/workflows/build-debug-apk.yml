@@ -55,14 +55,26 @@ jobs:
     - name: Surface Gradle failure
       if: failure()
       run: |
-        echo "::group::build.log tail (last 150 lines)"
-        tail -n 150 build.log || true
+        echo "::group::build.log tail (last 250 lines)"
+        tail -n 250 build.log || true
         echo "::endgroup::"
-        awk '/What went wrong:/{f=1} f{print} /^\* Try:/{f=0}' build.log | head -n 25 | while IFS= read -r l; do
-          [ -n "$l" ] && echo "::error title=gradle::$l"
+        # The real CMake configure error sits just before "Configuring incomplete".
+        LINE=$(grep -n "Configuring incomplete" build.log | head -1 | cut -d: -f1)
+        if [ -n "$LINE" ]; then
+          START=$(( LINE > 120 ? LINE - 120 : 1 ))
+          echo "::group::CMake error window"; sed -n "${START},${LINE}p" build.log; echo "::endgroup::"
+          sed -n "${START},${LINE}p" build.log \
+            | grep -iE "CMake Error|error:|fatal error|could not find|cannot find|no such file|unsupported|required|missing|not set|undefined reference" \
+            | grep -vE "CMAKE_EXPORT_COMPILE|CMAKE_SYSTEM|^[[:space:]]*-D" \
+            | head -n 30 | while IFS= read -r l; do echo "::error title=cmake::$l"; done
+        fi
+        # CMake's own check logs, if present
+        for f in $(find app/.cxx -name "CMakeError.log" 2>/dev/null | head -2); do
+          grep -iE "error|failed|could not|not found|unsupported" "$f" 2>/dev/null | head -n 15 | while IFS= read -r l; do echo "::error title=CMakeError::$l"; done
         done
-        grep -iE "cmake|ninja|ndk|not found|No version|did not contain|Could not" build.log | sort -u | head -n 20 | while IFS= read -r l; do
-          echo "::error title=native::$l"
+        # Gradle 'What went wrong'
+        awk '/What went wrong:/{f=1} f{print} /^\* Try:/{f=0}' build.log | head -n 15 | while IFS= read -r l; do
+          [ -n "$l" ] && echo "::error title=gradle::$l"
         done
 
     # ABI splits are enabled, so this produces app-arm64-v8a-debug.apk
