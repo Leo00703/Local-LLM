@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">LM Playground</string>
+    <string name="app_name" translatable="false">Local LLM</string>
 
     <string name="navigation_drawer_open">Navigatielade openen</string>
     <string name="navigation_drawer_close">Navigatielade sluiten</string>
@@ -282,7 +282,7 @@
          :llama-proces niet afsluit). -->
     <string name="inference_notification_channel_name">Inferentie-engine</string>
     <string name="inference_notification_channel_description">Houdt het AI-model geladen en klaar om te reageren.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Model geladen — klaar om te chatten.</string>
     <string name="inference_notification_loaded_title">Model geladen</string>
     <string name="inference_engine_crashed">Oeps, er ging iets mis.\nLaad het model opnieuw.</string>

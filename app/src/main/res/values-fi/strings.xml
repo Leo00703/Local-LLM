@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">LM Playground</string>
+    <string name="app_name" translatable="false">Local LLM</string>
 
     <string name="navigation_drawer_open">Avaa navigointipaneeli</string>
     <string name="navigation_drawer_close">Sulje navigointipaneeli</string>
@@ -279,7 +279,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">Päättelymoottori</string>
     <string name="inference_notification_channel_description">Pitää tekoälymallin ladattuna ja valmiina vastaamaan.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Malli ladattu — valmis keskusteluun.</string>
     <string name="inference_notification_loaded_title">Malli ladattu</string>
     <string name="inference_engine_crashed">Hupsis — jokin meni pieleen.\nLataa malli uudelleen.</string>

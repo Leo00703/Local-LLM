@@ -242,7 +242,7 @@
          système n\'arrête pas le processus :llama). -->
     <string name="inference_notification_channel_name">Moteur d\'inférence</string>
     <string name="inference_notification_channel_description">Garde le modèle d\'IA chargé et prêt à répondre.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Modèle chargé — prêt à discuter.</string>
     <string name="inference_notification_loaded_title">Modèle chargé</string>
     <string name="inference_engine_crashed">Oups, une erreur s\'est produite.\nVeuillez recharger le modèle.</string>

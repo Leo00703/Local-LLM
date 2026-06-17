@@ -242,7 +242,7 @@
          :llama-Prozess nicht beendet). -->
     <string name="inference_notification_channel_name">Inferenz-Engine</string>
     <string name="inference_notification_channel_description">Hält das KI-Modell geladen und bereit zur Antwort.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Modell geladen — bereit zum Chatten.</string>
     <string name="inference_notification_loaded_title">Modell geladen</string>
     <string name="inference_engine_crashed">Ups, da ist etwas schiefgelaufen.\nBitte lade das Modell neu.</string>

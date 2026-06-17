@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">LM Playground</string>
+    <string name="app_name" translatable="false">Local LLM</string>
 
     <string name="navigation_drawer_open">פתח מגירת ניווט</string>
     <string name="navigation_drawer_close">סגור מגירת ניווט</string>
@@ -280,7 +280,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">מנוע היסק</string>
     <string name="inference_notification_channel_description">שומר על מודל ה-AI טעון ומוכן להגיב.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">המודל נטען — מוכן לשיחה.</string>
     <string name="inference_notification_loaded_title">המודל נטען</string>
     <string name="inference_engine_crashed">אופס — משהו השתבש.\nטען מחדש את המודל.</string>

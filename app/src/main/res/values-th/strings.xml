@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">LM Playground</string>
+    <string name="app_name" translatable="false">Local LLM</string>
 
     <string name="navigation_drawer_open">เปิดลิ้นชักนำทาง</string>
     <string name="navigation_drawer_close">ปิดลิ้นชักนำทาง</string>
@@ -280,7 +280,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">เครื่องมือประมวลผล AI</string>
     <string name="inference_notification_channel_description">รักษาโมเดล AI ให้โหลดอยู่และพร้อมตอบสนอง</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">โหลดโมเดลแล้ว — พร้อมแชท</string>
     <string name="inference_notification_loaded_title">โหลดโมเดลแล้ว</string>
     <string name="inference_engine_crashed">อุ๊ปส์ — เกิดข้อผิดพลาด\nโปรดโหลดโมเดลอีกครั้ง</string>

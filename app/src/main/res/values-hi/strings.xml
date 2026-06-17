@@ -241,7 +241,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">इन्फ़रेंस इंजन</string>
     <string name="inference_notification_channel_description">AI मॉडल को लोड और जवाब देने के लिए तैयार रखता है।</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">मॉडल लोड हो गया — चैट के लिए तैयार।</string>
     <string name="inference_notification_loaded_title">मॉडल लोड हो गया</string>
     <string name="inference_engine_crashed">अरे — कुछ गड़बड़ हो गई।\nकृपया मॉडल फिर से लोड करें।</string>

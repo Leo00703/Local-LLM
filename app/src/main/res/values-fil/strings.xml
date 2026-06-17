@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">LM Playground</string>
+    <string name="app_name" translatable="false">Local LLM</string>
 
     <string name="navigation_drawer_open">Buksan ang navigation drawer</string>
     <string name="navigation_drawer_close">Isara ang navigation drawer</string>
@@ -279,7 +279,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">Inference engine</string>
     <string name="inference_notification_channel_description">Pinananatiling naka-load at handang tumugon ang AI model.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Naka-load ang modelo — handa nang mag-chat.</string>
     <string name="inference_notification_loaded_title">Naka-load ang modelo</string>
     <string name="inference_engine_crashed">Naku — may nangyaring mali.\nMangyaring i-reload ang modelo.</string>

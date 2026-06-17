@@ -97,7 +97,8 @@ fun ChatItemBubble(
                                     }
                                 },
                                 content = pre.thinkingContent,
-                                icon = Icons.Outlined.AutoAwesome
+                                icon = Icons.Outlined.AutoAwesome,
+                                markdown = true
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                         }
@@ -151,7 +152,8 @@ fun ChatItemBubble(
                     },
                     content = split.thinkingContent,
                     icon = Icons.Outlined.AutoAwesome,
-                    initiallyExpanded = true
+                    initiallyExpanded = true,
+                    markdown = true
                 )
             } else if (thinkingStreaming) {
                 // <think> opened but no content yet \u2014 animated header.
@@ -166,7 +168,8 @@ fun ChatItemBubble(
                         }
                     },
                     content = split.thinkingContent,
-                    icon = Icons.Outlined.AutoAwesome
+                    icon = Icons.Outlined.AutoAwesome,
+                    markdown = true
                 )
                 if (split.responseContent.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -277,7 +280,8 @@ private fun CollapsibleSection(
     label: String,
     content: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-    initiallyExpanded: Boolean = false
+    initiallyExpanded: Boolean = false,
+    markdown: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
     val chevronRotation by animateFloatAsState(
@@ -328,13 +332,25 @@ private fun CollapsibleSection(
             }
             AnimatedVisibility(visible = expanded) {
                 SelectionContainer {
-                    Text(
-                        text = content,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+                    val contentStyle = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    val contentModifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+                    if (markdown) {
+                        // Render the (markdown) thinking text formatted: *italic*,
+                        // **bold**, lists, inline code, etc.
+                        Text(
+                            text = messageFormatter(text = content, primary = false),
+                            style = contentStyle,
+                            modifier = contentModifier
+                        )
+                    } else {
+                        Text(
+                            text = content,
+                            style = contentStyle,
+                            modifier = contentModifier
+                        )
+                    }
                 }
             }
         }

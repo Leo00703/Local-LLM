@@ -241,7 +241,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">추론 엔진</string>
     <string name="inference_notification_channel_description">AI 모델을 로드된 상태로 유지하여 언제든 응답할 수 있게 합니다.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">모델 로드 완료 — 채팅 준비됨.</string>
     <string name="inference_notification_loaded_title">모델 로드 완료</string>
     <string name="inference_engine_crashed">이런, 문제가 발생했습니다.\n모델을 다시 로드해 주세요.</string>

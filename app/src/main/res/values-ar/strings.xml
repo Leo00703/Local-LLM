@@ -241,7 +241,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">محرك الاستدلال</string>
     <string name="inference_notification_channel_description">يُبقي نموذج الذكاء الاصطناعي محمَّلاً وجاهزاً للرد.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">تم تحميل النموذج — جاهز للمحادثة.</string>
     <string name="inference_notification_loaded_title">تم تحميل النموذج</string>
     <string name="inference_engine_crashed">عذراً، حدث خطأ ما.\nيرجى إعادة تحميل النموذج.</string>

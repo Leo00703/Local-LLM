@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">LM Playground</string>
+    <string name="app_name" translatable="false">Local LLM</string>
 
     <string name="navigation_drawer_open">Otevřít navigační panel</string>
     <string name="navigation_drawer_close">Zavřít navigační panel</string>
@@ -280,7 +280,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">Inferenční engine</string>
     <string name="inference_notification_channel_description">Udržuje model AI načtený a připravený odpovídat.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Model načten — připraven k chatu.</string>
     <string name="inference_notification_loaded_title">Model načten</string>
     <string name="inference_engine_crashed">Jejda — něco se pokazilo.\nProsím načtěte model znovu.</string>

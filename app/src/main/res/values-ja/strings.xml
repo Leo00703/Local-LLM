@@ -241,7 +241,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">推論エンジン</string>
     <string name="inference_notification_channel_description">AI モデルを読み込んだ状態に保ち、すぐ応答できるようにします。</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">モデルを読み込みました — チャットの準備完了。</string>
     <string name="inference_notification_loaded_title">モデルを読み込みました</string>
     <string name="inference_engine_crashed">おっと、問題が発生しました。\nモデルを再読み込みしてください。</string>

@@ -241,7 +241,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">Mesin inferensi</string>
     <string name="inference_notification_channel_description">Menjaga model AI tetap dimuat dan siap merespons.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Model dimuat — siap mengobrol.</string>
     <string name="inference_notification_loaded_title">Model dimuat</string>
     <string name="inference_engine_crashed">Ups — terjadi kesalahan.\nSilakan muat ulang model.</string>

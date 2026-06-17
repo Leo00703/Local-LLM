@@ -253,7 +253,7 @@
          sistema non termini il processo :llama). -->
     <string name="inference_notification_channel_name">Motore di inferenza</string>
     <string name="inference_notification_channel_description">Mantiene il modello di IA caricato e pronto a rispondere.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Modello caricato — pronto a chattare.</string>
     <string name="inference_notification_loaded_title">Modello caricato</string>
     <string name="inference_engine_crashed">Ops, qualcosa è andato storto.\nRicarica il modello.</string>

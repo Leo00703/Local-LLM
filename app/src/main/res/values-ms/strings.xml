@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">LM Playground</string>
+    <string name="app_name" translatable="false">Local LLM</string>
 
     <string name="navigation_drawer_open">Buka laci navigasi</string>
     <string name="navigation_drawer_close">Tutup laci navigasi</string>
@@ -279,7 +279,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">Enjin inferens</string>
     <string name="inference_notification_channel_description">Mengekalkan model AI dimuatkan dan sedia memberi respons.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Model dimuatkan — sedia untuk bersembang.</string>
     <string name="inference_notification_loaded_title">Model dimuatkan</string>
     <string name="inference_engine_crashed">Alamak — sesuatu telah berlaku.\nSila muatkan semula model.</string>

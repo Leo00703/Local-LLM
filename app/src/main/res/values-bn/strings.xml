@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">LM Playground</string>
+    <string name="app_name" translatable="false">Local LLM</string>
 
     <string name="navigation_drawer_open">নেভিগেশন ড্রয়ার খুলুন</string>
     <string name="navigation_drawer_close">নেভিগেশন ড্রয়ার বন্ধ করুন</string>
@@ -279,7 +279,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">ইনফারেন্স ইঞ্জিন</string>
     <string name="inference_notification_channel_description">AI মডেলটিকে লোড করে এবং প্রতিক্রিয়া জানাতে প্রস্তুত রাখে।</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">মডেল লোড হয়েছে — চ্যাট করার জন্য প্রস্তুত।</string>
     <string name="inference_notification_loaded_title">মডেল লোড হয়েছে</string>
     <string name="inference_engine_crashed">উফ — কিছু একটা ভুল হয়েছে।\nঅনুগ্রহ করে মডেলটি আবার লোড করুন।</string>

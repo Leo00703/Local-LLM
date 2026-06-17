@@ -240,7 +240,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">Рушій інференсу</string>
     <string name="inference_notification_channel_description">Тримає модель ШІ завантаженою та готовою відповідати.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Модель завантажено — готова до спілкування.</string>
     <string name="inference_notification_loaded_title">Модель завантажено</string>
     <string name="inference_engine_crashed">Ой — щось пішло не так.\nБудь ласка, перезавантажте модель.</string>

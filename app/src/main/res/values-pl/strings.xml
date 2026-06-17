@@ -240,7 +240,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">Silnik wnioskowania</string>
     <string name="inference_notification_channel_description">Utrzymuje model AI załadowany i gotowy do odpowiedzi.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Model załadowany — gotowy do rozmowy.</string>
     <string name="inference_notification_loaded_title">Model załadowany</string>
     <string name="inference_engine_crashed">Ups — coś poszło nie tak.\nWczytaj model ponownie.</string>

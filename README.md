@@ -1,4 +1,4 @@
-<h1 align="center">LM Playground</h1>
+<h1 align="center">Local LLM</h1>
 
 <p align="center">
 <img src="logo.png"/>
@@ -6,7 +6,7 @@
 
 > **Personal fork of [andriydruk/LMPlayground](https://github.com/andriydruk/LMPlayground)**, with extra features layered on top of the original app — see [Additions in this fork](#additions-in-this-fork). Full credit for the original goes to [Andriy Druk](https://github.com/andriydruk); like upstream, this fork is MIT-licensed.
 
-LM Playground is an Android application for running Large Language Models locally on-device. Download models, load them in one tap, and chat - all offline, all private. Powered by [llama.cpp](https://github.com/ggml-org/llama.cpp) with GGUF-format models from [Hugging Face](https://huggingface.co/).
+Local LLM is an Android application for running Large Language Models locally on-device. Download models, load them in one tap, and chat - all offline, all private. Powered by [llama.cpp](https://github.com/ggml-org/llama.cpp) with GGUF-format models from [Hugging Face](https://huggingface.co/).
 
 ![preview](docs/banner.png)
 

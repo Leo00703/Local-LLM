@@ -241,7 +241,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">Công cụ suy luận</string>
     <string name="inference_notification_channel_description">Giữ mô hình AI được tải và sẵn sàng phản hồi.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Đã tải mô hình — sẵn sàng trò chuyện.</string>
     <string name="inference_notification_loaded_title">Đã tải mô hình</string>
     <string name="inference_engine_crashed">Rất tiếc — đã xảy ra sự cố.\nVui lòng tải lại mô hình.</string>

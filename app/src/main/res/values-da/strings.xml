@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">LM Playground</string>
+    <string name="app_name" translatable="false">Local LLM</string>
 
     <string name="navigation_drawer_open">Åbn navigationsskuffe</string>
     <string name="navigation_drawer_close">Luk navigationsskuffe</string>
@@ -281,7 +281,7 @@
          :llama-processen). -->
     <string name="inference_notification_channel_name">Inferensmotor</string>
     <string name="inference_notification_channel_description">Holder AI-modellen indlæst og klar til at svare.</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">Model indlæst — klar til chat.</string>
     <string name="inference_notification_loaded_title">Model indlæst</string>
     <string name="inference_engine_crashed">Ups, noget gik galt.\nIndlæs modellen igen.</string>

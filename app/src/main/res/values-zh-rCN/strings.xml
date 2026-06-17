@@ -241,7 +241,7 @@
          model is loaded so the OS does not evict the :llama process). -->
     <string name="inference_notification_channel_name">推理引擎</string>
     <string name="inference_notification_channel_description">保持 AI 模型加载，可随时响应。</string>
-    <string name="inference_notification_title">LM Playground</string>
+    <string name="inference_notification_title">Local LLM</string>
     <string name="inference_notification_text">模型已加载 — 可以开始聊天。</string>
     <string name="inference_notification_loaded_title">模型已加载</string>
     <string name="inference_engine_crashed">糟糕，出了点问题。\n请重新加载模型。</string>
