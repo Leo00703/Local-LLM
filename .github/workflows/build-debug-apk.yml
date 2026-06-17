@@ -30,8 +30,40 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
+    # Diagnostics: surface which CMake/NDK packages the runner can install, as
+    # annotations (readable via the API), so a native tool-resolution failure
+    # is debuggable without downloading logs.
+    - name: Probe SDK packages
+      run: |
+        echo "::group::Available cmake / ndk 27 packages"
+        sdkmanager --list 2>/dev/null | grep -iE "cmake|ndk;27" | sed 's/^[[:space:]]*//' | sort -u | tee sdk-pkgs.txt
+        echo "::endgroup::"
+        while IFS= read -r l; do [ -n "$l" ] && echo "::warning title=sdk-pkg::$l"; done < sdk-pkgs.txt || true
+
+    # Pre-install the pinned NDK. CMake is left to AGP for now; if it fails to
+    # resolve CMake 3.31.6, the "Surface failure" step below reports it.
+    - name: Install pinned NDK
+      run: yes | sdkmanager "ndk;27.2.12479018" >/dev/null 2>&1 || echo "::warning::sdkmanager ndk install returned non-zero"
+
     - name: Build debug APK
-      run: ./gradlew assembleDebug
+      run: |
+        set -o pipefail
+        ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
+
+    # On failure, echo Gradle's "What went wrong" block and any native
+    # tool-resolution lines into annotations so they can be read via the API.
+    - name: Surface Gradle failure
+      if: failure()
+      run: |
+        echo "::group::build.log tail (last 150 lines)"
+        tail -n 150 build.log || true
+        echo "::endgroup::"
+        awk '/What went wrong:/{f=1} f{print} /^\* Try:/{f=0}' build.log | head -n 25 | while IFS= read -r l; do
+          [ -n "$l" ] && echo "::error title=gradle::$l"
+        done
+        grep -iE "cmake|ninja|ndk|not found|No version|did not contain|Could not" build.log | sort -u | head -n 20 | while IFS= read -r l; do
+          echo "::error title=native::$l"
+        done
 
     # ABI splits are enabled, so this produces app-arm64-v8a-debug.apk
     # (for phones like the Xiaomi 15), app-x86_64-debug.apk (emulators),
