@@ -115,7 +115,6 @@ fun UserInput(
     status: UserInputStatus = UserInputStatus.IDLE,
     contextUsed: Int = 0,
     contextTotal: Int = 0,
-    onContextClick: (() -> Unit)? = null,
     focusRequester: FocusRequester = remember { FocusRequester() },
     supportsThinking: Boolean = false,
     thinkingEnabled: Boolean = true,
@@ -179,7 +178,6 @@ fun UserInput(
                 status,
                 contextUsed = contextUsed,
                 contextTotal = contextTotal,
-                onContextClick = onContextClick,
                 focusRequester = focusRequester,
                 supportsThinking = supportsThinking,
                 thinkingEnabled = thinkingEnabled,
@@ -248,7 +246,6 @@ private fun UserInputText(
     status: UserInputStatus,
     contextUsed: Int = 0,
     contextTotal: Int = 0,
-    onContextClick: (() -> Unit)? = null,
     focusRequester: FocusRequester,
     supportsThinking: Boolean = false,
     thinkingEnabled: Boolean = true,
@@ -306,15 +303,28 @@ private fun UserInputText(
         }
 
         // Context-window meter, sitting just left of the Send button. Hidden
-        // until a model/session exists (NOT_LOADED) so it doesn't show a
-        // meaningless 0% before load.
+        // until a model/session exists. Tapping the ring toggles a subtle
+        // "used / total tokens" counter shown to its left.
         if (status != UserInputStatus.NOT_LOADED && contextTotal > 0) {
-            ContextWindowIndicator(
-                used = contextUsed,
-                total = contextTotal,
-                onClick = onContextClick,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp)
-            )
+            var showContextCount by remember { mutableStateOf(false) }
+            Row(
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (showContextCount) {
+                    Text(
+                        text = "$contextUsed / $contextTotal",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                }
+                ContextWindowIndicator(
+                    used = contextUsed,
+                    total = contextTotal,
+                    onClick = { showContextCount = !showContextCount }
+                )
+            }
         }
 
         val border = if (!sendMessageEnabled) {

@@ -229,6 +229,18 @@
     <string name="thoughts">Thoughts</string>
     <string name="enable_thinking">Enable thinking</string>
     <string name="disable_thinking">Disable thinking</string>
+    <!-- Rotating labels shown while the model is reasoning (picked at random per reply). -->
+    <string-array name="thinking_phrases">
+        <item>Thinking</item>
+        <item>Pondering</item>
+        <item>Reasoning</item>
+        <item>Mulling it over</item>
+        <item>Cogitating</item>
+        <item>Ruminating</item>
+        <item>Percolating</item>
+        <item>Working it out</item>
+        <item>Deliberating</item>
+    </string-array>
 
     <!-- Functionality -->
     <string name="functionality_not_available">Functionality not available \uD83D\uDE48</string>

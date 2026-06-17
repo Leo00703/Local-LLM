@@ -239,7 +239,6 @@ class ConversationFragment : Fragment() {
                 var bottomBarHeightPx by remember { mutableIntStateOf(0) }
                 val topBarHeight = with(density) { topBarHeightPx.toDp() }
                 val bottomBarHeight = with(density) { bottomBarHeightPx.toDp() }
-                var modelReport by remember { mutableStateOf<String?>(null) }
                 var editingMessage by remember { mutableStateOf<Message?>(null) }
 
                 // When model finishes loading, jump to bottom and open keyboard
@@ -514,9 +513,6 @@ class ConversationFragment : Fragment() {
                                 onSessionModelHintDismiss = {
                                     viewModel.dismissSessionModelHint()
                                 },
-                                onTokenCountClicked = {
-                                    modelReport = viewModel.getReport()
-                                },
                                 onRegenerate = {
                                     viewModel.regenerateLastResponse()
                                 },
@@ -608,7 +604,6 @@ class ConversationFragment : Fragment() {
                                     UserInputStatus.IDLE,
                                 contextUsed = contextUsed,
                                 contextTotal = generationParams.contextSize,
-                                onContextClick = { modelReport = viewModel.getReport() },
                                 supportsThinking = supportsThinking,
                                 thinkingEnabled = thinkingEnabled,
                                 onThinkingToggle = { viewModel.toggleThinking() },
@@ -696,8 +691,7 @@ class ConversationFragment : Fragment() {
 
                     // Models exist but none are downloaded → jump straight to the
                     // Models screen. (When some are downloaded, the frosted picker
-                    // overlay inside the chat Box above handles it.) The
-                    // session-info dialog stays a plain platform dialog.
+                    // overlay inside the chat Box above handles it.)
                     if (models.isNotEmpty()) {
                         if (models.none { it.isDownloaded }) {
                             // No downloaded models - go directly to Models screen
@@ -708,26 +702,6 @@ class ConversationFragment : Fragment() {
                                 }
                             }
                         }
-                    } else if (modelReport != null) {
-                        AlertDialog(
-                            onDismissRequest = {
-                                modelReport = null
-                            },
-                            title = {
-                                Text(text = stringResource(R.string.session_info))
-                            },
-                            text = {
-                                Text(
-                                    text = modelReport!!,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            },
-                            confirmButton = {
-                                TextButton(onClick = { modelReport = null }) {
-                                    Text(text = stringResource(R.string.close))
-                                }
-                            }
-                        )
                     }
                 }
 

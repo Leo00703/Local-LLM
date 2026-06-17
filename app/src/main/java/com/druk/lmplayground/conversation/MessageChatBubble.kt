@@ -46,6 +46,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -72,7 +73,7 @@ fun ChatItemBubble(
 
     Column {
         if (isWaitingForResponse) {
-            ThinkingIndicator()
+            ThinkingCardLive(message.id)
         } else {
             // Tool rounds: render each round's thinking immediately before its
             // tool call(s), in chronological order.
@@ -120,16 +121,24 @@ fun ChatItemBubble(
                 }
             }
 
-            // ③ If still generating after tool calls, show thinking indicator
+            // ③ If still generating after tool calls, show the live thinking card
             if (isGenerating && hasToolCalls && message.content.isEmpty()) {
-                ThinkingIndicator()
+                ThinkingCardLive(message.id)
             }
 
             // ④ Post-tool thinking + ⑤ Response (from content)
             val split = remember(message.content) { splitThinking(message.content) }
             val hasThinking = split.thinkingContent.isNotEmpty()
+            // While the model is still inside an unclosed <think> block, show the
+            // animated live card (no duration/tokens/chevron yet); once </think>
+            // arrives it becomes the full collapsible card below.
+            val thinkingStreaming = isGenerating &&
+                message.content.contains("<think>") &&
+                !message.content.contains("</think>")
 
-            if (hasThinking) {
+            if (thinkingStreaming) {
+                ThinkingCardLive(message.id)
+            } else if (hasThinking) {
                 val thinkingText = stringResource(R.string.thinking)
                 CollapsibleSection(
                     label = buildString {
@@ -316,16 +325,15 @@ private fun CollapsibleSection(
 private fun formatResponseStats(message: Message): String {
     val totalTokens = message.responseTokens + message.thinkingTokens
     return buildString {
+        // Order: tokens \u00B7 time \u00B7 tok/s \u00B7 TTFT
         append("$totalTokens tokens")
         val duration = message.responseDurationSeconds
         if (duration > 0f) {
+            append(" \u00B7 ${formatSeconds(duration)}")
             append(" \u00B7 ${"%.1f".format(totalTokens / duration)} tok/s")
         }
         if (message.ttftMs > 0) {
             append(" \u00B7 ${formatTtft(message.ttftMs)} TTFT")
-        }
-        if (duration > 0f) {
-            append(" \u00B7 ${formatSeconds(duration)}")
         }
     }
 }
@@ -373,9 +381,24 @@ private fun prettyJson(raw: String): String {
     }
 }
 
+/**
+ * Live "the model is reasoning" card shown while waiting for the first token and
+ * while a `<think>` block is still streaming. It uses the same rounded card as
+ * the finished thinking section so the transition is seamless, but shows only an
+ * animated, randomly-chosen phrase — no duration, token count, or expand chevron,
+ * since there's nothing final to show yet. Once `</think>` arrives the caller
+ * swaps in the full [CollapsibleSection].
+ */
 @Composable
-private fun ThinkingIndicator() {
-    val transition = rememberInfiniteTransition(label = "thinking")
+private fun ThinkingCardLive(messageId: Long) {
+    val phrases = stringArrayResource(R.array.thinking_phrases)
+    // Deterministic per-message pick (stable across recompositions, varied per reply).
+    val phrase = if (phrases.isEmpty()) {
+        ""
+    } else {
+        phrases[kotlin.random.Random(messageId).nextInt(phrases.size)]
+    }
+    val transition = rememberInfiniteTransition(label = "thinkingLive")
     val dotCount by transition.animateFloat(
         initialValue = 0f,
         targetValue = 4f,
@@ -386,11 +409,28 @@ private fun ThinkingIndicator() {
         label = "dots"
     )
     val dots = ".".repeat(dotCount.toInt().coerceIn(0, 3))
-    val thinkingText = stringResource(R.string.thinking)
-    Text(
-        text = "$thinkingText$dots",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.outline,
-        fontStyle = FontStyle.Italic
-    )
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.outline
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "$phrase$dots",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.outline,
+                fontStyle = FontStyle.Italic
+            )
+        }
+    }
 }
