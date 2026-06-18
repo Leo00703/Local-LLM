@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.roundToInt
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
@@ -303,10 +304,13 @@ private fun UserInputText(
         }
 
         // Context-window meter, sitting just left of the Send button. Hidden
-        // until a model/session exists. Tapping the ring toggles a subtle
-        // "used / total tokens" counter shown to its left.
+        // until a model/session exists. A permanent "used %" sits to the right
+        // of the ring (LM Studio-style); tapping the ring toggles a subtle
+        // "used / total tokens" count shown to its left.
         if (status != UserInputStatus.NOT_LOADED && contextTotal > 0) {
             var showContextCount by remember { mutableStateOf(false) }
+            val contextPercent = ((contextUsed.toFloat() / contextTotal) * 100f)
+                .roundToInt().coerceIn(0, 100)
             Row(
                 modifier = Modifier.padding(start = 4.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -323,6 +327,12 @@ private fun UserInputText(
                     used = contextUsed,
                     total = contextTotal,
                     onClick = { showContextCount = !showContextCount }
+                )
+                Text(
+                    text = "$contextPercent%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 2.dp)
                 )
             }
         }
