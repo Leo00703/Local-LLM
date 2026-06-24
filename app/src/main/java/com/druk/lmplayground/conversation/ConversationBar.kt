@@ -3,9 +3,15 @@
 package com.druk.lmplayground.conversation
 
 import android.net.Uri
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
@@ -25,7 +31,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -80,6 +89,7 @@ fun ConversationBar(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                         ) {
+                            ModelLogo(modelInfo.logoRes)
                             Text(
                                 text = modelInfo.name,
                                 style = MaterialTheme.typography.titleMedium,
@@ -107,6 +117,7 @@ fun ConversationBar(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                ModelLogo(modelInfo.logoRes)
                                 Text(
                                     text = modelInfo.name,
                                     style = MaterialTheme.typography.titleMedium,
@@ -172,6 +183,23 @@ fun ConversationBar(
             }
         }
     )
+}
+
+/** Provider logo shown to the left of the model name in the top bar. Renders
+ *  nothing when the model has no logo (logoRes == 0), e.g. a custom GGUF. */
+@Composable
+private fun ModelLogo(@DrawableRes logoRes: Int) {
+    if (logoRes != 0) {
+        Image(
+            painter = painterResource(id = logoRes),
+            contentDescription = null,
+            modifier = Modifier
+                .size(22.dp)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+    }
 }
 
 @Preview

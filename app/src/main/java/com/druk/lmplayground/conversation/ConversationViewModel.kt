@@ -446,6 +446,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 description = app.getString(
                     com.druk.lmplayground.R.string.remote_model_description, host
                 ),
+                logoRes = ModelInfoProvider.logoForModelId(modelId),
             )
             _loadedModel.postValue(modelInfo)
             _thinkingEnabled.postValue(false)

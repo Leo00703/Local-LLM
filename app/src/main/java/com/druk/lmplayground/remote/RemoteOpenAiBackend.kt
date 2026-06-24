@@ -99,10 +99,13 @@ class RemoteOpenAiBackend(
             if (systemPrompt.isNotBlank()) add(Msg("system", systemPrompt))
             addAll(history)
         }
+        val modelId = model.lowercase()
+        val disableThinking = !lastEnableThinking
         // Qwen3 soft-switch: appending "/no_think" to the latest user turn
-        // disables reasoning even on servers that ignore chat_template_kwargs
-        // (e.g. LM Studio). Applied to the request copy only, not stored history.
-        val messages = if (!lastEnableThinking) {
+        // disables reasoning even if the server drops chat_template_kwargs.
+        // Qwen-only — for other families the token is just stray prompt text.
+        // Applied to the request copy only, not the stored history.
+        val messages = if (disableThinking && modelId.contains("qwen")) {
             val idx = baseMessages.indexOfLast { it.role == "user" }
             if (idx >= 0) {
                 baseMessages.toMutableList().also {
@@ -121,10 +124,19 @@ class RemoteOpenAiBackend(
             if (minP > 0f) put("min_p", minP.toDouble())
             if (repeatPenalty != 1.0f) put("repeat_penalty", repeatPenalty.toDouble())
             if (seed >= 0) put("seed", seed)
-            // Only sent when the user turned thinking OFF, to avoid tripping
-            // servers that reject unknown template kwargs on the default path.
-            if (!lastEnableThinking) {
+            // Turning thinking OFF: different families read different switches, so
+            // send each one its server will honor (others ignore unknown fields).
+            // Only emitted when OFF, to leave the default path untouched.
+            //   enable_thinking=false   → Qwen3.x + most HF templates (LM Studio
+            //                             forwards chat_template_kwargs to Jinja).
+            //   thinking:{type:disabled} → GLM-4.5/4.6/4.7 native top-level switch.
+            // gpt-oss / DeepSeek-R1 / *-thinking-* are reasoning-only and cannot
+            // be turned off by any flag — that is the model, not the client.
+            if (disableThinking) {
                 put("chat_template_kwargs", JSONObject().put("enable_thinking", false))
+                if (modelId.contains("glm")) {
+                    put("thinking", JSONObject().put("type", "disabled"))
+                }
             }
             put("messages", JSONArray().apply {
                 messages.forEach {
