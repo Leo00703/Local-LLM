@@ -62,8 +62,10 @@ class RemoteServerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Apply a discovered server: fill the URL (model is picked later in chat). */
+    /** Apply a discovered server: fill the URL + remember its type (model is
+     *  picked later in chat). */
     fun useServer(server: FoundServer) {
         setServerUrl(server.url)
+        prefs.remoteServerType = server.serverType
     }
 }

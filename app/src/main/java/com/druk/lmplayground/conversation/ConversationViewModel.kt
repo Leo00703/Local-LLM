@@ -18,6 +18,7 @@ import com.druk.llamacpp.LlamaGenerationCallback
 import com.druk.llamacpp.LlamaProgressCallback
 import com.druk.lmplayground.remote.RemoteOpenAiClient
 import com.druk.lmplayground.remote.RemoteOpenAiModel
+import com.druk.lmplayground.remote.ServerModelDetails
 import com.druk.llamacpp.PayloadTooLargeException
 import com.druk.lmplayground.App
 import com.druk.lmplayground.data.ChatMessageEntity
@@ -177,6 +178,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val remoteModels: LiveData<List<String>> = _remoteModels
     private val _remoteModelsLoading = MutableLiveData(false)
     val remoteModelsLoading: LiveData<Boolean> = _remoteModelsLoading
+    private val _remoteServerType = MutableLiveData("")
+    val remoteServerType: LiveData<String> = _remoteServerType
+    // Native metadata of the currently-loaded remote model (for the details card).
+    private val _serverModelDetails = MutableLiveData<ServerModelDetails?>(null)
+    val serverModelDetails: LiveData<ServerModelDetails?> = _serverModelDetails
     val models: LiveData<List<ModelWithStatus>> = _models
     val supportsThinking: LiveData<Boolean> = _supportsThinking
     val thinkingEnabled: LiveData<Boolean> = _thinkingEnabled
@@ -372,6 +378,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     if (!remoteName.isNullOrBlank()) remoteName
                     else remoteUrl.orEmpty().substringAfter("://").ifEmpty { remoteUrl.orEmpty() }
                 )
+                _remoteServerType.postValue(storagePreferences.remoteServerType.orEmpty())
             }
         }
     }
@@ -425,6 +432,13 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
             prevHandle?.close()
 
+            // Read the server model's real metadata (context window, quant, …)
+            // so the context ring and the details card are accurate.
+            val details = RemoteOpenAiClient(url).fetchModelDetails(modelId)
+            _serverModelDetails.postValue(details)
+            val maxContext = details?.maxContext?.takeIf { it > 0 }
+                ?: RemoteOpenAiModel.DEFAULT_CONTEXT
+
             val host = url.substringAfter("://").ifEmpty { url }
             val modelInfo = ModelInfo(
                 name = modelId,
@@ -441,15 +455,15 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _supportsToolCalling.postValue(false)
             _toolEnabledStates.postValue(emptyMap())
 
-            val params = GenerationParams(contextSize = RemoteOpenAiModel.DEFAULT_CONTEXT)
+            val params = GenerationParams(contextSize = maxContext)
             _generationParams.postValue(params)
             _systemPrompt.postValue("")
             _systemPromptId.postValue(null)
-            _maxContextSize.postValue(RemoteOpenAiModel.DEFAULT_CONTEXT)
+            _maxContextSize.postValue(maxContext)
             _contextUsedTokens.postValue(0)
             _sessionModelHint.postValue(null)
 
-            val model = RemoteOpenAiModel(url, modelId)
+            val model = RemoteOpenAiModel(url, modelId, maxContext)
             val session = model.createSession(
                 params.contextSize, params.temperature, params.topP,
                 params.repetitionPenalty, params.topK, params.minP, params.seed,

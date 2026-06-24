@@ -114,6 +114,7 @@ class ConversationFragment : Fragment() {
             val models by viewModel.models.observeAsState(emptyList())
             val remoteServerAvailable by viewModel.remoteServerAvailable.observeAsState(false)
             val remoteServerLabel by viewModel.remoteServerLabel.observeAsState("")
+            val remoteServerType by viewModel.remoteServerType.observeAsState("")
             val remoteModels by viewModel.remoteModels.observeAsState(emptyList())
             val remoteModelsLoading by viewModel.remoteModelsLoading.observeAsState(false)
             val sessions by viewModel.sessions.observeAsState(emptyList())
@@ -670,6 +671,7 @@ class ConversationFragment : Fragment() {
                                 hazeStyle = hazeStyle,
                                 remoteServerAvailable = remoteServerAvailable,
                                 remoteServerLabel = remoteServerLabel,
+                                remoteServerType = remoteServerType,
                                 remoteModels = remoteModels,
                                 remoteModelsLoading = remoteModelsLoading,
                                 onRemoteServerExpand = { viewModel.fetchRemoteModels() },

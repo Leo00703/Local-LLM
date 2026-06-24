@@ -83,6 +83,7 @@ fun SelectModelDialog(
     onBrowseModels: () -> Unit,
     remoteServerAvailable: Boolean = false,
     remoteServerLabel: String = "",
+    remoteServerType: String = "",
     remoteModels: List<String> = emptyList(),
     remoteModelsLoading: Boolean = false,
     onRemoteServerExpand: () -> Unit = {},
@@ -145,6 +146,7 @@ fun SelectModelDialog(
                     item {
                         RemoteServerHeader(
                             label = remoteServerLabel,
+                            serverType = remoteServerType,
                             expanded = remoteExpanded,
                             onClick = {
                                 remoteExpanded = !remoteExpanded
@@ -339,9 +341,15 @@ fun Model(
 @Composable
 private fun RemoteServerHeader(
     label: String,
+    serverType: String,
     expanded: Boolean,
     onClick: () -> Unit
 ) {
+    val logoRes = when (serverType) {
+        "LM Studio" -> R.drawable.logo_lmstudio
+        "Ollama" -> R.drawable.logo_ollama
+        else -> 0
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -349,11 +357,22 @@ private fun RemoteServerHeader(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = Icons.Outlined.Dns,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface
-        )
+        if (logoRes != 0) {
+            Image(
+                painter = painterResource(id = logoRes),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Outlined.Dns,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+        }
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(

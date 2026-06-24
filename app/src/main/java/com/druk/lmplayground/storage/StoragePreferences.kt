@@ -44,6 +44,11 @@ class StoragePreferences(context: Context) {
         get() = prefs.getString("remote_server_name", null)
         set(value) = prefs.edit { putString("remote_server_name", value) }
 
+    /** Detected server software ("LM Studio" / "Ollama" / "OpenAI"), for its logo. */
+    var remoteServerType: String?
+        get() = prefs.getString("remote_server_type", null)
+        set(value) = prefs.edit { putString("remote_server_type", value) }
+
     /** Base URL of the remote server, e.g. "http://192.168.1.42:1234". Null = unset. */
     var remoteServerUrl: String?
         get() = prefs.getString("remote_server_url", null)

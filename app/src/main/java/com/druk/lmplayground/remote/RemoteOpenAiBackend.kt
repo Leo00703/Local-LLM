@@ -34,7 +34,11 @@ class RemoteOpenAiBackend(
     private val systemPrompt: String,
     private val temperature: Float,
     private val topP: Float,
+    private val topK: Int,
+    private val minP: Float,
+    private val repeatPenalty: Float,
     private val seed: Int,
+    private val maxContext: Int,
 ) : GenerationBackend {
 
     private data class Msg(val role: String, val content: String)
@@ -74,7 +78,7 @@ class RemoteOpenAiBackend(
      * parser can drive the context ring from the server's real token usage.
      */
     override fun getReport(): String =
-        if (contextUsed > 0) "Context: $contextUsed / ${RemoteOpenAiModel.DEFAULT_CONTEXT} tokens" else ""
+        if (contextUsed > 0) "Context: $contextUsed / $maxContext tokens" else ""
 
     override fun lastStats(): GenerationStats? = stats
 
@@ -112,6 +116,10 @@ class RemoteOpenAiBackend(
             put("stream_options", JSONObject().put("include_usage", true))
             put("temperature", temperature.toDouble())
             put("top_p", topP.toDouble())
+            // Vendor extensions honored by LM Studio (ignored elsewhere).
+            if (topK > 0) put("top_k", topK)
+            if (minP > 0f) put("min_p", minP.toDouble())
+            if (repeatPenalty != 1.0f) put("repeat_penalty", repeatPenalty.toDouble())
             if (seed >= 0) put("seed", seed)
             // Only sent when the user turned thinking OFF, to avoid tripping
             // servers that reject unknown template kwargs on the default path.
