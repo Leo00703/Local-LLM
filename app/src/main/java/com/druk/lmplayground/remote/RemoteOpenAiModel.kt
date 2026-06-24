@@ -25,7 +25,11 @@ class RemoteOpenAiModel(
 
     override fun supportsToolCalling(): Boolean = false
 
-    override fun unloadModel() { /* nothing to release */ }
+    override fun unloadModel() {
+        // Ask the server to evict the model from memory. Best-effort and
+        // blocking — the ViewModel calls this on a background dispatcher.
+        client.offloadBlocking(modelId)
+    }
 
     override fun createSession(
         contextSize: Int,

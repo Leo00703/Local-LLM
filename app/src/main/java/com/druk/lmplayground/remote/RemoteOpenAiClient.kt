@@ -25,6 +25,14 @@ class RemoteOpenAiClient(baseUrl: String) {
         .readTimeout(0, TimeUnit.SECONDS)
         .build()
 
+    // Bounded-timeout client for control calls (unload) so a hung server can't
+    // block the caller indefinitely the way the no-read-timeout chat client can.
+    private val controlHttp: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .callTimeout(15, TimeUnit.SECONDS)
+        .build()
+
     /** GET /v1/models → list of model ids. Empty on any failure. */
     suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
         try {
@@ -60,6 +68,33 @@ class RemoteOpenAiClient(baseUrl: String) {
             http.newCall(request).execute().use { it.isSuccessful }
         } catch (_: Exception) {
             false
+        }
+    }
+
+    /**
+     * Best-effort: ask the server to evict [model] from memory. Tries the
+     * LM Studio (POST /api/v1/models/unload) and Ollama (POST /api/generate,
+     * keep_alive=0) mechanisms; whichever doesn't apply just 404s. Blocking —
+     * call it from a background thread.
+     */
+    fun offloadBlocking(model: String) {
+        tryControlPost(
+            "$base/api/v1/models/unload",
+            JSONObject().put("instance_id", model).toString()
+        )
+        tryControlPost(
+            "$base/api/generate",
+            JSONObject().put("model", model).put("keep_alive", 0).toString()
+        )
+    }
+
+    private fun tryControlPost(url: String, json: String) {
+        try {
+            val body = json.toRequestBody("application/json".toMediaType())
+            controlHttp.newCall(Request.Builder().url(url).post(body).build())
+                .execute().use { /* ignore the body; best-effort */ }
+        } catch (_: Exception) {
+            // best-effort — server may not support this mechanism
         }
     }
 
