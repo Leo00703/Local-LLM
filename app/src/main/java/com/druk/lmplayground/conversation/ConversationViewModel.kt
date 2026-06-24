@@ -21,6 +21,7 @@ import com.druk.lmplayground.App
 import com.druk.lmplayground.data.ChatMessageEntity
 import com.druk.lmplayground.data.ChatRepository
 import com.druk.lmplayground.data.ChatSessionEntity
+import com.druk.lmplayground.data.FolderEntity
 import com.druk.lmplayground.data.ConversationMetadata
 import com.druk.lmplayground.data.SystemPromptEntity
 import com.druk.lmplayground.data.SystemPromptRepository
@@ -206,6 +207,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val currentSessionId: LiveData<String?> = _currentSessionId
     val sessions: LiveData<List<ChatSessionEntity>> =
         chatRepository?.getAllSessions() ?: MutableLiveData(emptyList())
+    val folders: LiveData<List<FolderEntity>> =
+        chatRepository?.getAllFolders() ?: MutableLiveData(emptyList())
     /**
      * Per-model MRU list. When the loaded model changes, switchMap swaps in
      * the corresponding query so the picker reflects "prompts I've used on
@@ -1699,6 +1702,59 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 _currentSessionId.value = null
                 uiState.resetMessages()
             }
+        }
+    }
+
+    // --- Folders ---
+
+    @MainThread
+    fun createFolder(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            chatRepository?.insertFolder(
+                FolderEntity(
+                    id = UUID.randomUUID().toString(),
+                    name = trimmed,
+                    createdAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    @MainThread
+    fun renameFolder(folderId: String, newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            chatRepository?.updateFolderName(folderId, trimmed)
+        }
+    }
+
+    /**
+     * Delete a folder and every chat inside it. If the currently open
+     * conversation lives in that folder, clear it so the UI doesn't keep
+     * showing a deleted chat.
+     */
+    @MainThread
+    fun deleteFolder(folderId: String) {
+        viewModelScope.launch {
+            val affected = sessions.value
+                ?.filter { it.folderId == folderId }
+                ?.map { it.id }
+                .orEmpty()
+            chatRepository?.deleteFolderAndChats(folderId)
+            if (_currentSessionId.value in affected) {
+                _currentSessionId.value = null
+                uiState.resetMessages()
+            }
+        }
+    }
+
+    @MainThread
+    fun moveSessionToFolder(sessionId: String, folderId: String?) {
+        viewModelScope.launch {
+            chatRepository?.updateSessionFolder(sessionId, folderId)
         }
     }
 

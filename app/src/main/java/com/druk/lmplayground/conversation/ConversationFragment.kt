@@ -113,6 +113,7 @@ class ConversationFragment : Fragment() {
             val isModelReady by viewModel.isModelReady.observeAsState(false)
             val models by viewModel.models.observeAsState(emptyList())
             val sessions by viewModel.sessions.observeAsState(emptyList())
+            val folders by viewModel.folders.observeAsState(emptyList())
             val currentSessionId by viewModel.currentSessionId.observeAsState()
             val generationParams by viewModel.generationParams.observeAsState(GenerationParams())
             val maxContextSize by viewModel.maxContextSize.observeAsState(4096)
@@ -710,6 +711,7 @@ class ConversationFragment : Fragment() {
                         drawerContent = {
                             PermanentSessionList(
                                 sessions = sessions,
+                                folders = folders,
                                 currentSessionId = currentSessionId,
                                 width = sidebarWidth,
                                 onSessionSelected = { sessionId ->
@@ -723,6 +725,18 @@ class ConversationFragment : Fragment() {
                                 },
                                 onPinSession = { sessionId, pinned ->
                                     viewModel.pinSession(sessionId, pinned)
+                                },
+                                onCreateFolder = { name ->
+                                    viewModel.createFolder(name)
+                                },
+                                onRenameFolder = { folderId, newName ->
+                                    viewModel.renameFolder(folderId, newName)
+                                },
+                                onDeleteFolder = { folderId ->
+                                    viewModel.deleteFolder(folderId)
+                                },
+                                onMoveSessionToFolder = { sessionId, folderId ->
+                                    viewModel.moveSessionToFolder(sessionId, folderId)
                                 },
                                 onSettingsClicked = {
                                     if (findNavController().currentDestination?.id == R.id.nav_home) {
@@ -738,6 +752,7 @@ class ConversationFragment : Fragment() {
                         drawerContent = {
                             SessionListDrawer(
                                 sessions = sessions,
+                                folders = folders,
                                 currentSessionId = currentSessionId,
                                 onSessionSelected = { sessionId ->
                                     viewModel.loadSession(sessionId)
@@ -751,6 +766,18 @@ class ConversationFragment : Fragment() {
                                 },
                                 onPinSession = { sessionId, pinned ->
                                     viewModel.pinSession(sessionId, pinned)
+                                },
+                                onCreateFolder = { name ->
+                                    viewModel.createFolder(name)
+                                },
+                                onRenameFolder = { folderId, newName ->
+                                    viewModel.renameFolder(folderId, newName)
+                                },
+                                onDeleteFolder = { folderId ->
+                                    viewModel.deleteFolder(folderId)
+                                },
+                                onMoveSessionToFolder = { sessionId, folderId ->
+                                    viewModel.moveSessionToFolder(sessionId, folderId)
                                 },
                                 onSettingsClicked = {
                                     scope.launch {

@@ -158,6 +158,15 @@
     <string name="rename">Rinomina</string>
     <string name="delete">Elimina</string>
     <string name="rename_conversation">Rinomina conversazione</string>
+    <string name="new_folder">Nuova cartella</string>
+    <string name="folder_name">Nome cartella</string>
+    <string name="create">Crea</string>
+    <string name="rename_folder">Rinomina cartella</string>
+    <string name="delete_folder">Elimina cartella</string>
+    <string name="delete_folder_message">Eliminare la cartella \"%1$s\" e le sue chat (%2$d)? L\'azione non è reversibile.</string>
+    <string name="move_to_folder">Sposta nella cartella</string>
+    <string name="no_folder">Nessuna cartella</string>
+    <string name="unfiled">Senza cartella</string>
     <string name="previously_used_model">Usato in precedenza: %s</string>
     <string name="choose_storage_folder">Scegli cartella di archiviazione</string>
     <string name="choose_storage_folder_message">Seleziona una cartella dove verranno salvati i modelli. Questo \u00E8 necessario per utilizzare l\'app.</string>

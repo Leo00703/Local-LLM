@@ -892,11 +892,16 @@ class TabletStoreScreenshots(
                         drawerContent = {
                             PermanentSessionList(
                                 sessions = sessions,
+                                folders = emptyList(),
                                 currentSessionId = sessions[0].id,
                                 onSessionSelected = {},
                                 onDeleteSession = {},
                                 onRenameSession = { _, _ -> },
                                 onPinSession = { _, _ -> },
+                                onCreateFolder = {},
+                                onRenameFolder = { _, _ -> },
+                                onDeleteFolder = {},
+                                onMoveSessionToFolder = { _, _ -> },
                                 onSettingsClicked = {},
                             )
                         },
@@ -1185,11 +1190,16 @@ class TabletStoreScreenshots(
                             drawerContent = {
                                 PermanentSessionList(
                                     sessions = sessions,
+                                    folders = emptyList(),
                                     currentSessionId = sessions[0].id,
                                     onSessionSelected = {},
                                     onDeleteSession = {},
                                     onRenameSession = { _, _ -> },
                                     onPinSession = { _, _ -> },
+                                    onCreateFolder = {},
+                                    onRenameFolder = { _, _ -> },
+                                    onDeleteFolder = {},
+                                    onMoveSessionToFolder = { _, _ -> },
                                     onSettingsClicked = {},
                                 )
                             },
