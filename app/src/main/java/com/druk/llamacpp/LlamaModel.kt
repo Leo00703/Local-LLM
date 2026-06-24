@@ -8,18 +8,18 @@ package com.druk.llamacpp
 class LlamaModel internal constructor(
     private val client: InferenceClient,
     internal val modelId: Int,
-) {
-    fun getModelSize(): Long = client.withService { it.getModelSize(modelId) }
+) : GenerationModel {
+    override fun getModelSize(): Long = client.withService { it.getModelSize(modelId) }
 
-    fun getModelReport(): String = client.withService { it.getModelReport(modelId) }
+    override fun getModelReport(): String = client.withService { it.getModelReport(modelId) }
 
-    fun getContextTrainSize(): Int = client.withService { it.getContextTrainSize(modelId) }
+    override fun getContextTrainSize(): Int = client.withService { it.getContextTrainSize(modelId) }
 
-    fun supportsThinking(): Boolean = client.withService { it.supportsThinking(modelId) }
+    override fun supportsThinking(): Boolean = client.withService { it.supportsThinking(modelId) }
 
-    fun supportsToolCalling(): Boolean = client.requireConnected().supportsToolCalling(modelId)
+    override fun supportsToolCalling(): Boolean = client.requireConnected().supportsToolCalling(modelId)
 
-    fun unloadModel() {
+    override fun unloadModel() {
         try {
             client.withService { it.unloadModel(modelId) }
         } catch (_: InferenceUnavailableException) {
@@ -29,7 +29,7 @@ class LlamaModel internal constructor(
         }
     }
 
-    fun createSession(
+    override fun createSession(
         contextSize: Int,
         temperature: Float,
         topP: Float,

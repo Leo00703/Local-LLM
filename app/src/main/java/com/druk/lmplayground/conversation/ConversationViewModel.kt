@@ -11,10 +11,10 @@ import androidx.lifecycle.viewModelScope
 import com.druk.llamacpp.InferenceLimits
 import com.druk.llamacpp.InferenceState
 import com.druk.llamacpp.InferenceUnavailableException
+import com.druk.llamacpp.GenerationBackend
+import com.druk.llamacpp.GenerationModel
 import com.druk.llamacpp.LlamaCpp
 import com.druk.llamacpp.LlamaGenerationCallback
-import com.druk.llamacpp.LlamaGenerationSession
-import com.druk.llamacpp.LlamaModel
 import com.druk.llamacpp.LlamaProgressCallback
 import com.druk.llamacpp.PayloadTooLargeException
 import com.druk.lmplayground.App
@@ -57,8 +57,8 @@ private const val HAPTIC_MIN_INTERVAL_MS = 60L
 class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
     private val llamaCpp: LlamaCpp? = (app as? App)?.llamaCpp
-    private var llamaModel: LlamaModel? = null
-    private var llamaSession: LlamaGenerationSession? = null
+    private var llamaModel: GenerationModel? = null
+    private var llamaSession: GenerationBackend? = null
     private var generatingJob: Job? = null
 
     // Keep strong reference to prevent GC from closing the file descriptor
@@ -684,7 +684,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         return true
     }
 
-    private fun replayHistoryToSession(session: LlamaGenerationSession, messages: List<Message>) {
+    private fun replayHistoryToSession(session: GenerationBackend, messages: List<Message>) {
         val userMessages = mutableListOf<String>()
         val assistantMessages = mutableListOf<String>()
 
@@ -728,8 +728,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      * Returns true if the swap happened, false if the caller should abort.
      */
     private fun swapInSessionWithReplay(
-        newSession: LlamaGenerationSession,
-        prevSession: LlamaGenerationSession?,
+        newSession: GenerationBackend,
+        prevSession: GenerationBackend?,
         messages: List<Message>,
     ): Boolean {
         try {
@@ -768,10 +768,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     }
 
     private fun createSessionWithParams(
-        model: LlamaModel,
+        model: GenerationModel,
         params: GenerationParams,
         systemPrompt: String = _systemPrompt.value.orEmpty()
-    ): LlamaGenerationSession? {
+    ): GenerationBackend? {
         return try {
             model.createSession(
                 params.contextSize,
@@ -1856,7 +1856,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      * most-recent files).
      */
     private fun applyPreambleCache(
-        session: LlamaGenerationSession,
+        session: GenerationBackend,
         toolsJson: String,
     ) {
         try {

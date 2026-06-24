@@ -18,8 +18,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 class LlamaGenerationSession internal constructor(
     private val client: InferenceClient,
     internal val sessionId: Int,
-) {
-    fun addMessage(message: String, enableThinking: Boolean) {
+) : GenerationBackend {
+    override fun addMessage(message: String, enableThinking: Boolean) {
         InferenceLimits.requireWithinBudget(message, "user message")
         client.withService { it.addMessage(sessionId, message, enableThinking) }
     }
@@ -33,7 +33,7 @@ class LlamaGenerationSession internal constructor(
      * is its own transaction. Per-message validation still applies
      * (each individual message must fit inside [InferenceLimits.MAX_PAYLOAD_BYTES]).
      */
-    fun replayHistory(userMessages: Array<String>, assistantMessages: Array<String>) {
+    override fun replayHistory(userMessages: Array<String>, assistantMessages: Array<String>) {
         require(userMessages.size == assistantMessages.size) {
             "userMessages and assistantMessages must have the same length " +
                 "(got ${userMessages.size} vs ${assistantMessages.size})"
@@ -60,13 +60,13 @@ class LlamaGenerationSession internal constructor(
         }
     }
 
-    fun printReport() {
+    override fun printReport() {
         client.withService { it.printSessionReport(sessionId) }
     }
 
-    fun getReport(): String = client.withService { it.getSessionReport(sessionId) }
+    override fun getReport(): String = client.withService { it.getSessionReport(sessionId) }
 
-    fun destroy() {
+    override fun destroy() {
         try { client.withService { it.destroySession(sessionId) } } catch (_: Throwable) {}
     }
 
@@ -76,7 +76,7 @@ class LlamaGenerationSession internal constructor(
      * disable tool calling for the next generation. Stateless on the
      * client side — every [generateAll] uses whatever was last set.
      */
-    fun setTools(toolsJson: String) {
+    override fun setTools(toolsJson: String) {
         client.requireConnected().setTools(sessionId, toolsJson)
     }
 
@@ -85,7 +85,7 @@ class LlamaGenerationSession internal constructor(
      * calls as a JSON array. Each element has `id`, `name`, and
      * `arguments` fields. Returns `"[]"` when no calls are pending.
      */
-    fun getToolCallsJson(): String =
+    override fun getToolCallsJson(): String =
         client.requireConnected().getToolCallsJson(sessionId)
 
     /**
@@ -94,7 +94,7 @@ class LlamaGenerationSession internal constructor(
      * `resultsJson` is a JSON array of `{ id, name, content }` objects.
      * Returns 0 on success, non-zero on error.
      */
-    fun submitToolResults(resultsJson: String, enableThinking: Boolean): Int =
+    override fun submitToolResults(resultsJson: String, enableThinking: Boolean): Int =
         client.requireConnected().submitToolResults(sessionId, resultsJson, enableThinking)
 
     /**
@@ -106,7 +106,7 @@ class LlamaGenerationSession internal constructor(
      * set changes; the cache is silently regenerated on mismatch. Pass
      * empty path/fingerprint to disable for this session.
      */
-    fun setPreambleCachePath(path: String, fingerprint: String) {
+    override fun setPreambleCachePath(path: String, fingerprint: String) {
         client.withService { it.setPreambleCachePath(sessionId, path, fingerprint) }
     }
 
@@ -131,7 +131,7 @@ class LlamaGenerationSession internal constructor(
      * via [submitToolResults] + a fresh [generateAll]), other non-zero
      * status from the service on error / cancel.
      */
-    suspend fun generateAll(callback: LlamaGenerationCallback): Int {
+    override suspend fun generateAll(callback: LlamaGenerationCallback): Int {
         // Snapshot a service for the duration of this generation. If it
         // dies we'll surface InferenceUnavailableException via withService
         // semantics (the cancel/finalize calls below tolerate failure).
