@@ -73,4 +73,35 @@ interface ChatDao {
         deleteMessagesForSession(sessionId)
         messages.forEach { insertMessage(it) }
     }
+
+    // --- Folders ---
+
+    @Query("SELECT * FROM folders ORDER BY position ASC, createdAt ASC")
+    fun getAllFolders(): LiveData<List<FolderEntity>>
+
+    @Insert
+    suspend fun insertFolder(folder: FolderEntity)
+
+    @Query("UPDATE folders SET name = :name WHERE id = :folderId")
+    suspend fun updateFolderName(folderId: String, name: String)
+
+    @Query("UPDATE chat_sessions SET folderId = :folderId WHERE id = :sessionId")
+    suspend fun updateSessionFolder(sessionId: String, folderId: String?)
+
+    @Query("DELETE FROM folders WHERE id = :folderId")
+    suspend fun deleteFolder(folderId: String)
+
+    @Query("DELETE FROM chat_sessions WHERE folderId = :folderId")
+    suspend fun deleteSessionsInFolder(folderId: String)
+
+    /**
+     * Delete a folder together with every chat it contains, in one
+     * transaction. The chats' messages are removed via the chat_messages
+     * foreign-key cascade.
+     */
+    @Transaction
+    suspend fun deleteFolderAndChats(folderId: String) {
+        deleteSessionsInFolder(folderId)
+        deleteFolder(folderId)
+    }
 }

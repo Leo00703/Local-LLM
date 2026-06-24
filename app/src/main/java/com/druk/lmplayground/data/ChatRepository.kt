@@ -48,4 +48,20 @@ class ChatRepository(private val dao: ChatDao) {
 
     suspend fun replaceSessionMessages(sessionId: String, messages: List<ChatMessageEntity>) =
         dao.replaceSessionMessages(sessionId, messages)
+
+    // --- Folders ---
+
+    fun getAllFolders(): LiveData<List<FolderEntity>> = dao.getAllFolders()
+
+    suspend fun insertFolder(folder: FolderEntity) =
+        dao.insertFolder(folder)
+
+    suspend fun updateFolderName(folderId: String, name: String) =
+        dao.updateFolderName(folderId, name)
+
+    suspend fun updateSessionFolder(sessionId: String, folderId: String?) =
+        dao.updateSessionFolder(sessionId, folderId)
+
+    suspend fun deleteFolderAndChats(folderId: String) =
+        dao.deleteFolderAndChats(folderId)
 }

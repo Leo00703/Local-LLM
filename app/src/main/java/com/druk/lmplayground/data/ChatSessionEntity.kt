@@ -1,9 +1,13 @@
 package com.druk.lmplayground.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "chat_sessions")
+@Entity(
+    tableName = "chat_sessions",
+    indices = [Index("folderId")]
+)
 data class ChatSessionEntity(
     @PrimaryKey val id: String,
     val title: String,
@@ -26,5 +30,7 @@ data class ChatSessionEntity(
      * the web_search link map; future features can add keys without a schema
      * change. See [ConversationMetadata].
      */
-    val metadata: String = "{}"
+    val metadata: String = "{}",
+    /** Folder this chat belongs to, or null when unfiled. See [FolderEntity]. */
+    val folderId: String? = null
 )

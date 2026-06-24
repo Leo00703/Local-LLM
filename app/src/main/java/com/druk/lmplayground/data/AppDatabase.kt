@@ -12,9 +12,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ChatSessionEntity::class,
         ChatMessageEntity::class,
         SystemPromptEntity::class,
-        PromptUsage::class
+        PromptUsage::class,
+        FolderEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -104,6 +105,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Project folders. Adds a `folders` table and a nullable `folderId` on
+         * chat_sessions (NULL = unfiled). Existing chats stay unfiled, so no
+         * conversation is lost. Folder deletion cascades to its chats in code
+         * (ChatDao.deleteFolderAndChats), so no DB-level foreign key is added
+         * here — keeping the migration a plain ADD COLUMN / CREATE TABLE.
+         */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS folders (" +
+                        "id TEXT NOT NULL PRIMARY KEY, " +
+                        "name TEXT NOT NULL, " +
+                        "createdAt INTEGER NOT NULL, " +
+                        "position INTEGER NOT NULL DEFAULT 0" +
+                        ")"
+                )
+                db.execSQL("ALTER TABLE chat_sessions ADD COLUMN folderId TEXT")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_chat_sessions_folderId " +
+                        "ON chat_sessions (folderId)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -116,7 +142,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_2_3,
                         MIGRATION_3_4,
                         MIGRATION_4_5,
-                        MIGRATION_5_6
+                        MIGRATION_5_6,
+                        MIGRATION_6_7
                     )
                     .build().also { INSTANCE = it }
             }
