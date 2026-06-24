@@ -22,12 +22,14 @@ import java.util.concurrent.TimeUnit
  * @param label short human label, e.g. `192.168.1.42:1234`
  * @param modelCount number of models the server advertised via `/v1/models`
  * @param firstModel id of the first advertised model, or null
+ * @param serverType detected server software: "LM Studio", "Ollama", or "OpenAI"
  */
 data class FoundServer(
     val url: String,
     val label: String,
     val modelCount: Int,
     val firstModel: String?,
+    val serverType: String,
 )
 
 /**
@@ -83,12 +85,35 @@ class LocalServerScanner {
                     label = "$ip:$port",
                     modelCount = data.length(),
                     firstModel = first,
+                    serverType = detectType(ip, port),
                 )
             }
         } catch (_: Exception) {
             // Connection refused / timeout / non-JSON — not a server here.
             null
         }
+    }
+
+    /**
+     * Best-effort identification of the server software, only run for hosts
+     * that already answered /v1/models (so just a handful). Probes the
+     * vendor-specific endpoints, falling back to the well-known port.
+     */
+    private fun detectType(ip: String, port: Int): String {
+        val host = "http://$ip:$port"
+        return when {
+            getOk("$host/api/tags") -> "Ollama"                       // Ollama native
+            getOk("$host/api/v0/models") || getOk("$host/api/v1/models") -> "LM Studio"
+            port == 11434 -> "Ollama"
+            port == 1234 -> "LM Studio"
+            else -> "OpenAI"
+        }
+    }
+
+    private fun getOk(url: String): Boolean = try {
+        client.newCall(Request.Builder().url(url).get().build()).execute().use { it.isSuccessful }
+    } catch (_: Exception) {
+        false
     }
 
     /** First 3 octets of the device's site-local IPv4, e.g. "192.168.1", or null. */

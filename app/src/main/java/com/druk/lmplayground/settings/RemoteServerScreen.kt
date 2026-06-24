@@ -202,8 +202,8 @@ fun RemoteServerContent(
                     Column(Modifier.weight(1f)) {
                         Text(text = server.label, style = MaterialTheme.typography.bodyLarge)
                         Text(
-                            text = server.firstModel
-                                ?: stringResource(R.string.server_models_count, server.modelCount),
+                            text = server.serverType + " · " + (server.firstModel
+                                ?: stringResource(R.string.server_models_count, server.modelCount)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

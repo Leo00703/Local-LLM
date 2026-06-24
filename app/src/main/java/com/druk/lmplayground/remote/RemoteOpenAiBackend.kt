@@ -91,10 +91,21 @@ class RemoteOpenAiBackend(
         }
 
     override suspend fun generateAll(callback: LlamaGenerationCallback): Int {
-        val messages = buildList {
+        val baseMessages = buildList {
             if (systemPrompt.isNotBlank()) add(Msg("system", systemPrompt))
             addAll(history)
         }
+        // Qwen3 soft-switch: appending "/no_think" to the latest user turn
+        // disables reasoning even on servers that ignore chat_template_kwargs
+        // (e.g. LM Studio). Applied to the request copy only, not stored history.
+        val messages = if (!lastEnableThinking) {
+            val idx = baseMessages.indexOfLast { it.role == "user" }
+            if (idx >= 0) {
+                baseMessages.toMutableList().also {
+                    it[idx] = it[idx].copy(content = it[idx].content + " /no_think")
+                }
+            } else baseMessages
+        } else baseMessages
         val bodyJson = JSONObject().apply {
             put("model", model)
             put("stream", true)
