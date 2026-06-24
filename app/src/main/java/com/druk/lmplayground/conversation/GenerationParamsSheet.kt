@@ -5,6 +5,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +20,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -46,11 +51,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
 import com.druk.lmplayground.settings.SystemPromptEditorSheet
@@ -99,6 +107,10 @@ fun GenerationParamsSheet(
     }
     BackHandler(onBack = commitAndDismiss)
     val frosted = hazeState != null
+    // Swipe-down-to-dismiss: dragging the top handle translates the sheet and,
+    // once past a threshold, commits the edits and closes it.
+    val dismissThresholdPx = with(LocalDensity.current) { 120.dp.toPx() }
+    var dragOffsetY by remember { mutableStateOf(0f) }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -113,6 +125,7 @@ fun GenerationParamsSheet(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .offset { IntOffset(0, dragOffsetY.roundToInt()) }
                 .windowInsetsPadding(WindowInsets.systemBars)
                 .imePadding()
                 .padding(horizontal = 8.dp, vertical = 8.dp)
@@ -125,18 +138,27 @@ fun GenerationParamsSheet(
                 ),
             shape = RoundedCornerShape(24.dp),
             color = if (frosted) Color.Transparent else MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             tonalElevation = if (frosted) 0.dp else 6.dp,
             shadowElevation = 8.dp,
         ) {
           Box(modifier = if (frosted) Modifier.hazeEffect(hazeState!!, hazeStyle) else Modifier) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                DragHandle(
+                    onDrag = { delta -> dragOffsetY = (dragOffsetY + delta).coerceAtLeast(0f) },
+                    onDragStopped = {
+                        if (dragOffsetY > dismissThresholdPx) commitAndDismiss()
+                        else dragOffsetY = 0f
+                    }
+                )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .weight(1f, fill = false)
                 .padding(horizontal = 24.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -412,6 +434,7 @@ fun GenerationParamsSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
         }
+            }
           }
         }
     }
@@ -435,6 +458,34 @@ fun GenerationParamsSheet(
                 }
             },
             onDismiss = { showPromptReviser = false }
+        )
+    }
+}
+
+/** Grab bar at the top of the sheet; a downward drag past the threshold hides
+ *  the card (see [GenerationParamsSheet]). The whole top strip is draggable so
+ *  it is easy to grab. */
+@Composable
+private fun DragHandle(
+    onDrag: (Float) -> Unit,
+    onDragStopped: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .draggable(
+                orientation = Orientation.Vertical,
+                state = rememberDraggableState { delta -> onDrag(delta) },
+                onDragStopped = { onDragStopped() }
+            )
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 36.dp, height = 4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
         )
     }
 }

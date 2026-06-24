@@ -97,6 +97,9 @@ fun SessionListDrawer(
                 .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
             shape = RoundedCornerShape(24.dp),
             color = if (frosted) Color.Transparent else MaterialTheme.colorScheme.surfaceContainer,
+            // A transparent (frosted) Surface yields no implicit content color,
+            // so set it explicitly or the text falls back to default black.
+            contentColor = MaterialTheme.colorScheme.onSurface,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             tonalElevation = if (frosted) 0.dp else 2.dp,
         ) {
