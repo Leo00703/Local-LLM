@@ -179,6 +179,9 @@
     <string name="scanning">Scansione…</string>
     <string name="found_servers">Server trovati</string>
     <string name="server_models_count">%d modelli</string>
+    <string name="remote_no_models">Nessun modello sul server</string>
+    <string name="remote_model_description">Remoto · %s</string>
+    <string name="remote_server_not_configured">Configura prima il server nelle Impostazioni</string>
     <string name="previously_used_model">Usato in precedenza: %s</string>
     <string name="choose_storage_folder">Scegli cartella di archiviazione</string>
     <string name="choose_storage_folder_message">Seleziona una cartella dove verranno salvati i modelli. Questo \u00E8 necessario per utilizzare l\'app.</string>

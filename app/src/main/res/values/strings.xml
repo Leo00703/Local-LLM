@@ -212,6 +212,9 @@
     <string name="scanning">Scanning…</string>
     <string name="found_servers">Found servers</string>
     <string name="server_models_count">%d models</string>
+    <string name="remote_no_models">No models on the server</string>
+    <string name="remote_model_description">Remote · %s</string>
+    <string name="remote_server_not_configured">Set up the server in Settings first</string>
     <string name="previously_used_model">Previously used: %s</string>
 
     <!-- Storage -->

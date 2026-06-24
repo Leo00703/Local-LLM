@@ -16,6 +16,8 @@ import com.druk.llamacpp.GenerationModel
 import com.druk.llamacpp.LlamaCpp
 import com.druk.llamacpp.LlamaGenerationCallback
 import com.druk.llamacpp.LlamaProgressCallback
+import com.druk.lmplayground.remote.RemoteOpenAiClient
+import com.druk.lmplayground.remote.RemoteOpenAiModel
 import com.druk.llamacpp.PayloadTooLargeException
 import com.druk.lmplayground.App
 import com.druk.lmplayground.data.ChatMessageEntity
@@ -165,6 +167,16 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val modelLoadingProgress: LiveData<Float> = _modelLoadingProgress
     val loadedModel: LiveData<ModelInfo?> = _loadedModel
     val loadedModelStatus: LiveData<String?> = _loadedModelStatus
+
+    // Remote (OpenAI-compatible) server, surfaced in the model picker.
+    private val _remoteServerAvailable = MutableLiveData(false)
+    val remoteServerAvailable: LiveData<Boolean> = _remoteServerAvailable
+    private val _remoteServerLabel = MutableLiveData("")
+    val remoteServerLabel: LiveData<String> = _remoteServerLabel
+    private val _remoteModels = MutableLiveData<List<String>>(emptyList())
+    val remoteModels: LiveData<List<String>> = _remoteModels
+    private val _remoteModelsLoading = MutableLiveData(false)
+    val remoteModelsLoading: LiveData<Boolean> = _remoteModelsLoading
     val models: LiveData<List<ModelWithStatus>> = _models
     val supportsThinking: LiveData<Boolean> = _supportsThinking
     val thinkingEnabled: LiveData<Boolean> = _thinkingEnabled
@@ -351,6 +363,108 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     ModelInfoProvider.getModelsWithStatus(downloadedFilenames, customModels)
                         .map { it.copy(model = it.model.resolveCapabilities(storagePreferences)) }
                 )
+                val remoteUrl = storagePreferences.remoteServerUrl
+                _remoteServerAvailable.postValue(
+                    storagePreferences.remoteServerEnabled && !remoteUrl.isNullOrBlank()
+                )
+                _remoteServerLabel.postValue(
+                    remoteUrl.orEmpty().substringAfter("://").ifEmpty { remoteUrl.orEmpty() }
+                )
+            }
+        }
+    }
+
+    /** Fetch the remote server's model list for the picker's remote section. */
+    fun fetchRemoteModels() {
+        val url = storagePreferences.remoteServerUrl
+        if (url.isNullOrBlank()) {
+            _remoteModels.postValue(emptyList())
+            return
+        }
+        if (_remoteModelsLoading.value == true) return
+        _remoteModelsLoading.postValue(true)
+        viewModelScope.launch {
+            val models = RemoteOpenAiClient(url).listModels()
+            _remoteModels.postValue(models)
+            _remoteModelsLoading.postValue(false)
+        }
+    }
+
+    /**
+     * Connect to the configured remote server and use [modelId] as the active
+     * model — no GGUF is loaded. Tears down any local model/session first and
+     * replays the on-screen history into the new remote session.
+     */
+    fun loadRemoteModel(modelId: String) {
+        val url = storagePreferences.remoteServerUrl
+        if (url.isNullOrBlank()) {
+            _userError.postValue(
+                app.getString(com.druk.lmplayground.R.string.remote_server_not_configured)
+            )
+            return
+        }
+        viewModelScope.launch {
+            _models.postValue(emptyList())
+            _isModelReady.postValue(false)
+
+            generatingJob?.cancel()
+            generatingJob?.join()
+            generatingJob = null
+
+            val prevSession = llamaSession
+            val prevModel = llamaModel
+            val prevHandle = modelFileHandle
+            llamaSession = null
+            llamaModel = null
+            modelFileHandle = null
+            withContext(Dispatchers.Default) {
+                prevSession?.destroy()
+                prevModel?.unloadModel()
+            }
+            prevHandle?.close()
+
+            val host = url.substringAfter("://").ifEmpty { url }
+            val modelInfo = ModelInfo(
+                name = modelId,
+                filename = "remote:$modelId",
+                description = app.getString(
+                    com.druk.lmplayground.R.string.remote_model_description, host
+                ),
+            )
+            _loadedModel.postValue(modelInfo)
+            _thinkingEnabled.postValue(false)
+            _supportsThinking.postValue(false)
+            _supportsToolCalling.postValue(false)
+            _toolEnabledStates.postValue(emptyMap())
+
+            val params = GenerationParams()
+            _generationParams.postValue(params)
+            _systemPrompt.postValue("")
+            _systemPromptId.postValue(null)
+            _maxContextSize.postValue(RemoteOpenAiModel.DEFAULT_CONTEXT)
+            _contextUsedTokens.postValue(0)
+            _sessionModelHint.postValue(null)
+
+            val model = RemoteOpenAiModel(url, modelId)
+            val session = model.createSession(
+                params.contextSize, params.temperature, params.topP,
+                params.repetitionPenalty, params.topK, params.minP, params.seed,
+                params.thinkingBudget, ""
+            )
+            llamaModel = model
+            llamaSession = session
+
+            val messages = uiState.messages.toList()
+            if (messages.isNotEmpty()) {
+                try { replayHistoryToSession(session, messages) } catch (_: Throwable) {}
+            }
+            storagePreferences.remoteServerModel = modelId
+            _loadedModelStatus.postValue(host)
+            _isModelReady.postValue(true)
+
+            val sessionId = _currentSessionId.value
+            if (sessionId != null) {
+                chatRepository?.updateSessionModel(sessionId, modelInfo.filename, modelInfo.name)
             }
         }
     }

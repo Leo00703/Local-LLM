@@ -112,6 +112,10 @@ class ConversationFragment : Fragment() {
             val thinkingEnabled by viewModel.thinkingEnabled.observeAsState(false)
             val isModelReady by viewModel.isModelReady.observeAsState(false)
             val models by viewModel.models.observeAsState(emptyList())
+            val remoteServerAvailable by viewModel.remoteServerAvailable.observeAsState(false)
+            val remoteServerLabel by viewModel.remoteServerLabel.observeAsState("")
+            val remoteModels by viewModel.remoteModels.observeAsState(emptyList())
+            val remoteModelsLoading by viewModel.remoteModelsLoading.observeAsState(false)
             val sessions by viewModel.sessions.observeAsState(emptyList())
             val folders by viewModel.folders.observeAsState(emptyList())
             val currentSessionId by viewModel.currentSessionId.observeAsState()
@@ -658,12 +662,18 @@ class ConversationFragment : Fragment() {
                         // it. A separate Dialog window couldn't be blurred by
                         // Haze. The overlay already fills the chat pane, so no
                         // chatPaneStartOffset is needed.
-                        if (models.isNotEmpty() && models.any { it.isDownloaded }) {
+                        if (models.isNotEmpty() && (models.any { it.isDownloaded } || remoteServerAvailable)) {
                             SelectModelDialog(
                                 models = models,
                                 isModelLoaded = modelInfo != null,
                                 hazeState = hazeState,
                                 hazeStyle = hazeStyle,
+                                remoteServerAvailable = remoteServerAvailable,
+                                remoteServerLabel = remoteServerLabel,
+                                remoteModels = remoteModels,
+                                remoteModelsLoading = remoteModelsLoading,
+                                onRemoteServerExpand = { viewModel.fetchRemoteModels() },
+                                onLoadRemoteModel = { id -> viewModel.loadRemoteModel(id) },
                                 onLoadModel = { model ->
                                     viewModel.loadModel(model)
                                 },

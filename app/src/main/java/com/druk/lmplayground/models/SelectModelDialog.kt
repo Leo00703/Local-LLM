@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,12 +21,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Eject
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +38,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.Image
@@ -68,10 +76,17 @@ fun SelectModelDialog(
     onUnloadModel: () -> Unit = {},
     onGenerationParams: () -> Unit = {},
     onBrowseModels: () -> Unit,
+    remoteServerAvailable: Boolean = false,
+    remoteServerLabel: String = "",
+    remoteModels: List<String> = emptyList(),
+    remoteModelsLoading: Boolean = false,
+    onRemoteServerExpand: () -> Unit = {},
+    onLoadRemoteModel: (String) -> Unit = {},
     onDismissRequest: () -> Unit
 ) {
     // Only show downloaded models
     val downloadedModels = models.filter { it.isDownloaded }
+    var remoteExpanded by remember { mutableStateOf(false) }
 
     // Rendered as an in-composition overlay (not a platform Dialog) so the
     // frosted card can blur the chat behind it — Haze can't reach across the
@@ -115,6 +130,55 @@ fun SelectModelDialog(
                 } else Modifier
             ) {
             LazyColumn {
+                // Remote server section, above the downloaded models.
+                if (remoteServerAvailable) {
+                    item {
+                        RemoteServerHeader(
+                            label = remoteServerLabel,
+                            expanded = remoteExpanded,
+                            onClick = {
+                                remoteExpanded = !remoteExpanded
+                                if (remoteExpanded) onRemoteServerExpand()
+                            }
+                        )
+                    }
+                    if (remoteExpanded) {
+                        if (remoteModelsLoading) {
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                }
+                            }
+                        } else if (remoteModels.isEmpty()) {
+                            item {
+                                Text(
+                                    text = stringResource(R.string.remote_no_models),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            }
+                        } else {
+                            items(items = remoteModels, key = { "remote:$it" }) { id ->
+                                RemoteModelRow(modelId = id) {
+                                    onDismissRequest()
+                                    onLoadRemoteModel(id)
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
+                    }
+                }
                 if (downloadedModels.isEmpty()) {
                     item {
                         Text(
@@ -258,6 +322,77 @@ fun Model(
             modifier = Modifier.padding(4.dp),
             tint = MaterialTheme.colorScheme.onSurface,
             contentDescription = null
+        )
+    }
+}
+
+@Composable
+private fun RemoteServerHeader(
+    label: String,
+    expanded: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Dns,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.remote_server),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
+            if (label.isNotBlank()) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+        }
+        Icon(
+            imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun RemoteModelRow(
+    modelId: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 52.dp, top = 12.dp, bottom = 12.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = modelId,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            imageVector = Icons.Outlined.AutoAwesome,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(start = 4.dp)
         )
     }
 }
