@@ -86,30 +86,33 @@ class RemoteOpenAiClient(baseUrl: String) {
     }
 
     /**
-     * Best-effort: ask the server to evict [model] from memory. Tries the
-     * LM Studio (POST /api/v1/models/unload) and Ollama (POST /api/generate,
-     * keep_alive=0) mechanisms; whichever doesn't apply just 404s. Blocking —
-     * call it from a background thread.
+     * Best-effort: ask the server to evict [model] from memory. LM Studio's
+     * native unload is tried first; a 2xx means this IS LM Studio and the model
+     * was evicted, so the Ollama path is skipped — otherwise that second call
+     * would hit LM Studio's unknown-endpoint handler and log a spurious error.
+     * Ollama servers 404 the LM Studio path, so they fall through to the
+     * keep_alive=0 generate call. Blocking — call from a background thread.
      */
     fun offloadBlocking(model: String) {
-        tryControlPost(
+        val unloaded = tryControlPost(
             "$base/api/v1/models/unload",
             JSONObject().put("instance_id", model).toString()
         )
+        if (unloaded) return
         tryControlPost(
             "$base/api/generate",
             JSONObject().put("model", model).put("keep_alive", 0).toString()
         )
     }
 
-    private fun tryControlPost(url: String, json: String) {
-        try {
-            val body = json.toRequestBody("application/json".toMediaType())
-            controlHttp.newCall(Request.Builder().url(url).post(body).build())
-                .execute().use { /* ignore the body; best-effort */ }
-        } catch (_: Exception) {
-            // best-effort — server may not support this mechanism
-        }
+    /** POST [json] to [url]; returns true on a 2xx response. Never throws. */
+    private fun tryControlPost(url: String, json: String): Boolean = try {
+        val body = json.toRequestBody("application/json".toMediaType())
+        controlHttp.newCall(Request.Builder().url(url).post(body).build())
+            .execute().use { it.isSuccessful }
+    } catch (_: Exception) {
+        // best-effort — server may not support this mechanism
+        false
     }
 
     /**

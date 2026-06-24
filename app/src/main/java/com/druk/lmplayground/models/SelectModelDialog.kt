@@ -358,12 +358,15 @@ private fun RemoteServerHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (logoRes != 0) {
+            // LM Studio's mark is a rounded square — keep its native shape
+            // rather than clipping it to a circle like the round Ollama mark.
+            val logoShape = if (serverType == "LM Studio") RoundedCornerShape(7.dp) else CircleShape
             Image(
                 painter = painterResource(id = logoRes),
                 contentDescription = null,
                 modifier = Modifier
                     .size(28.dp)
-                    .clip(CircleShape),
+                    .clip(logoShape),
                 contentScale = ContentScale.Crop
             )
         } else {
@@ -420,7 +423,7 @@ private fun RemoteModelRow(
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = modelId,
+            text = ModelInfoProvider.prettifyModelId(modelId),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,

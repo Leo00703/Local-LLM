@@ -441,7 +441,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
             val host = url.substringAfter("://").ifEmpty { url }
             val modelInfo = ModelInfo(
-                name = modelId,
+                name = ModelInfoProvider.prettifyModelId(modelId),
                 filename = "remote:$modelId",
                 description = app.getString(
                     com.druk.lmplayground.R.string.remote_model_description, host

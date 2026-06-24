@@ -498,6 +498,57 @@ object ModelInfoProvider {
             ?: R.drawable.penrose_triangle
     }
 
+    // Tokens shown fully upper-cased in a prettified name (acronyms / formats).
+    private val NAME_ACRONYMS = setOf(
+        "mtp", "qat", "moe", "oss", "gpt", "glm", "lfm", "qwq", "fp8", "fp16",
+        "bf16", "awq", "gptq", "gguf", "mlx", "it", "rl", "sft", "dpo", "ocr",
+        "vl", "rag",
+    )
+    // Canonical capitalisation for known model families / publishers.
+    private val NAME_FAMILY_CASING = mapOf(
+        "qwen" to "Qwen", "gemma" to "Gemma", "glm" to "GLM", "lfm" to "LFM",
+        "llama" to "Llama", "mistral" to "Mistral", "ministral" to "Ministral",
+        "mixtral" to "Mixtral", "phi" to "Phi", "granite" to "Granite",
+        "nemotron" to "Nemotron", "bonsai" to "Bonsai", "deepseek" to "DeepSeek",
+        "gpt" to "GPT", "gemini" to "Gemini", "openai" to "OpenAI", "yi" to "Yi",
+    )
+    private val PARAM_SIZE = Regex("^\\d+(\\.\\d+)?[bmk]$")          // 4b, 0.5b, 350m
+    private val ACTIVE_PARAMS = Regex("^a\\d+(\\.\\d+)?b$")          // a3b, a1b
+    private val FAMILY_VERSION = Regex("^([a-z]+)(\\d[\\d.]*)$")     // qwen3.5, lfm2.5
+    private val PLAIN_VERSION = Regex("^\\d[\\d.]*$")                // 3.5, 4
+
+    /**
+     * Turn a raw server model id into a friendly display name, e.g.
+     * "qwen3.5-4b-mtp" → "Qwen 3.5 4B MTP", "google/gemma-4-12b-qat" →
+     * "Gemma 4 12B QAT". Strips a leading "publisher/" segment, splits a family
+     * from its glued version number, sentence-cases plain words, and keeps
+     * parameter sizes (4B, A3B) and known acronyms (MTP, QAT, MoE…) upper-cased.
+     * Purely cosmetic — the raw id is still used for every server call.
+     */
+    fun prettifyModelId(rawId: String): String {
+        val core = rawId.substringAfterLast('/').trim()
+        if (core.isEmpty()) return rawId
+        // Keep dots (version numbers) but break on - and _.
+        val tokens = core.split('-', '_').filter { it.isNotBlank() }
+        val pretty = tokens.joinToString(" ") { prettifyToken(it) }.trim()
+        return pretty.ifEmpty { rawId }
+    }
+
+    private fun prettifyToken(token: String): String {
+        val t = token.lowercase()
+        if (PARAM_SIZE.matches(t)) return t.uppercase()             // 4b → 4B
+        if (ACTIVE_PARAMS.matches(t)) return t.uppercase()          // a3b → A3B
+        if (t in NAME_ACRONYMS) return t.uppercase()                // mtp → MTP
+        FAMILY_VERSION.matchEntire(t)?.let { m ->                   // qwen3.5 → Qwen 3.5
+            NAME_FAMILY_CASING[m.groupValues[1]]?.let { fam ->
+                return "$fam ${m.groupValues[2]}"
+            }
+        }
+        NAME_FAMILY_CASING[t]?.let { return it }                    // gemma → Gemma
+        if (PLAIN_VERSION.matches(t)) return t                      // 3.5 stays
+        return t.replaceFirstChar { it.uppercase() }                // flash → Flash
+    }
+
     /**
      * Get models with their download status.
      */
