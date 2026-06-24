@@ -550,6 +550,39 @@ object ModelInfoProvider {
     }
 
     /**
+     * Brand/family group a model id belongs to, used to group the server model
+     * list (e.g. "qwen3.5-4b" → "Qwen", "google/gemma-4-12b" → "Gemma"). Mirrors
+     * [logoForModelId]'s keyword order (DeepSeek before Qwen, since
+     * DeepSeek-R1-Distill-Qwen ids contain both). "Other" when nothing matches.
+     */
+    fun providerGroup(modelId: String): String {
+        val id = modelId.lowercase()
+        val rules = listOf(
+            "bonsai" to "Bonsai",
+            "prism" to "Bonsai",
+            "deepseek" to "DeepSeek",
+            "qwq" to "Qwen",
+            "qwen" to "Qwen",
+            "gemma" to "Gemma",
+            "gemini" to "Gemini",
+            "llama" to "Llama",
+            "phi" to "Phi",
+            "lfm" to "LFM",
+            "liquid" to "LFM",
+            "ministral" to "Mistral",
+            "mistral" to "Mistral",
+            "mixtral" to "Mistral",
+            "magistral" to "Mistral",
+            "granite" to "Granite",
+            "nemotron" to "Nemotron",
+            "gpt-oss" to "GPT-OSS",
+            "gpt" to "GPT-OSS",
+            "glm" to "GLM",
+        )
+        return rules.firstOrNull { (kw, _) -> id.contains(kw) }?.second ?: "Other"
+    }
+
+    /**
      * Get models with their download status.
      */
     fun getModelsWithStatus(

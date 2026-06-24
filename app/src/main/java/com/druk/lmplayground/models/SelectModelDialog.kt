@@ -1,6 +1,7 @@
 package com.druk.lmplayground.models
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -93,6 +95,13 @@ fun SelectModelDialog(
     // Only show downloaded models
     val downloadedModels = models.filter { it.isDownloaded }
     var remoteExpanded by remember { mutableStateOf(false) }
+    // Server models grouped by provider (Qwen, Gemma, …), alphabetical by their
+    // prettified display name within each group; a header precedes each group.
+    val sortedRemoteModels = remember(remoteModels) {
+        remoteModels.sortedWith(
+            compareBy({ ModelInfoProvider.providerGroup(it) }, { ModelInfoProvider.prettifyModelId(it) })
+        )
+    }
 
     // Rendered as an in-composition overlay (not a platform Dialog) so the
     // frosted card can blur the chat behind it — Haze can't reach across the
@@ -129,11 +138,15 @@ fun SelectModelDialog(
                     indication = null,
                     onClick = {}
                 ),
-            shape = RoundedCornerShape(16.dp),
+            // Match the remote model-details card: same rounded-24dp shape,
+            // hairline outline border and transparency, so all model surfaces
+            // share one frosted look.
+            shape = RoundedCornerShape(24.dp),
             color = if (frosted) Color.Transparent else MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             tonalElevation = if (frosted) 0.dp else 6.dp,
-            shadowElevation = 12.dp,
+            shadowElevation = 8.dp,
         ) {
             Box(
                 modifier = if (frosted) {
@@ -179,10 +192,19 @@ fun SelectModelDialog(
                                 )
                             }
                         } else {
-                            items(items = remoteModels, key = { "remote:$it" }) { id ->
-                                RemoteModelRow(modelId = id) {
-                                    onDismissRequest()
-                                    onLoadRemoteModel(id)
+                            itemsIndexed(
+                                items = sortedRemoteModels,
+                                key = { _, id -> "remote:$id" }
+                            ) { index, id ->
+                                val group = ModelInfoProvider.providerGroup(id)
+                                val firstInGroup = index == 0 ||
+                                    ModelInfoProvider.providerGroup(sortedRemoteModels[index - 1]) != group
+                                Column {
+                                    if (firstInGroup) ProviderHeader(group)
+                                    RemoteModelRow(modelId = id) {
+                                        onDismissRequest()
+                                        onLoadRemoteModel(id)
+                                    }
                                 }
                             }
                         }
@@ -399,6 +421,16 @@ private fun RemoteServerHeader(
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+@Composable
+private fun ProviderHeader(name: String) {
+    Text(
+        text = name,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp)
+    )
 }
 
 @Composable
