@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,7 +55,9 @@ fun ConversationBar(
     compact: Boolean = false,
     onModelNamePressed: () -> Unit = { },
     onNavIconPressed: () -> Unit = { },
-    onNewSessionPressed: () -> Unit = { }
+    onNewSessionPressed: () -> Unit = { },
+    /** When non-null, a "tune" action appears (used for remote server models). */
+    onModelDetailsClick: (() -> Unit)? = null
 ) {
     AppBar(
         modifier = modifier.testTag(ConversationBarTestTag),
@@ -151,6 +154,15 @@ fun ConversationBar(
             }
         },
         actions = {
+            if (onModelDetailsClick != null) {
+                IconButton(onClick = onModelDetailsClick) {
+                    Icon(
+                        imageVector = Icons.Outlined.Tune,
+                        contentDescription = stringResource(R.string.model_details),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             IconButton(onClick = onNewSessionPressed) {
                 Icon(
                     imageVector = Icons.Outlined.EditNote,

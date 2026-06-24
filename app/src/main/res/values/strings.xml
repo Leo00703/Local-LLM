@@ -218,6 +218,8 @@
     <string name="server_name">Server name</string>
     <string name="server_name_hint">My PC</string>
     <string name="remote_loading">Loading…</string>
+    <string name="model_details">Model details</string>
+    <string name="context_pill">%s ctx</string>
     <string name="previously_used_model">Previously used: %s</string>
 
     <!-- Storage -->

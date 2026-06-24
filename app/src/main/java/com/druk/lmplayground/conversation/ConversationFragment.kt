@@ -122,6 +122,7 @@ class ConversationFragment : Fragment() {
             val currentSessionId by viewModel.currentSessionId.observeAsState()
             val generationParams by viewModel.generationParams.observeAsState(GenerationParams())
             val maxContextSize by viewModel.maxContextSize.observeAsState(4096)
+            val serverModelDetails by viewModel.serverModelDetails.observeAsState()
             val sessionModelHint by viewModel.sessionModelHint.observeAsState()
             val systemPrompt by viewModel.systemPrompt.observeAsState("")
             val systemPromptId by viewModel.systemPromptId.observeAsState()
@@ -130,6 +131,7 @@ class ConversationFragment : Fragment() {
             val pendingRamWarning by viewModel.pendingRamWarning.observeAsState()
             val modelLoadError by viewModel.modelLoadError.observeAsState()
             var showParamsSheet by remember { mutableStateOf(false) }
+            var showDetailsCard by remember { mutableStateOf(false) }
 
             // Surface transient ViewModel errors (e.g. message-too-large)
             // as Toasts. The ViewModel can't show UI directly, so we
@@ -545,6 +547,9 @@ class ConversationFragment : Fragment() {
                             onNewSessionPressed = {
                                 viewModel.newConversation()
                             },
+                            onModelDetailsClick = if (modelInfo?.filename?.startsWith("remote:") == true) {
+                                { showDetailsCard = !showDetailsCard }
+                            } else null,
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .onSizeChanged { topBarHeightPx = it.height }
@@ -697,6 +702,22 @@ class ConversationFragment : Fragment() {
                                 onDismissRequest = {
                                     viewModel.resetModelList()
                                 }
+                            )
+                        }
+
+                        // Frosted model-details + params card for a loaded remote
+                        // server model, anchored just below the top bar.
+                        if (showDetailsCard && modelInfo?.filename?.startsWith("remote:") == true) {
+                            RemoteModelDetailsCard(
+                                modelName = modelInfo?.name.orEmpty(),
+                                details = serverModelDetails,
+                                maxContext = maxContextSize,
+                                params = generationParams,
+                                hazeState = hazeState,
+                                hazeStyle = hazeStyle,
+                                topPadding = topBarHeight,
+                                onParamsChange = { viewModel.updateGenerationParams(it) },
+                                onDismiss = { showDetailsCard = false },
                             )
                         }
                     }
