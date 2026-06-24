@@ -5,9 +5,11 @@ package com.druk.lmplayground.conversation
 import android.net.Uri
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -16,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Eject
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -36,7 +39,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -65,8 +68,11 @@ fun ConversationBar(
     onModelNamePressed: () -> Unit = { },
     onNavIconPressed: () -> Unit = { },
     onNewSessionPressed: () -> Unit = { },
-    /** When non-null, a "tune" action appears (used for remote server models). */
-    onModelDetailsClick: (() -> Unit)? = null
+    /** When non-null and a model is loaded, an unload/offload icon sits left of the name. */
+    onUnloadModel: (() -> Unit)? = null,
+    /** When non-null and a model is loaded, a generation-params icon sits right of the
+     *  name (local model → params sheet, remote model → details card). */
+    onModelParamsClick: (() -> Unit)? = null
 ) {
     AppBar(
         modifier = modifier.testTag(ConversationBarTestTag),
@@ -78,102 +84,120 @@ fun ConversationBar(
         expandedHeight = if (compact) 40.dp else Dp.Unspecified,
         onNavIconPressed = onNavIconPressed,
         title = {
-            if (modelInfo != null) {
+            // Flank the model name with the unload (left) and generation-params
+            // (right) actions. The name block is weighted so a long name
+            // truncates with an ellipsis instead of shoving the icons aside.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                if (modelInfo != null && onUnloadModel != null) {
+                    IconButton(onClick = onUnloadModel) {
+                        Icon(
+                            imageVector = Icons.Outlined.Eject,
+                            contentDescription = stringResource(R.string.unload_model),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 Surface(
                     onClick = onModelNamePressed,
                     shape = RoundedCornerShape(20.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0f),
+                    modifier = Modifier.weight(1f, fill = false),
                 ) {
-                    if (compact) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                        ) {
-                            ModelLogo(modelInfo.logoRes)
-                            Text(
-                                text = modelInfo.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1
-                            )
-                            val status = modelStatus ?: modelInfo.description
-                            if (status.isNotBlank()) {
-                                Text(
-                                    text = "  ·  $status",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Outlined.ArrowDropDown,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                contentDescription = null
-                            )
-                        }
-                    } else {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (modelInfo != null) {
+                        if (compact) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
                                 ModelLogo(modelInfo.logoRes)
                                 Text(
                                     text = modelInfo.name,
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onSurface,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
+                                val status = modelStatus ?: modelInfo.description
+                                if (status.isNotBlank()) {
+                                    Text(
+                                        text = "  ·  $status",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                                 Icon(
                                     imageVector = Icons.Outlined.ArrowDropDown,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     contentDescription = null
                                 )
                             }
+                        } else {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    ModelLogo(modelInfo.logoRes)
+                                    Text(
+                                        text = modelInfo.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Outlined.ArrowDropDown,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        contentDescription = null
+                                    )
+                                }
+                                Text(
+                                    text = modelStatus ?: modelInfo.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
                             Text(
-                                text = modelStatus ?: modelInfo.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
+                                text = stringResource(R.string.select_model),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Icon(
+                                imageVector = Icons.Outlined.ArrowDropDown,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                contentDescription = null
                             )
                         }
                     }
                 }
-            } else {
-                Surface(
-                    onClick = onModelNamePressed,
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0f),
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.select_model),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
+                if (modelInfo != null && onModelParamsClick != null) {
+                    IconButton(onClick = onModelParamsClick) {
                         Icon(
-                            imageVector = Icons.Outlined.ArrowDropDown,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            contentDescription = null
+                            imageVector = Icons.Outlined.Tune,
+                            contentDescription = stringResource(R.string.generation_parameters),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
         },
         actions = {
-            if (onModelDetailsClick != null) {
-                IconButton(onClick = onModelDetailsClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.Tune,
-                        contentDescription = stringResource(R.string.model_details),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
             IconButton(onClick = onNewSessionPressed) {
                 Icon(
                     imageVector = Icons.Outlined.EditNote,

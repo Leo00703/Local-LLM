@@ -31,9 +31,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Dns
-import androidx.compose.material.icons.outlined.Eject
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -69,7 +67,6 @@ import dev.chrisbanes.haze.hazeEffect
 @Composable
 fun SelectModelDialog(
     models: List<ModelWithStatus>,
-    isModelLoaded: Boolean = false,
     /**
      * When > 0, the dialog Card is centered inside the chat pane rather than
      * the full window — used on tablet so the picker doesn't appear to cover
@@ -80,8 +77,6 @@ fun SelectModelDialog(
     hazeState: HazeState? = null,
     hazeStyle: HazeStyle = HazeStyle.Unspecified,
     onLoadModel: (ModelInfo) -> Unit,
-    onUnloadModel: () -> Unit = {},
-    onGenerationParams: () -> Unit = {},
     onBrowseModels: () -> Unit,
     remoteServerAvailable: Boolean = false,
     remoteServerLabel: String = "",
@@ -252,40 +247,6 @@ fun SelectModelDialog(
                             modifier = Modifier.padding(end = 8.dp)
                         )
                         Text(stringResource(R.string.browse_more_models))
-                    }
-                    if (isModelLoaded) {
-                        TextButton(
-                            onClick = {
-                                onDismissRequest()
-                                onGenerationParams()
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Tune,
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                            Text(stringResource(R.string.generation_parameters))
-                        }
-                        TextButton(
-                            onClick = {
-                                onDismissRequest()
-                                onUnloadModel()
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Eject,
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                            Text(stringResource(R.string.unload_model))
-                        }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }

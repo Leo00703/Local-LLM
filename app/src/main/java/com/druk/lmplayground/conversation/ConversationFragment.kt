@@ -547,9 +547,14 @@ class ConversationFragment : Fragment() {
                             onNewSessionPressed = {
                                 viewModel.newConversation()
                             },
-                            onModelDetailsClick = if (modelInfo?.filename?.startsWith("remote:") == true) {
-                                { showDetailsCard = !showDetailsCard }
-                            } else null,
+                            onUnloadModel = { viewModel.unloadModel() },
+                            onModelParamsClick = {
+                                if (modelInfo?.filename?.startsWith("remote:") == true) {
+                                    showDetailsCard = !showDetailsCard
+                                } else {
+                                    showParamsSheet = true
+                                }
+                            },
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .onSizeChanged { topBarHeightPx = it.height }
@@ -671,7 +676,6 @@ class ConversationFragment : Fragment() {
                         if (models.isNotEmpty() && (models.any { it.isDownloaded } || remoteServerAvailable)) {
                             SelectModelDialog(
                                 models = models,
-                                isModelLoaded = modelInfo != null,
                                 hazeState = hazeState,
                                 hazeStyle = hazeStyle,
                                 remoteServerAvailable = remoteServerAvailable,
@@ -683,12 +687,6 @@ class ConversationFragment : Fragment() {
                                 onLoadRemoteModel = { id -> viewModel.loadRemoteModel(id) },
                                 onLoadModel = { model ->
                                     viewModel.loadModel(model)
-                                },
-                                onUnloadModel = {
-                                    viewModel.unloadModel()
-                                },
-                                onGenerationParams = {
-                                    showParamsSheet = true
                                 },
                                 onBrowseModels = {
                                     // Guard against NavController throwing IllegalArgumentException
