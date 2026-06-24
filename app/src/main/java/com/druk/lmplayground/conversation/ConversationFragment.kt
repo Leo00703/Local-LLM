@@ -426,25 +426,6 @@ class ConversationFragment : Fragment() {
                     )
                 }
 
-                if (showParamsSheet) {
-                    GenerationParamsSheet(
-                        params = generationParams,
-                        maxContextSize = maxContextSize,
-                        supportsThinking = supportsThinking,
-                        supportsToolCalling = supportsToolCalling,
-                        tools = viewModel.toolRegistry.getAllTools(),
-                        toolEnabledStates = toolEnabledStates,
-                        onToolEnabledChanged = { name, enabled -> viewModel.setToolEnabled(name, enabled) },
-                        systemPrompt = systemPrompt,
-                        canUpdateLinkedPrompt = systemPromptId != null,
-                        onParamsChanged = { viewModel.updateGenerationParams(it) },
-                        onUpdateLinkedPrompt = { viewModel.updateLinkedSystemPrompt(it) },
-                        onSaveAsNewPrompt = { viewModel.createAndApplySystemPrompt(it) },
-                        onClearSystemPrompt = { viewModel.clearSystemPrompt() },
-                        onDismiss = { showParamsSheet = false }
-                    )
-                }
-
                 val mainContent: @Composable () -> Unit = {
                     // Picker sits just above the composer. Visible only when:
                     //   - model is ready
@@ -718,6 +699,30 @@ class ConversationFragment : Fragment() {
                                 onDismiss = { showDetailsCard = false },
                             )
                         }
+
+                        // Frosted generation-parameters sheet for the LOCAL
+                        // model — rendered last inside the chat Box so it blurs
+                        // the conversation behind it.
+                        if (showParamsSheet) {
+                            GenerationParamsSheet(
+                                params = generationParams,
+                                maxContextSize = maxContextSize,
+                                supportsThinking = supportsThinking,
+                                supportsToolCalling = supportsToolCalling,
+                                tools = viewModel.toolRegistry.getAllTools(),
+                                toolEnabledStates = toolEnabledStates,
+                                onToolEnabledChanged = { name, enabled -> viewModel.setToolEnabled(name, enabled) },
+                                systemPrompt = systemPrompt,
+                                canUpdateLinkedPrompt = systemPromptId != null,
+                                onParamsChanged = { viewModel.updateGenerationParams(it) },
+                                onUpdateLinkedPrompt = { viewModel.updateLinkedSystemPrompt(it) },
+                                onSaveAsNewPrompt = { viewModel.createAndApplySystemPrompt(it) },
+                                onClearSystemPrompt = { viewModel.clearSystemPrompt() },
+                                hazeState = hazeState,
+                                hazeStyle = hazeStyle,
+                                onDismiss = { showParamsSheet = false }
+                            )
+                        }
                     }
                     }
 
@@ -817,7 +822,9 @@ class ConversationFragment : Fragment() {
                                             findNavController().navigate(R.id.action_home_to_settings)
                                         }
                                     }
-                                }
+                                },
+                                hazeState = hazeState,
+                                hazeStyle = hazeStyle,
                             )
                         }
                     ) { mainContent() }

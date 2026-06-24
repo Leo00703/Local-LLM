@@ -1,15 +1,25 @@
 package com.druk.lmplayground.conversation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,14 +30,13 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import com.druk.lmplayground.tools.Tool
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,12 +46,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
 import com.druk.lmplayground.settings.SystemPromptEditorSheet
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,9 +75,10 @@ fun GenerationParamsSheet(
     onUpdateLinkedPrompt: (String) -> Unit = {},
     onSaveAsNewPrompt: (String) -> Unit = {},
     onClearSystemPrompt: () -> Unit = {},
+    hazeState: HazeState? = null,
+    hazeStyle: HazeStyle = HazeStyle.Unspecified,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var editedParams by remember(params) { mutableStateOf(params) }
     var showAdvanced by remember { mutableStateOf(false) }
     var showPromptReviser by remember { mutableStateOf(false) }
@@ -72,22 +87,56 @@ fun GenerationParamsSheet(
     val contextMax = maxContextSize.coerceAtLeast(512)
     val contextStep = 512
 
-    ModalBottomSheet(
-        onDismissRequest = {
-            if (editedParams != params) {
-                onParamsChanged(editedParams)
-            }
-            onDismiss()
-        },
-        sheetState = sheetState
+    // Rendered as an in-composition overlay (not a ModalBottomSheet, which
+    // lives in a separate window Haze can't blur) so the sheet can frost the
+    // chat behind it — same look as the model picker / details card. Tapping
+    // the scrim or pressing back commits any edits and dismisses.
+    val commitAndDismiss = {
+        if (editedParams != params) {
+            onParamsChanged(editedParams)
+        }
+        onDismiss()
+    }
+    BackHandler(onBack = commitAndDismiss)
+    val frosted = hazeState != null
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.4f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = commitAndDismiss
+            ),
+        contentAlignment = Alignment.BottomCenter
     ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .imePadding()
+                .padding(horizontal = 8.dp, vertical = 8.dp)
+                .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.9f).dp)
+                // Consume taps on the sheet so they don't dismiss it.
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {}
+                ),
+            shape = RoundedCornerShape(24.dp),
+            color = if (frosted) Color.Transparent else MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            tonalElevation = if (frosted) 0.dp else 6.dp,
+            shadowElevation = 8.dp,
+        ) {
+          Box(modifier = if (frosted) Modifier.hazeEffect(hazeState!!, hazeStyle) else Modifier) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
                 .padding(horizontal = 24.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -362,6 +411,8 @@ fun GenerationParamsSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+        }
+          }
         }
     }
 

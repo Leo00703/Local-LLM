@@ -1,5 +1,6 @@
 package com.druk.lmplayground.conversation
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -59,6 +60,9 @@ import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
 import com.druk.lmplayground.data.ChatSessionEntity
 import com.druk.lmplayground.data.FolderEntity
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
 
 @Composable
 fun SessionListDrawer(
@@ -73,23 +77,46 @@ fun SessionListDrawer(
     onRenameFolder: (String, String) -> Unit,
     onDeleteFolder: (String) -> Unit,
     onMoveSessionToFolder: (String, String?) -> Unit,
-    onSettingsClicked: () -> Unit
+    onSettingsClicked: () -> Unit,
+    hazeState: HazeState? = null,
+    hazeStyle: HazeStyle = HazeStyle.Unspecified,
 ) {
-    ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
-        SessionListContent(
-            sessions = sessions,
-            folders = folders,
-            currentSessionId = currentSessionId,
-            onSessionSelected = onSessionSelected,
-            onDeleteSession = onDeleteSession,
-            onRenameSession = onRenameSession,
-            onPinSession = onPinSession,
-            onCreateFolder = onCreateFolder,
-            onRenameFolder = onRenameFolder,
-            onDeleteFolder = onDeleteFolder,
-            onMoveSessionToFolder = onMoveSessionToFolder,
-            onSettingsClicked = onSettingsClicked
-        )
+    // Floating frosted card: the drawer sheet itself is transparent so the
+    // chat blurs through behind an inset, bordered Surface — matching the
+    // model picker / details card look. Falls back to a solid surface when no
+    // HazeState is supplied.
+    val frosted = hazeState != null
+    ModalDrawerSheet(
+        modifier = Modifier.width(300.dp),
+        drawerContainerColor = Color.Transparent,
+        drawerTonalElevation = 0.dp,
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = if (frosted) Color.Transparent else MaterialTheme.colorScheme.surfaceContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            tonalElevation = if (frosted) 0.dp else 2.dp,
+        ) {
+            Box(modifier = if (frosted) Modifier.hazeEffect(hazeState!!, hazeStyle) else Modifier) {
+                SessionListContent(
+                    sessions = sessions,
+                    folders = folders,
+                    currentSessionId = currentSessionId,
+                    onSessionSelected = onSessionSelected,
+                    onDeleteSession = onDeleteSession,
+                    onRenameSession = onRenameSession,
+                    onPinSession = onPinSession,
+                    onCreateFolder = onCreateFolder,
+                    onRenameFolder = onRenameFolder,
+                    onDeleteFolder = onDeleteFolder,
+                    onMoveSessionToFolder = onMoveSessionToFolder,
+                    onSettingsClicked = onSettingsClicked
+                )
+            }
+        }
     }
 }
 
@@ -133,6 +160,7 @@ fun PermanentSessionList(
                 .padding(start = 12.dp, top = 4.dp),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surfaceContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             tonalElevation = 2.dp,
         ) {
             SessionListContent(
