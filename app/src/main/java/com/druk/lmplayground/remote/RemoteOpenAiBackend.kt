@@ -19,11 +19,14 @@ import java.io.IOException
  * forwards the accumulated assistant text through the same
  * [LlamaGenerationCallback.onFullResponse] contract the local engine uses.
  *
- * Tool calling is not forwarded in v1. Reasoning is forwarded best-effort: when
- * the user disables thinking, `chat_template_kwargs.enable_thinking=false` is
- * sent (honored by LM Studio / Qwen templates; ignored by servers that don't
- * support it). `stream_options.include_usage` is requested so the server's
- * exact token counts drive the stats via [lastStats].
+ * Reasoning handling: servers expose thinking either inline as `<think>...`
+ * inside `delta.content` (Qwen templates) or in a separate
+ * `delta.reasoning_content` / `delta.reasoning` field (DeepSeek-R1, many
+ * LM Studio reasoning models). Both are normalized to a single
+ * `<think>…</think>answer` stream so the app's thinking card renders it.
+ *
+ * Tool calling is not forwarded in v1. `stream_options.include_usage` is
+ * requested so the server's exact token counts drive the stats via [lastStats].
  */
 class RemoteOpenAiBackend(
     private val client: RemoteOpenAiClient,
@@ -79,6 +82,14 @@ class RemoteOpenAiBackend(
         currentCall?.cancel()
     }
 
+    /** Combine streamed reasoning + answer into the app's `<think>…</think>answer` form. */
+    private fun render(reasoning: StringBuilder, content: StringBuilder): String =
+        if (reasoning.isNotEmpty()) {
+            "<think>$reasoning" + (if (content.isNotEmpty()) "</think>" else "") + content
+        } else {
+            content.toString()
+        }
+
     override suspend fun generateAll(callback: LlamaGenerationCallback): Int {
         val messages = buildList {
             if (systemPrompt.isNotBlank()) add(Msg("system", systemPrompt))
@@ -103,7 +114,8 @@ class RemoteOpenAiBackend(
             })
         }.toString()
 
-        val sb = StringBuilder()
+        val reasoning = StringBuilder()
+        val content = StringBuilder()
         val tStart = System.currentTimeMillis()
         var firstTokenMs = 0L
         var promptTokens = 0
@@ -126,20 +138,22 @@ class RemoteOpenAiBackend(
                             promptTokens = u.optInt("prompt_tokens", promptTokens)
                             completionTokens = u.optInt("completion_tokens", completionTokens)
                         }
-                        val delta = obj.optJSONArray("choices")?.optJSONObject(0)
-                            ?.optJSONObject("delta")?.optString("content").orEmpty()
-                        if (delta.isNotEmpty()) {
+                        val delta = obj.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("delta")
+                        val reason = delta?.optString("reasoning_content").orEmpty()
+                            .ifEmpty { delta?.optString("reasoning").orEmpty() }
+                        val text = delta?.optString("content").orEmpty()
+                        if (reason.isNotEmpty() || text.isNotEmpty()) {
                             if (firstTokenMs == 0L) firstTokenMs = System.currentTimeMillis()
-                            sb.append(delta)
-                            callback.onFullResponse(sb.toString())
+                            if (reason.isNotEmpty()) reasoning.append(reason)
+                            if (text.isNotEmpty()) content.append(text)
+                            callback.onFullResponse(render(reasoning, content))
                         }
                     }
                 }
             }
             val endMs = System.currentTimeMillis()
-            if (sb.isNotEmpty()) history.add(Msg("assistant", sb.toString()))
-            // Only trust server-reported counts; otherwise leave stats null so
-            // the ViewModel keeps its (approximate) per-chunk fallback count.
+            // History keeps the answer only (no reasoning) so re-sent turns stay clean.
+            if (content.isNotEmpty()) history.add(Msg("assistant", content.toString()))
             stats = if (completionTokens > 0) {
                 GenerationStats(
                     completionTokens = completionTokens,
@@ -151,13 +165,14 @@ class RemoteOpenAiBackend(
             return 0
         } catch (e: CancellationException) {
             currentCall?.cancel()
-            if (sb.isNotEmpty()) history.add(Msg("assistant", sb.toString()))
+            if (content.isNotEmpty()) history.add(Msg("assistant", content.toString()))
             throw e
         } catch (e: Exception) {
-            val note = (if (sb.isNotEmpty()) sb.toString() + "\n\n" else "") +
+            val shown = render(reasoning, content)
+            val note = (if (shown.isNotEmpty()) shown + "\n\n" else "") +
                 "⚠️ " + (e.message ?: "request failed")
             callback.onFullResponse(note)
-            if (sb.isNotEmpty()) history.add(Msg("assistant", sb.toString()))
+            if (content.isNotEmpty()) history.add(Msg("assistant", content.toString()))
             return 0
         } finally {
             currentCall = null

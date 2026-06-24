@@ -470,6 +470,8 @@ object ModelInfoProvider {
     fun logoForModelId(modelId: String): Int {
         val id = modelId.lowercase()
         val rules = listOf(
+            "bonsai" to R.drawable.logo_bonsai,
+            "prism" to R.drawable.logo_bonsai,
             "deepseek" to R.drawable.logo_deepseek,
             "qwen" to R.drawable.logo_qwen,
             "gemma" to R.drawable.logo_google,
