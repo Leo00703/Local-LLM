@@ -98,20 +98,34 @@ class LocalServerScanner {
      * Best-effort identification of the server software, only run for hosts
      * that already answered /v1/models (so just a handful). Probes the
      * vendor-specific endpoints, falling back to the well-known port.
+     *
+     * Status codes alone are NOT reliable: LM Studio answers unknown paths like
+     * Ollama's `/api/tags` with `200 OK` ("Unexpected endpoint ... Returning 200
+     * anyway"), which used to make it masquerade as Ollama. So we validate the
+     * response *body shape* — Ollama's `/api/tags` is `{"models":[...]}`, while
+     * LM Studio's native `/api/v0|v1/models` is `{"data":[...]}` — and probe the
+     * LM Studio endpoints first (Ollama genuinely 404s on those).
      */
     private fun detectType(ip: String, port: Int): String {
         val host = "http://$ip:$port"
         return when {
-            getOk("$host/api/tags") -> "Ollama"                       // Ollama native
-            getOk("$host/api/v0/models") || getOk("$host/api/v1/models") -> "LM Studio"
+            getJsonHasArray("$host/api/v0/models", "data") ||
+                getJsonHasArray("$host/api/v1/models", "data") -> "LM Studio"
+            getJsonHasArray("$host/api/tags", "models") -> "Ollama"   // Ollama native
             port == 11434 -> "Ollama"
             port == 1234 -> "LM Studio"
             else -> "OpenAI"
         }
     }
 
-    private fun getOk(url: String): Boolean = try {
-        client.newCall(Request.Builder().url(url).get().build()).execute().use { it.isSuccessful }
+    /** True when GET [url] returns 2xx with a JSON object holding a non-null
+     *  array at [key]. A wrong-shaped or non-JSON 200 body (e.g. LM Studio's
+     *  "Returning 200 anyway" fallback) yields false. */
+    private fun getJsonHasArray(url: String, key: String): Boolean = try {
+        client.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
+            val body = response.body?.string()
+            response.isSuccessful && body != null && JSONObject(body).optJSONArray(key) != null
+        }
     } catch (_: Exception) {
         false
     }
