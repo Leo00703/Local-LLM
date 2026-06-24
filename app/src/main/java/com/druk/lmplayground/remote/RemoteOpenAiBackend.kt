@@ -95,24 +95,18 @@ class RemoteOpenAiBackend(
         }
 
     override suspend fun generateAll(callback: LlamaGenerationCallback): Int {
-        val baseMessages = buildList {
+        // Message text is sent verbatim and never mutated per-turn: an earlier
+        // version appended "/no_think" to the last user message, which changed
+        // the prompt prefix between turns and defeated the server's KV-cache
+        // reuse (each turn re-processed the whole prompt, so speed fell off as
+        // the chat grew). Thinking is disabled purely via request parameters
+        // below, which don't alter the cached token prefix.
+        val messages = buildList {
             if (systemPrompt.isNotBlank()) add(Msg("system", systemPrompt))
             addAll(history)
         }
         val modelId = model.lowercase()
         val disableThinking = !lastEnableThinking
-        // Qwen3 soft-switch: appending "/no_think" to the latest user turn
-        // disables reasoning even if the server drops chat_template_kwargs.
-        // Qwen-only — for other families the token is just stray prompt text.
-        // Applied to the request copy only, not the stored history.
-        val messages = if (disableThinking && modelId.contains("qwen")) {
-            val idx = baseMessages.indexOfLast { it.role == "user" }
-            if (idx >= 0) {
-                baseMessages.toMutableList().also {
-                    it[idx] = it[idx].copy(content = it[idx].content + " /no_think")
-                }
-            } else baseMessages
-        } else baseMessages
         val bodyJson = JSONObject().apply {
             put("model", model)
             put("stream", true)
