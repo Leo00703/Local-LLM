@@ -37,6 +37,23 @@ class StoragePreferences(context: Context) {
         get() = prefs.getBoolean("show_generation_stats", true)
         set(value) = prefs.edit { putBoolean("show_generation_stats", value) }
 
+    // --- Remote (OpenAI-compatible) server ---
+
+    /** Base URL of the remote server, e.g. "http://192.168.1.42:1234". Null = unset. */
+    var remoteServerUrl: String?
+        get() = prefs.getString("remote_server_url", null)
+        set(value) = prefs.edit { putString("remote_server_url", value) }
+
+    /** Model id to request from the remote server. Null = unset. */
+    var remoteServerModel: String?
+        get() = prefs.getString("remote_server_model", null)
+        set(value) = prefs.edit { putString("remote_server_model", value) }
+
+    /** When true, the chat can use the remote server instead of a local model. */
+    var remoteServerEnabled: Boolean
+        get() = prefs.getBoolean("remote_server_enabled", false)
+        set(value) = prefs.edit { putBoolean("remote_server_enabled", value) }
+
     fun getCustomModelMetadata(filename: String): Pair<String, Boolean>? {
         val value = prefs.getString("custom_model_$filename", null) ?: return null
         val parts = value.split("|", limit = 2)

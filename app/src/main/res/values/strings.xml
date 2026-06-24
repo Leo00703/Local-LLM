@@ -200,6 +200,18 @@
     <string name="move_to_folder">Move to folder</string>
     <string name="no_folder">No folder</string>
     <string name="unfiled">Unfiled</string>
+    <string name="remote_server">Remote server</string>
+    <string name="remote_server_subtitle">Use LM Studio / Ollama on your network</string>
+    <string name="use_remote_server_title">Use remote server</string>
+    <string name="use_remote_server_desc">Route chats to the configured server instead of an on-device model.</string>
+    <string name="server_url">Server URL</string>
+    <string name="server_url_hint">http://192.168.1.42:1234</string>
+    <string name="server_model">Model</string>
+    <string name="server_model_hint">e.g. qwen2.5-7b-instruct</string>
+    <string name="scan_network">Scan network</string>
+    <string name="scanning">Scanning…</string>
+    <string name="found_servers">Found servers</string>
+    <string name="server_models_count">%d models</string>
     <string name="previously_used_model">Previously used: %s</string>
 
     <!-- Storage -->

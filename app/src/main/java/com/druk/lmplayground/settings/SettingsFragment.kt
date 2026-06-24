@@ -54,6 +54,7 @@ class SettingsFragment : Fragment() {
     private val systemPromptsViewModel: SystemPromptsViewModel by viewModels()
     private val toolsViewModel: ToolsViewModel by viewModels()
     private val soundHapticViewModel: SoundHapticViewModel by viewModels()
+    private val remoteServerViewModel: RemoteServerViewModel by viewModels()
 
     // Pending download model held across the notification-permission
     // request, mirroring the original ModelsFragment behaviour.
@@ -230,6 +231,9 @@ class SettingsFragment : Fragment() {
                     onSoundHapticClick = {
                         findNavController().navigateFromSettings(R.id.action_settings_to_sound_haptic)
                     },
+                    onRemoteServerClick = {
+                        findNavController().navigateFromSettings(R.id.action_settings_to_remote_server)
+                    },
                     onSendFeedbackClick = {
                         val email = getString(R.string.privacy_policy_contact_email)
                         val intent = Intent(Intent.ACTION_SENDTO).apply {
@@ -252,6 +256,9 @@ class SettingsFragment : Fragment() {
                     } else null,
                     soundHapticDetailContent = if (twoPane) {
                         { SoundHapticDetailPane() }
+                    } else null,
+                    remoteServerDetailContent = if (twoPane) {
+                        { RemoteServerDetailPane() }
                     } else null,
                     initialDetailKey = openDetail,
                     masterWidth = masterWidth,
@@ -358,6 +365,32 @@ class SettingsFragment : Fragment() {
             onSoundChanged = { soundHapticViewModel.setSoundEnabled(it) },
             onHapticChanged = { soundHapticViewModel.setHapticEnabled(it) },
             onShowStatsChanged = { soundHapticViewModel.setShowStatsEnabled(it) },
+        )
+    }
+
+    /**
+     * Embedded Remote server pane — URL/model fields, LAN scan, enable toggle,
+     * rendered without the Scaffold/topBar that [RemoteServerFragment] adds on
+     * phone.
+     */
+    @androidx.compose.runtime.Composable
+    private fun RemoteServerDetailPane() {
+        val serverUrl by remoteServerViewModel.serverUrl.observeAsState("")
+        val modelName by remoteServerViewModel.modelName.observeAsState("")
+        val enabled by remoteServerViewModel.enabled.observeAsState(false)
+        val scanning by remoteServerViewModel.scanning.observeAsState(false)
+        val foundServers by remoteServerViewModel.foundServers.observeAsState(emptyList())
+        RemoteServerContent(
+            serverUrl = serverUrl,
+            modelName = modelName,
+            enabled = enabled,
+            scanning = scanning,
+            foundServers = foundServers,
+            onUrlChange = { remoteServerViewModel.setServerUrl(it) },
+            onModelChange = { remoteServerViewModel.setModelName(it) },
+            onEnabledChange = { remoteServerViewModel.setEnabled(it) },
+            onScan = { remoteServerViewModel.scan() },
+            onUseServer = { remoteServerViewModel.useServer(it) },
         )
     }
 

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
@@ -61,7 +62,7 @@ import java.util.Locale
  * [promptsDetailContent] slots — the caller owns the ViewModels and passes
  * the appropriate Composable when on tablet.
  */
-private enum class SettingsDetail { Models, Prompts, Language, Tools, SoundHaptic, PrivacyPolicy, Faq }
+private enum class SettingsDetail { Models, Prompts, Language, Tools, SoundHaptic, RemoteServer, PrivacyPolicy, Faq }
 
 @Composable
 fun SettingsScreen(
@@ -73,6 +74,7 @@ fun SettingsScreen(
     onFaqClick: () -> Unit,
     onToolsClick: () -> Unit,
     onSoundHapticClick: () -> Unit,
+    onRemoteServerClick: () -> Unit,
     onSendFeedbackClick: () -> Unit,
     appVersion: String,
     /**
@@ -101,6 +103,10 @@ fun SettingsScreen(
      * section.
      */
     soundHapticDetailContent: (@Composable () -> Unit)? = null,
+    /**
+     * Tablet-only mirror of [modelsDetailContent] for the Remote server section.
+     */
+    remoteServerDetailContent: (@Composable () -> Unit)? = null,
     /**
      * Optional deep-link target: when "tools", the screen opens directly on the
      * Tools detail (tablet). Used by the What's New "Set up tools" button.
@@ -219,6 +225,13 @@ fun SettingsScreen(
                                 onSoundHapticClick()
                             }
                         },
+                        onRemoteServerClick = {
+                            if (remoteServerDetailContent != null) {
+                                detail = SettingsDetail.RemoteServer
+                            } else {
+                                onRemoteServerClick()
+                            }
+                        },
                         onPrivacyPolicyClick = { detail = SettingsDetail.PrivacyPolicy },
                         onFaqClick = { detail = SettingsDetail.Faq },
                         onCrashEngineClick = onCrashEngineClick
@@ -235,6 +248,7 @@ fun SettingsScreen(
                 SettingsDetail.Language -> stringResource(R.string.language)
                 SettingsDetail.Tools -> stringResource(R.string.tools)
                 SettingsDetail.SoundHaptic -> stringResource(R.string.sound_and_haptic)
+                SettingsDetail.RemoteServer -> stringResource(R.string.remote_server)
                 SettingsDetail.PrivacyPolicy -> stringResource(R.string.privacy_policy)
                 SettingsDetail.Faq -> stringResource(R.string.faq)
                 null -> ""
@@ -256,6 +270,7 @@ fun SettingsScreen(
                         SettingsDetail.Language -> languageDetailContent?.invoke()
                         SettingsDetail.Tools -> toolsDetailContent?.invoke()
                         SettingsDetail.SoundHaptic -> soundHapticDetailContent?.invoke()
+                        SettingsDetail.RemoteServer -> remoteServerDetailContent?.invoke()
                         SettingsDetail.PrivacyPolicy ->
                             PrivacyPolicyContent(onSendFeedbackClick = onSendFeedbackClick)
                         SettingsDetail.Faq -> FaqContent()
@@ -293,6 +308,7 @@ fun SettingsScreen(
                 onLanguageClick = onLanguageClick,
                 onToolsClick = onToolsClick,
                 onSoundHapticClick = onSoundHapticClick,
+                onRemoteServerClick = onRemoteServerClick,
                 onPrivacyPolicyClick = onPrivacyPolicyClick,
                 onFaqClick = onFaqClick,
                 onCrashEngineClick = onCrashEngineClick,
@@ -319,6 +335,7 @@ private fun SettingsList(
     onLanguageClick: () -> Unit,
     onToolsClick: () -> Unit,
     onSoundHapticClick: () -> Unit,
+    onRemoteServerClick: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
     onFaqClick: () -> Unit,
     onCrashEngineClick: (() -> Unit)?,
@@ -362,6 +379,15 @@ private fun SettingsList(
             subtitle = stringResource(R.string.sound_and_haptic_subtitle),
             selected = selectedDetail == SettingsDetail.SoundHaptic,
             onClick = onSoundHapticClick
+        )
+
+        // Remote server row
+        SettingsRow(
+            icon = Icons.Outlined.Dns,
+            title = stringResource(R.string.remote_server),
+            subtitle = stringResource(R.string.remote_server_subtitle),
+            selected = selectedDetail == SettingsDetail.RemoteServer,
+            onClick = onRemoteServerClick
         )
 
         // Language row
@@ -492,6 +518,7 @@ private fun SettingsScreenPreview() {
             onLanguageClick = {},
             onToolsClick = {},
             onSoundHapticClick = {},
+            onRemoteServerClick = {},
             onPrivacyPolicyClick = {},
             onFaqClick = {},
             onSendFeedbackClick = {},

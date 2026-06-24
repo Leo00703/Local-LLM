@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Allow plain-HTTP (cleartext) traffic. Needed so the app can reach an
+  OpenAI-compatible server (LM Studio / Ollama) on the local network, which
+  serves over http://<lan-ip>:<port> — and so the LAN scanner can probe those
+  hosts. Remote download/web traffic stays HTTPS as before.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
