@@ -26,9 +26,10 @@ Local LLM is an Android application for running Large Language Models locally on
 Features added on top of upstream LM Playground:
 
 - **Message actions** - copy any message, **edit & resend** one of your prompts, or **regenerate** the latest reply (LM Studio-style). Editing or regenerating rebuilds the conversation from that point and re-runs generation.
-- **Redesigned reasoning panel** - the model's "thinking" and tool-call details render as collapsible rounded cards with an animated chevron.
-- **Generation stats** - an optional line under each reply showing total tokens, tokens/second, **time-to-first-token**, and elapsed time. Toggle it in **Settings → Sound, Haptics & Stats**.
-- **Context-window meter** - a small circular gauge next to the composer shows how full the model's context window is, taken from the engine's real KV-cache usage; tap it to open the full session report.
+- **Redesigned reasoning panel** - the model's "thinking" and tool-call details render as collapsible rounded cards with an animated chevron. While the model reasons the card stays live with a running **token count** and a rotating status label (e.g. "Thinking…", localized in English and Italian), and the thinking text itself is rendered as **markdown**.
+- **Generation stats** - an optional line under each reply showing total tokens, elapsed time, tokens/second, and **time-to-first-token**. Toggle it in **Settings → Sound, Haptics & Stats**.
+- **Context-window meter** - a small circular gauge next to the composer shows how full the model's context window is, from the engine's real KV-cache usage, with a permanent **percentage** beside it (LM Studio-style). The arc shifts color as the window fills; tap the ring to toggle the exact used / total token count.
+- **Green rebrand** - a distinct green app icon and the name **"Local LLM"** to tell this fork apart from the original at a glance.
 - **One-tap debug builds** - a GitHub Actions workflow builds an installable debug APK on every push and uploads it as an artifact, so a build can be sideloaded without a local Android toolchain.
 
 ## Supported Models
