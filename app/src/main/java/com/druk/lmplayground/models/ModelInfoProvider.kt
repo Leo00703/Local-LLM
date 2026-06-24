@@ -462,6 +462,41 @@ object ModelInfoProvider {
     }
 
     /**
+     * Best-effort provider logo for an arbitrary model id (e.g. a remote
+     * server's model name) by matching provider keywords in the id. Order
+     * matters: "deepseek" before "qwen" (DeepSeek-R1-Distill-Qwen ids contain
+     * both). Falls back to the app's penrose logo.
+     */
+    fun logoForModelId(modelId: String): Int {
+        val id = modelId.lowercase()
+        val rules = listOf(
+            "deepseek" to R.drawable.logo_deepseek,
+            "qwen" to R.drawable.logo_qwen,
+            "gemma" to R.drawable.logo_google,
+            "gemini" to R.drawable.logo_google,
+            "google" to R.drawable.logo_google,
+            "llama" to R.drawable.logo_meta,
+            "meta" to R.drawable.logo_meta,
+            "phi" to R.drawable.logo_microsoft,
+            "microsoft" to R.drawable.logo_microsoft,
+            "lfm" to R.drawable.logo_liquid,
+            "liquid" to R.drawable.logo_liquid,
+            "ministral" to R.drawable.logo_mistral,
+            "mistral" to R.drawable.logo_mistral,
+            "mixtral" to R.drawable.logo_mistral,
+            "magistral" to R.drawable.logo_mistral,
+            "granite" to R.drawable.logo_ibm,
+            "ibm" to R.drawable.logo_ibm,
+            "nemotron" to R.drawable.logo_nvidia,
+            "nvidia" to R.drawable.logo_nvidia,
+            "gpt-oss" to R.drawable.logo_openai,
+            "openai" to R.drawable.logo_openai,
+        )
+        return rules.firstOrNull { (kw, _) -> id.contains(kw) }?.second
+            ?: R.drawable.penrose_triangle
+    }
+
+    /**
      * Get models with their download status.
      */
     fun getModelsWithStatus(

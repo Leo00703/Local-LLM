@@ -39,6 +39,11 @@ class StoragePreferences(context: Context) {
 
     // --- Remote (OpenAI-compatible) server ---
 
+    /** User-given display name for the remote server (shown in the model picker). */
+    var remoteServerName: String?
+        get() = prefs.getString("remote_server_name", null)
+        set(value) = prefs.edit { putString("remote_server_name", value) }
+
     /** Base URL of the remote server, e.g. "http://192.168.1.42:1234". Null = unset. */
     var remoteServerUrl: String?
         get() = prefs.getString("remote_server_url", null)

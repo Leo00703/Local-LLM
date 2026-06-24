@@ -11,20 +11,21 @@ import com.druk.lmplayground.storage.StoragePreferences
 import kotlinx.coroutines.launch
 
 /**
- * Backs Settings → Remote server. Persists the OpenAI-compatible server URL,
- * model name, and an enable flag, and drives a one-shot LAN scan that fills
- * those fields from a discovered server.
+ * Backs Settings → Remote server. Persists a display name + the
+ * OpenAI-compatible server URL + an enable flag, and drives a one-shot LAN
+ * scan that fills the URL from a discovered server. The actual model is chosen
+ * later in the chat's model picker, not here.
  */
 class RemoteServerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs = StoragePreferences(app)
     private val scanner = LocalServerScanner()
 
+    private val _serverName = MutableLiveData(prefs.remoteServerName.orEmpty())
+    val serverName: LiveData<String> = _serverName
+
     private val _serverUrl = MutableLiveData(prefs.remoteServerUrl.orEmpty())
     val serverUrl: LiveData<String> = _serverUrl
-
-    private val _modelName = MutableLiveData(prefs.remoteServerModel.orEmpty())
-    val modelName: LiveData<String> = _modelName
 
     private val _enabled = MutableLiveData(prefs.remoteServerEnabled)
     val enabled: LiveData<Boolean> = _enabled
@@ -35,14 +36,14 @@ class RemoteServerViewModel(app: Application) : AndroidViewModel(app) {
     private val _foundServers = MutableLiveData<List<FoundServer>>(emptyList())
     val foundServers: LiveData<List<FoundServer>> = _foundServers
 
+    fun setServerName(value: String) {
+        _serverName.value = value
+        prefs.remoteServerName = value.trim().ifEmpty { null }
+    }
+
     fun setServerUrl(value: String) {
         _serverUrl.value = value
         prefs.remoteServerUrl = value.trim().ifEmpty { null }
-    }
-
-    fun setModelName(value: String) {
-        _modelName.value = value
-        prefs.remoteServerModel = value.trim().ifEmpty { null }
     }
 
     fun setEnabled(value: Boolean) {
@@ -61,9 +62,8 @@ class RemoteServerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Apply a discovered server: fill the URL and (if advertised) the model. */
+    /** Apply a discovered server: fill the URL (model is picked later in chat). */
     fun useServer(server: FoundServer) {
         setServerUrl(server.url)
-        server.firstModel?.let { setModelName(it) }
     }
 }

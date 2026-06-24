@@ -1,6 +1,23 @@
 package com.druk.llamacpp
 
 /**
+ * Authoritative per-generation stats a backend can report after a turn,
+ * bypassing the UI's one-call-per-token assumption. Used by remote backends
+ * (which stream multi-token SSE chunks) to surface the server's exact token
+ * count + decode timing. Local engine returns null and relies on the
+ * decode-window measurement instead.
+ *
+ * @param completionTokens generated tokens (excludes the prompt)
+ * @param ttftMs time-to-first-token in ms
+ * @param decodeMs decode window (first token → last token) in ms
+ */
+data class GenerationStats(
+    val completionTokens: Int,
+    val ttftMs: Int,
+    val decodeMs: Int,
+)
+
+/**
  * A live generation session: send a user turn, stream the response, and run
  * the tool-call loop. Abstracts over the local llama.cpp engine
  * ([LlamaGenerationSession], which talks to the `:llama` service over AIDL)
@@ -20,4 +37,11 @@ interface GenerationBackend {
     fun getReport(): String
     fun destroy()
     suspend fun generateAll(callback: LlamaGenerationCallback): Int
+
+    /**
+     * Authoritative stats for the most recent [generateAll], or null when the
+     * backend doesn't report them (the local engine, which is measured via the
+     * decode window instead). Read once after generation completes.
+     */
+    fun lastStats(): GenerationStats? = null
 }

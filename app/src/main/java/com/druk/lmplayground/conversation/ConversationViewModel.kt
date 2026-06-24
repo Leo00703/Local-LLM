@@ -367,8 +367,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 _remoteServerAvailable.postValue(
                     storagePreferences.remoteServerEnabled && !remoteUrl.isNullOrBlank()
                 )
+                val remoteName = storagePreferences.remoteServerName
                 _remoteServerLabel.postValue(
-                    remoteUrl.orEmpty().substringAfter("://").ifEmpty { remoteUrl.orEmpty() }
+                    if (!remoteName.isNullOrBlank()) remoteName
+                    else remoteUrl.orEmpty().substringAfter("://").ifEmpty { remoteUrl.orEmpty() }
                 )
             }
         }
@@ -433,11 +435,13 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             )
             _loadedModel.postValue(modelInfo)
             _thinkingEnabled.postValue(false)
-            _supportsThinking.postValue(false)
+            // Keep the thinking toggle available for remote models; enableThinking
+            // is forwarded to the server as chat_template_kwargs when disabled.
+            _supportsThinking.postValue(true)
             _supportsToolCalling.postValue(false)
             _toolEnabledStates.postValue(emptyMap())
 
-            val params = GenerationParams()
+            val params = GenerationParams(contextSize = RemoteOpenAiModel.DEFAULT_CONTEXT)
             _generationParams.postValue(params)
             _systemPrompt.postValue("")
             _systemPromptId.postValue(null)
@@ -459,6 +463,24 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 try { replayHistoryToSession(session, messages) } catch (_: Throwable) {}
             }
             storagePreferences.remoteServerModel = modelId
+
+            // Preload the model server-side behind the same loading hairline as
+            // local models. No real % is available, so animate a logarithmic
+            // estimate (mirrors the local fallback) while the warmup runs.
+            _loadedModelStatus.postValue(app.getString(com.druk.lmplayground.R.string.remote_loading))
+            val progressJob = launch {
+                val start = System.currentTimeMillis()
+                while (isActive) {
+                    val elapsed = (System.currentTimeMillis() - start) / 1000f
+                    _modelLoadingProgress.postValue(
+                        minOf(0.9f, kotlin.math.ln(1f + elapsed) / kotlin.math.ln(31f))
+                    )
+                    kotlinx.coroutines.delay(100)
+                }
+            }
+            withContext(Dispatchers.IO) { RemoteOpenAiClient(url).warmUp(modelId) }
+            progressJob.cancel()
+            _modelLoadingProgress.postValue(0f)
             _loadedModelStatus.postValue(host)
             _isModelReady.postValue(true)
 
@@ -1311,6 +1333,12 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
                         Snapshot.withMutableSnapshot {
                             uiState.finalizeLastMessage()
+                            // Remote backends report authoritative token/timing
+                            // (the per-chunk counter is wrong for SSE); apply it.
+                            val rs = try { llamaSession.lastStats() } catch (_: Throwable) { null }
+                            if (rs != null) {
+                                uiState.applyRemoteStats(rs.completionTokens, rs.ttftMs, rs.decodeMs)
+                            }
                         }
                         _isGenerating.postValue(false)
                         // Refresh the context-window meter from this turn's real
@@ -1471,6 +1499,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         thinkingTokens = thinkingTokens,
         responseTokens = responseTokens,
         responseDurationSeconds = responseDurationSeconds,
+        responseDecodeSeconds = responseDecodeSeconds,
         timestamp = timestamp
     )
 
@@ -1533,6 +1562,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 thinkingTokens = message.thinkingTokens,
                 responseTokens = message.responseTokens,
                 responseDurationSeconds = message.responseDurationSeconds,
+                responseDecodeSeconds = message.responseDecodeSeconds,
                 timestamp = message.timestamp
             )
         )
@@ -1551,6 +1581,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     thinkingTokens = entity.thinkingTokens,
                     responseTokens = entity.responseTokens,
                     responseDurationSeconds = entity.responseDurationSeconds,
+                    responseDecodeSeconds = entity.responseDecodeSeconds,
                     timestamp = entity.timestamp
                 )
             }

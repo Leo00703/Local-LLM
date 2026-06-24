@@ -362,7 +362,14 @@ private fun formatResponseStats(message: Message): String {
     return buildString {
         // Order: tokens \u00B7 time \u00B7 tok/s \u00B7 TTFT
         append("$totalTokens tokens")
-        val duration = message.responseDurationSeconds
+        // Decode window (first token -> end), excluding TTFT + prompt eval, so
+        // tok/s reflects real generation speed. Falls back to wall-clock for
+        // older persisted messages without a decode value.
+        val duration = if (message.responseDecodeSeconds > 0f) {
+            message.responseDecodeSeconds
+        } else {
+            message.responseDurationSeconds
+        }
         if (duration > 0f) {
             append(" \u00B7 ${formatSeconds(duration)}")
             append(" \u00B7 ${"%.1f".format(totalTokens / duration)} tok/s")

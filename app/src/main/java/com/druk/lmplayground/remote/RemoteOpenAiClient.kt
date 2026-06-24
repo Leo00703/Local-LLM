@@ -7,6 +7,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -40,6 +41,25 @@ class RemoteOpenAiClient(baseUrl: String) {
             }
         } catch (_: Exception) {
             emptyList()
+        }
+    }
+
+    /**
+     * Fire a tiny non-streaming request so the server loads the model into
+     * memory ahead of the first real turn. Returns true on a 2xx response.
+     */
+    suspend fun warmUp(model: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val body = JSONObject().apply {
+                put("model", model)
+                put("max_tokens", 1)
+                put("stream", false)
+                put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", ".")))
+            }.toString().toRequestBody("application/json".toMediaType())
+            val request = Request.Builder().url("$base/v1/chat/completions").post(body).build()
+            http.newCall(request).execute().use { it.isSuccessful }
+        } catch (_: Exception) {
+            false
         }
     }
 

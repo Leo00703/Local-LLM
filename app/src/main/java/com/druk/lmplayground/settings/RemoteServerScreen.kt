@@ -35,8 +35,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
@@ -44,13 +44,13 @@ import com.druk.lmplayground.remote.FoundServer
 
 @Composable
 fun RemoteServerScreen(
+    serverName: String,
     serverUrl: String,
-    modelName: String,
     enabled: Boolean,
     scanning: Boolean,
     foundServers: List<FoundServer>,
+    onNameChange: (String) -> Unit,
     onUrlChange: (String) -> Unit,
-    onModelChange: (String) -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onScan: () -> Unit,
     onUseServer: (FoundServer) -> Unit,
@@ -72,13 +72,13 @@ fun RemoteServerScreen(
         }
     ) { padding ->
         RemoteServerContent(
+            serverName = serverName,
             serverUrl = serverUrl,
-            modelName = modelName,
             enabled = enabled,
             scanning = scanning,
             foundServers = foundServers,
+            onNameChange = onNameChange,
             onUrlChange = onUrlChange,
-            onModelChange = onModelChange,
             onEnabledChange = onEnabledChange,
             onScan = onScan,
             onUseServer = onUseServer,
@@ -91,13 +91,13 @@ fun RemoteServerScreen(
 
 @Composable
 fun RemoteServerContent(
+    serverName: String,
     serverUrl: String,
-    modelName: String,
     enabled: Boolean,
     scanning: Boolean,
     foundServers: List<FoundServer>,
+    onNameChange: (String) -> Unit,
     onUrlChange: (String) -> Unit,
-    onModelChange: (String) -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onScan: () -> Unit,
     onUseServer: (FoundServer) -> Unit,
@@ -136,25 +136,27 @@ fun RemoteServerContent(
 
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
+        // Server name (above the URL, per design) — a friendly label shown in
+        // the model picker.
         OutlinedTextField(
-            value = serverUrl,
-            onValueChange = onUrlChange,
-            label = { Text(stringResource(R.string.server_url)) },
-            placeholder = { Text(stringResource(R.string.server_url_hint)) },
+            value = serverName,
+            onValueChange = onNameChange,
+            label = { Text(stringResource(R.string.server_name)) },
+            placeholder = { Text(stringResource(R.string.server_name_hint)) },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         )
 
         OutlinedTextField(
-            value = modelName,
-            onValueChange = onModelChange,
-            label = { Text(stringResource(R.string.server_model)) },
-            placeholder = { Text(stringResource(R.string.server_model_hint)) },
+            value = serverUrl,
+            onValueChange = onUrlChange,
+            label = { Text(stringResource(R.string.server_url)) },
+            placeholder = { Text(stringResource(R.string.server_url_hint)) },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),

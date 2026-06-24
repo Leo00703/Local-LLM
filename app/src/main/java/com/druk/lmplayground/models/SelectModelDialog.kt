@@ -11,8 +11,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -48,6 +52,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -112,6 +117,11 @@ fun SelectModelDialog(
             modifier = Modifier
                 .widthIn(max = 560.dp)
                 .fillMaxWidth()
+                // Keep the card clear of the status/nav bars and cap its height
+                // so a long remote model list scrolls inside instead of
+                // overflowing past the status bar.
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.85f).dp)
                 .padding(16.dp)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -378,9 +388,18 @@ private fun RemoteModelRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(start = 52.dp, top = 12.dp, bottom = 12.dp, end = 16.dp),
+            .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Image(
+            painter = painterResource(id = ModelInfoProvider.logoForModelId(modelId)),
+            contentDescription = null,
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = modelId,
             style = MaterialTheme.typography.bodyLarge,

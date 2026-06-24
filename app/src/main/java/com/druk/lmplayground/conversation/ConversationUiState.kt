@@ -55,6 +55,14 @@ class ConversationUiState(
             message.ttftMs
         }
 
+        // Decode window = first token → now (excludes TTFT/prompt-eval); this is
+        // the denominator for an honest tok/s.
+        val responseDecodeSeconds = if (firstTokenTimeMs > 0L) {
+            (now - firstTokenTimeMs) / 1000f
+        } else {
+            message.responseDecodeSeconds
+        }
+
         _messages[_messages.size - 1] = message.copy(
             content = msg,
             thinkingDurationSeconds = duration,
@@ -62,6 +70,7 @@ class ConversationUiState(
             thinkingTokens = thinkingTokens,
             responseTokens = responseTokens,
             responseDurationSeconds = responseDuration,
+            responseDecodeSeconds = responseDecodeSeconds,
             firstTokenTimeMs = firstTokenTimeMs,
             ttftMs = ttftMs
         )
@@ -94,11 +103,34 @@ class ConversationUiState(
         if (_messages.isEmpty()) return
         val message = _messages.last()
         if (message.responseStartTimeMs > 0) {
+            val now = System.currentTimeMillis()
+            val decode = if (message.firstTokenTimeMs > 0L) {
+                (now - message.firstTokenTimeMs) / 1000f
+            } else {
+                message.responseDecodeSeconds
+            }
             _messages[_messages.size - 1] = message.copy(
-                responseDurationSeconds = (System.currentTimeMillis() - message.responseStartTimeMs) / 1000f,
+                responseDurationSeconds = (now - message.responseStartTimeMs) / 1000f,
+                responseDecodeSeconds = decode,
                 responseStartTimeMs = 0L
             )
         }
+    }
+
+    /**
+     * Overwrite the last message's token/timing stats with authoritative
+     * numbers reported by the backend (e.g. a remote server's usage), bypassing
+     * the one-call-per-token counting that's wrong for multi-token SSE chunks.
+     */
+    fun applyRemoteStats(completionTokens: Int, ttftMs: Int, decodeMs: Int) {
+        if (_messages.isEmpty()) return
+        val message = _messages.last()
+        _messages[_messages.size - 1] = message.copy(
+            thinkingTokens = 0,
+            responseTokens = completionTokens,
+            ttftMs = ttftMs,
+            responseDecodeSeconds = decodeMs / 1000f
+        )
     }
 
     fun setMessages(messages: List<Message>) {
@@ -149,6 +181,8 @@ data class Message(
     val responseTokens: Int = 0,
     val responseStartTimeMs: Long = 0,
     val responseDurationSeconds: Float = 0f,
+    /** Decode window (first token → finalize) in seconds — the honest tok/s denominator. */
+    val responseDecodeSeconds: Float = 0f,
     val firstTokenTimeMs: Long = 0,
     val ttftMs: Int = 0,
     val timestamp: Long = System.currentTimeMillis(),

@@ -215,6 +215,9 @@
     <string name="remote_no_models">No models on the server</string>
     <string name="remote_model_description">Remote · %s</string>
     <string name="remote_server_not_configured">Set up the server in Settings first</string>
+    <string name="server_name">Server name</string>
+    <string name="server_name_hint">My PC</string>
+    <string name="remote_loading">Loading…</string>
     <string name="previously_used_model">Previously used: %s</string>
 
     <!-- Storage -->
