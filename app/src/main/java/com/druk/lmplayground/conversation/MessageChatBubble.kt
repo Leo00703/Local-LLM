@@ -154,10 +154,10 @@ fun ChatItemBubble(
                 !message.content.contains("</think>")
 
             if (thinkingStreaming && hasThinking) {
-                // Live reasoning: an expandable card with a running token count
-                // so the thinking can be watched as it streams in. Expanded by
-                // default; no final duration yet. Becomes the collapsed card below
-                // once </think> arrives.
+                // Live reasoning: a collapsible card with a running token count.
+                // Collapsed by default, showing the live peek window (the last few
+                // lines streaming in); tap to expand the full reasoning. Becomes the
+                // collapsed card below once </think> arrives.
                 val phrase = thinkingPhrase(message.id)
                 CollapsibleSection(
                     label = buildString {
@@ -168,7 +168,7 @@ fun ChatItemBubble(
                     },
                     content = split.thinkingContent,
                     icon = Icons.Outlined.AutoAwesome,
-                    initiallyExpanded = true,
+                    initiallyExpanded = false,
                     markdown = true,
                     peekWhenCollapsed = true
                 )
@@ -397,13 +397,13 @@ private fun ThinkingPeek(content: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(74.dp)
             .padding(start = 12.dp, end = 12.dp, bottom = 10.dp)
             .clipToBounds()
             .clickable(onClick = onClick)
     ) {
         // Sharp, readable base: erased in the top band by the INVERSE of the blur
-        // fade (Transparent@0 -> Black@0.45) so the crisp glyphs don't ghost through
+        // fade (Transparent@0 -> Black@0.25) so the crisp glyphs don't ghost through
         // under the blurred copy; stays fully legible lower down. Its own offscreen
         // layer isolates the DstIn so it only erases this base, not what's beneath.
         Box(
@@ -415,7 +415,7 @@ private fun ThinkingPeek(content: String, onClick: () -> Unit) {
                     drawRect(
                         brush = Brush.verticalGradient(
                             0f to Color.Transparent,
-                            0.45f to Color.Black
+                            0.25f to Color.Black
                         ),
                         blendMode = BlendMode.DstIn
                     )
@@ -443,7 +443,7 @@ private fun ThinkingPeek(content: String, onClick: () -> Unit) {
                     drawRect(
                         brush = Brush.verticalGradient(
                             0f to Color.Black,
-                            0.45f to Color.Transparent
+                            0.25f to Color.Transparent
                         ),
                         blendMode = BlendMode.DstIn
                     )
@@ -463,7 +463,7 @@ private fun ThinkingPeek(content: String, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(20.dp)
+                .height(16.dp)
                 .align(Alignment.TopCenter)
                 .background(
                     Brush.verticalGradient(listOf(container, container.copy(alpha = 0f)))
