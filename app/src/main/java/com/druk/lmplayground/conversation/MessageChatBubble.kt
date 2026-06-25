@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -50,8 +51,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -384,6 +390,10 @@ private fun ThinkingPeek(content: String, onClick: () -> Unit) {
     // Keep the newest thinking pinned to the bottom as it streams in.
     LaunchedEffect(scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
     val container = MaterialTheme.colorScheme.surfaceContainerHigh
+    val textStyle = MaterialTheme.typography.bodySmall.copy(
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    val formatted = messageFormatter(text = content, primary = false)
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -392,22 +402,68 @@ private fun ThinkingPeek(content: String, onClick: () -> Unit) {
             .clipToBounds()
             .clickable(onClick = onClick)
     ) {
-        Text(
-            text = messageFormatter(text = content, primary = false),
-            style = MaterialTheme.typography.bodySmall.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
+        // Sharp, readable base: erased in the top band by the INVERSE of the blur
+        // fade (Transparent@0 -> Black@0.45) so the crisp glyphs don't ghost through
+        // under the blurred copy; stays fully legible lower down. Its own offscreen
+        // layer isolates the DstIn so it only erases this base, not what's beneath.
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(scroll)
-                .blur(2.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
-        )
-        // Top lines dissolve into the card: a gradient of the card colour fading
-        // to transparent over the part that is scrolling out.
+                .matchParentSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            0.45f to Color.Black
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                }
+        ) {
+            Text(
+                text = formatted,
+                style = textStyle,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scroll)
+            )
+        }
+        // A blurred copy of the SAME (scroll-synced) text, revealed ONLY over the
+        // top band of the window via a viewport-fixed top→bottom fade. Offscreen
+        // compositing isolates the DstIn mask so it erases only this blurred copy,
+        // not the sharp text underneath. The mask is fixed to the window (not the
+        // scrolling content), so the blur always sits on the lines leaving the top.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0f to Color.Black,
+                            0.45f to Color.Transparent
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                }
+        ) {
+            Text(
+                text = formatted,
+                style = textStyle,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(align = Alignment.Top, unbounded = true)
+                    .graphicsLayer { translationY = -scroll.value.toFloat() }
+                    .blur(3.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+            )
+        }
+        // The very top lines also dissolve into the card colour as they leave.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(26.dp)
+                .height(20.dp)
                 .align(Alignment.TopCenter)
                 .background(
                     Brush.verticalGradient(listOf(container, container.copy(alpha = 0f)))
