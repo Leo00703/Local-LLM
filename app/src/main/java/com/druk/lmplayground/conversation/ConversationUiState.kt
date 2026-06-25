@@ -125,9 +125,14 @@ class ConversationUiState(
     fun applyRemoteStats(completionTokens: Int, ttftMs: Int, decodeMs: Int) {
         if (_messages.isEmpty()) return
         val message = _messages.last()
+        // Preserve the thinking-token count tracked while streaming so the
+        // thinking card can still show it after generation ends. The server's
+        // completionTokens is the TOTAL, so the response portion is whatever is
+        // left after the thinking tokens — keeping total = completionTokens.
+        val thinking = message.thinkingTokens.coerceIn(0, completionTokens)
         _messages[_messages.size - 1] = message.copy(
-            thinkingTokens = 0,
-            responseTokens = completionTokens,
+            thinkingTokens = thinking,
+            responseTokens = (completionTokens - thinking).coerceAtLeast(0),
             ttftMs = ttftMs,
             responseDecodeSeconds = decodeMs / 1000f
         )

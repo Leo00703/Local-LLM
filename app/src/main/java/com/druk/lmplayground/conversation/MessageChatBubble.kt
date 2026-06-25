@@ -9,9 +9,12 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,8 +23,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -35,13 +40,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -153,7 +163,8 @@ fun ChatItemBubble(
                     content = split.thinkingContent,
                     icon = Icons.Outlined.AutoAwesome,
                     initiallyExpanded = true,
-                    markdown = true
+                    markdown = true,
+                    peekWhenCollapsed = true
                 )
             } else if (thinkingStreaming) {
                 // <think> opened but no content yet \u2014 animated header.
@@ -281,7 +292,8 @@ private fun CollapsibleSection(
     content: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     initiallyExpanded: Boolean = false,
-    markdown: Boolean = false
+    markdown: Boolean = false,
+    peekWhenCollapsed: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
     val chevronRotation by animateFloatAsState(
@@ -292,6 +304,7 @@ private fun CollapsibleSection(
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column {
@@ -353,7 +366,53 @@ private fun CollapsibleSection(
                     }
                 }
             }
+            if (!expanded && peekWhenCollapsed && content.isNotEmpty()) {
+                ThinkingPeek(content = content, onClick = { expanded = true })
+            }
         }
+    }
+}
+
+/**
+ * Live "peek" of the streaming thinking shown when the card is collapsed: the
+ * last few lines, auto-pinned to the newest text, with the top lines blurring
+ * and fading into the card as they scroll out (LM Studio style).
+ */
+@Composable
+private fun ThinkingPeek(content: String, onClick: () -> Unit) {
+    val scroll = rememberScrollState()
+    // Keep the newest thinking pinned to the bottom as it streams in.
+    LaunchedEffect(scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
+    val container = MaterialTheme.colorScheme.surfaceContainerHigh
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .padding(start = 12.dp, end = 12.dp, bottom = 10.dp)
+            .clipToBounds()
+            .clickable(onClick = onClick)
+    ) {
+        Text(
+            text = messageFormatter(text = content, primary = false),
+            style = MaterialTheme.typography.bodySmall.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scroll)
+                .blur(2.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+        )
+        // Top lines dissolve into the card: a gradient of the card colour fading
+        // to transparent over the part that is scrolling out.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(26.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(listOf(container, container.copy(alpha = 0f)))
+                )
+        )
     }
 }
 
