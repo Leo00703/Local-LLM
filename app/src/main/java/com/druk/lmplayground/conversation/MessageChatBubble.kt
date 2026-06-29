@@ -1,7 +1,6 @@
 package com.druk.lmplayground.conversation
 
 import android.content.Intent
-import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -12,12 +11,10 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,7 +24,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -52,16 +48,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -69,9 +58,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
 
@@ -387,8 +374,10 @@ private fun CollapsibleSection(
 
 /**
  * Live "peek" of the streaming thinking shown when the card is collapsed: the
- * last few lines, auto-pinned to the newest text, with the top lines blurring
- * and fading into the card as they scroll out (LM Studio style).
+ * last few lines, auto-pinned to the newest text. Like LM Studio, the top lines
+ * don't blur — they DISSOLVE into the card via a transparency gradient as they
+ * scroll out: the oldest line at the top fades away fully, the next only
+ * slightly, and the newest line stays fully sharp.
  */
 @Composable
 private fun ThinkingPeek(content: String, onClick: () -> Unit) {
@@ -396,14 +385,10 @@ private fun ThinkingPeek(content: String, onClick: () -> Unit) {
     // Keep the newest thinking pinned to the bottom as it streams in.
     LaunchedEffect(scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
     val container = MaterialTheme.colorScheme.surfaceContainerHigh
-    val textStyle = MaterialTheme.typography.bodySmall.copy(
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-    val formatted = messageFormatter(text = content, primary = false)
     // ~3 lines tall, like LM Studio's peek.
-    val peekHeight = 58.dp
+    val peekHeight = 50.dp
     val peekBottomPad = 10.dp
-    val contentWindow = peekHeight - peekBottomPad // size each layer fills; bottom-anchor ref
+    val contentWindow = peekHeight - peekBottomPad
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -412,126 +397,42 @@ private fun ThinkingPeek(content: String, onClick: () -> Unit) {
             .clipToBounds()
             .clickable(onClick = onClick)
     ) {
-        // Three scroll-synced, BOTTOM-anchored copies of the same text stacked into a
-        // smooth blur RAMP (LM Studio style): sharp at the bottom line, gradually
-        // blurrier and dimmer toward the top. Each layer lives in its own offscreen
-        // buffer and is revealed by a DstIn vertical gradient; the keep-masks are
-        // complementary so exactly one (cross)fades into the next with no crisp glyphs
-        // ghosting under the blur.
-        //
-        // 1) Sharp base: fully opaque on the bottom line, fading out over the top ~70%.
-        PeekTextLayer(
-            text = formatted, style = textStyle, scroll = scroll,
-            windowHeight = contentWindow, blurRadius = 0.dp,
-            keepTop = Color.Transparent, keepBottom = Color.Black, fadeEnd = 0.7f
-        )
-        // Modifier.blur needs API 31+ (RenderEffect); below that it is a silent no-op,
-        // so the extra copies would just double-paint the sharp text. Only stack them
-        // where they actually blur — older devices fall back to the sharp base alone.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // 2) Light blur, crossfading IN over the top ~70% (complement of the base).
-            PeekTextLayer(
-                text = formatted, style = textStyle, scroll = scroll,
-                windowHeight = contentWindow, blurRadius = 2.5.dp,
-                keepTop = Color.Black, keepBottom = Color.Transparent, fadeEnd = 0.7f
-            )
-            // 3) Heavy blur, only near the very top, so the topmost line dissolves the
-            //    most — completing the sharp -> light -> heavy progression.
-            PeekTextLayer(
-                text = formatted, style = textStyle, scroll = scroll,
-                windowHeight = contentWindow, blurRadius = 5.dp,
-                keepTop = Color.Black, keepBottom = Color.Transparent, fadeEnd = 0.4f
-            )
-        }
-        // The very top line also dissolves into the card colour as it leaves.
+        // Sharp text, newest pinned to the bottom line. Short early-streaming
+        // content sits on the bottom line via the bottom-anchored min-height box,
+        // instead of floating up into the dissolving top band.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(14.dp)
-                .align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(listOf(container, container.copy(alpha = 0f)))
-                )
-        )
-    }
-}
-
-/**
- * One layer of the thinking peek: an offscreen-composited, scroll-synced copy of
- * [text], optionally blurred by [blurRadius], revealed by a vertical DstIn gradient
- * running from [keepTop] (window top) to [keepBottom], reaching [keepBottom] at
- * [fadeEnd] of the window height. Offscreen compositing isolates the DstIn so it
- * only masks this copy, not the layers beneath it. The text is BOTTOM-anchored within
- * [windowHeight] so short/early-streaming content sits on the sharp bottom line
- * instead of floating up into the blurred/faded top band.
- */
-@Composable
-private fun BoxScope.PeekTextLayer(
-    text: AnnotatedString,
-    style: TextStyle,
-    scroll: ScrollState,
-    windowHeight: Dp,
-    blurRadius: Dp,
-    keepTop: Color,
-    keepBottom: Color,
-    fadeEnd: Float
-) {
-    Box(
-        modifier = Modifier
-            .matchParentSize()
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        0f to keepTop,
-                        fadeEnd to keepBottom
-                    ),
-                    blendMode = BlendMode.DstIn
-                )
-            }
-    ) {
-        if (blurRadius > 0.dp) {
-            // Blurred copies can't drive the ScrollState, so they mirror its offset
-            // via translationY and overflow freely (clipped by the offscreen layer).
+                .verticalScroll(scroll)
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .wrapContentHeight(align = Alignment.Top, unbounded = true)
-                    .graphicsLayer { translationY = -scroll.value.toFloat() }
+                    .defaultMinSize(minHeight = contentWindow),
+                contentAlignment = Alignment.BottomStart
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .defaultMinSize(minHeight = windowHeight),
-                    contentAlignment = Alignment.BottomStart
-                ) {
-                    Text(
-                        text = text,
-                        style = style,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .blur(blurRadius, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                Text(
+                    text = messageFormatter(text = content, primary = false),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-            }
-        } else {
-            // The sharp base owns the ScrollState and stays pinned to the newest line.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(scroll)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .defaultMinSize(minHeight = windowHeight),
-                    contentAlignment = Alignment.BottomStart
-                ) {
-                    Text(text = text, style = style)
-                }
+                )
             }
         }
+        // No blur — the top lines simply dissolve into the card colour via a
+        // transparency gradient (LM Studio style): opaque card at the very top,
+        // fully transparent by ~45% down, so the top line fades out, the second
+        // only slightly, and everything below stays fully sharp.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to container,
+                        0.45f to container.copy(alpha = 0f)
+                    )
+                )
+        )
     }
 }
 
