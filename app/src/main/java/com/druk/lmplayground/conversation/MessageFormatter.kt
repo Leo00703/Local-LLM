@@ -81,7 +81,41 @@ fun splitThinking(text: String): ThinkingSplit {
         cursor = match.range.last + 1
     }
     val response = if (cursor < text.length) text.substring(cursor).trimStart() else ""
-    return ThinkingSplit(thinking.toString(), response)
+    return ThinkingSplit(dedentThinking(thinking.toString()), response)
+}
+
+/**
+ * Reasoning models often indent their structured thoughts by 4+ spaces. The
+ * Markdown formatter would then read those lines as *indented code blocks*
+ * (monospace text on a dark `surface` background) instead of normal prose.
+ *
+ * Strip the per-line leading indentation so thinking renders as flowing
+ * paragraphs and bullet lists, while preserving the *relative* indentation
+ * inside genuine fenced ``` / ~~~ code blocks.
+ */
+private fun dedentThinking(text: String): String {
+    if (text.isEmpty()) return text
+    val out = ArrayList<String>()
+    var fenceIndent: Int? = null // non-null while inside a fenced code block
+    for (line in text.split("\n")) {
+        val firstNonSpace = line.indexOfFirst { it != ' ' && it != '\t' }
+        val leading = if (firstNonSpace < 0) line.length else firstNonSpace
+        val stripped = line.substring(leading)
+        if (fenceIndent == null) {
+            if (stripped.startsWith("```") || stripped.startsWith("~~~")) {
+                fenceIndent = leading
+            }
+            out.add(stripped)
+        } else {
+            // Inside a fence: drop only the opening fence's own indent so the
+            // code keeps its internal indentation.
+            out.add(line.substring(minOf(leading, fenceIndent!!)))
+            if (stripped.startsWith("```") || stripped.startsWith("~~~")) {
+                fenceIndent = null
+            }
+        }
+    }
+    return out.joinToString("\n")
 }
 
 /**
