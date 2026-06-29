@@ -493,6 +493,9 @@ object ModelInfoProvider {
             "nvidia" to R.drawable.logo_nvidia,
             "gpt-oss" to R.drawable.logo_openai,
             "openai" to R.drawable.logo_openai,
+            "ernie" to R.drawable.logo_ernie,
+            "baidu" to R.drawable.logo_ernie,
+            "ornith" to R.drawable.logo_ornith,
         )
         return rules.firstOrNull { (kw, _) -> id.contains(kw) }?.second
             ?: R.drawable.penrose_triangle
@@ -511,6 +514,7 @@ object ModelInfoProvider {
         "mixtral" to "Mixtral", "phi" to "Phi", "granite" to "Granite",
         "nemotron" to "Nemotron", "bonsai" to "Bonsai", "deepseek" to "DeepSeek",
         "gpt" to "GPT", "gemini" to "Gemini", "openai" to "OpenAI", "yi" to "Yi",
+        "ernie" to "ERNIE", "ornith" to "Ornith",
     )
     private val PARAM_SIZE = Regex("^\\d+(\\.\\d+)?[bmk]$")          // 4b, 0.5b, 350m
     private val ACTIVE_PARAMS = Regex("^a\\d+(\\.\\d+)?b$")          // a3b, a1b
@@ -578,6 +582,9 @@ object ModelInfoProvider {
             "gpt-oss" to "GPT-OSS",
             "gpt" to "GPT-OSS",
             "glm" to "GLM",
+            "ernie" to "ERNIE",
+            "baidu" to "ERNIE",
+            "ornith" to "Ornith",
         )
         return rules.firstOrNull { (kw, _) -> id.contains(kw) }?.second ?: "Other"
     }

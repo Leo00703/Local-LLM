@@ -127,11 +127,19 @@ private fun dedentThinking(text: String): String {
 @Composable
 fun messageFormatter(
     text: String,
-    primary: Boolean
+    primary: Boolean,
+    flatCode: Boolean = false
 ): AnnotatedString {
     val colorScheme = MaterialTheme.colorScheme
     val thinkColor = colorScheme.outline
-    val codeBackground = if (primary) colorScheme.secondary else colorScheme.surface
+    // In the thinking card, inline code / code spans shouldn't get a filled
+    // background (it reads as ugly "black bars" behind ordinary words the model
+    // happened to write as code) — keep the monospace font, drop the fill.
+    val codeBackground = when {
+        flatCode -> Color.Transparent
+        primary -> colorScheme.secondary
+        else -> colorScheme.surface
+    }
 
     val thoughtsLabel = stringResource(R.string.thoughts)
 

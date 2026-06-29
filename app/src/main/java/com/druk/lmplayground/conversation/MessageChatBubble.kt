@@ -1,6 +1,7 @@
 package com.druk.lmplayground.conversation
 
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -43,11 +44,13 @@ import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -97,17 +100,24 @@ fun ChatItemBubble(
             ThinkingCardLive(message.id)
         } else {
             val split = remember(message.content) { splitThinking(message.content) }
-            if (!isGenerating && hasToolCalls) {
-                // Finalized multi-step (agentic) turn: collapse the whole
-                // reasoning + tool timeline into one summary card. Every step
-                // stays inspectable on tap; the response renders below.
-                AgentProcessCard(message = message, finalThinking = split.thinkingContent)
+            if (hasToolCalls) {
+                // Unified process card for BOTH live and finalized multi-step
+                // turns: it populates progressively while generating (search /
+                // reasoning / fetch steps + a live "thinking" tail) and stays
+                // collapsible after. The response renders below it.
+                AgentProcessCard(
+                    message = message,
+                    finalThinking = split.thinkingContent,
+                    isGenerating = isGenerating,
+                    answerStarted = split.responseContent.isNotEmpty()
+                )
                 if (split.responseContent.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             } else {
-            // Live streaming, or a turn with no tool calls: render reasoning and
-            // any completed tool rounds inline, in chronological order.
+            // No tool calls: render reasoning inline (live peek while a <think>
+            // block streams, full card once it closes). The branch below guarded
+            // by hasToolCalls is unreachable here and kept only for clarity.
             if (hasToolCalls) {
                 val thinkingText = stringResource(R.string.thinking)
                 val inputLabel = stringResource(R.string.tool_call_input)
@@ -367,7 +377,7 @@ private fun CollapsibleSection(
                         // Render the (markdown) thinking text formatted: *italic*,
                         // **bold**, lists, inline code, etc.
                         Text(
-                            text = messageFormatter(text = content, primary = false),
+                            text = messageFormatter(text = content, primary = false, flatCode = true),
                             style = contentStyle,
                             modifier = contentModifier
                         )
@@ -427,7 +437,7 @@ private fun ThinkingPeek(content: String, onClick: () -> Unit) {
                 contentAlignment = Alignment.BottomStart
             ) {
                 Text(
-                    text = messageFormatter(text = content, primary = false),
+                    text = messageFormatter(text = content, primary = false, flatCode = true),
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -590,7 +600,7 @@ private class ProcessStep(
 )
 
 /** A web source surfaced by web_search / web_fetch, shown as a chip in a step. */
-private data class WebSource(val domain: String, val title: String)
+private data class WebSource(val domain: String, val title: String, val url: String?)
 
 /**
  * Collapses a finalized multi-step (reasoning + tool) turn into a single
@@ -599,7 +609,12 @@ private data class WebSource(val domain: String, val title: String)
  * default so the answer sits right below it, not under a wall of cards.
  */
 @Composable
-private fun AgentProcessCard(message: Message, finalThinking: String) {
+private fun AgentProcessCard(
+    message: Message,
+    finalThinking: String,
+    isGenerating: Boolean = false,
+    answerStarted: Boolean = false,
+) {
     val thinkingLabel = stringResource(R.string.thinking)
     val inputLabel = stringResource(R.string.tool_call_input)
     val outputLabel = stringResource(R.string.tool_call_output)
@@ -608,10 +623,14 @@ private fun AgentProcessCard(message: Message, finalThinking: String) {
         "web_search" to stringResource(R.string.tool_web_search_title),
         "web_fetch" to stringResource(R.string.tool_web_fetch_title),
     )
-    val steps = remember(message.id, message.content, message.toolCalls) {
-        buildProcessSteps(message, finalThinking, thinkingLabel, inputLabel, outputLabel, toolNames)
+    // While generating, the still-streaming reasoning isn't a finished step yet —
+    // it's shown as the animated live tail instead, so don't fold it in here.
+    val effectiveFinalThinking = if (isGenerating) "" else finalThinking
+    val steps = remember(message.toolCalls, effectiveFinalThinking) {
+        buildProcessSteps(message, effectiveFinalThinking, thinkingLabel, inputLabel, outputLabel, toolNames)
     }
-    if (steps.isEmpty()) return
+    val showLiveTail = isGenerating && !answerStarted
+    if (steps.isEmpty() && !showLiveTail) return
 
     val searches = message.toolCalls.orEmpty().count { it.name == "web_search" }
     val fetches = message.toolCalls.orEmpty().count { it.name == "web_fetch" }
@@ -633,7 +652,10 @@ private fun AgentProcessCard(message: Message, finalThinking: String) {
     if (runs > 0) parts.add(pluralStringResource(R.plurals.process_run_count, runs, runs))
     val summary = parts.joinToString(" · ")
 
-    var expanded by remember(message.id) { mutableStateOf(false) }
+    // Default: expanded while generating (so you watch it populate live),
+    // collapsed once done — unless the user has tapped to override.
+    var userExpanded by remember(message.id) { mutableStateOf<Boolean?>(null) }
+    val expanded = userExpanded ?: isGenerating
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         label = "processChevron"
@@ -649,7 +671,7 @@ private fun AgentProcessCard(message: Message, finalThinking: String) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { expanded = !expanded }
+                    .clickable { userExpanded = !expanded }
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -699,6 +721,9 @@ private fun AgentProcessCard(message: Message, finalThinking: String) {
                     Column {
                         steps.forEach { step ->
                             ProcessStepRow(step = step)
+                        }
+                        if (showLiveTail) {
+                            LiveStepRow(message.id)
                         }
                     }
                 }
@@ -774,7 +799,7 @@ private fun ProcessStepRow(step: ProcessStep) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (step.markdown) {
-                        Text(text = messageFormatter(text = step.body, primary = false), style = style)
+                        Text(text = messageFormatter(text = step.body, primary = false, flatCode = true), style = style)
                     } else {
                         Text(text = step.body, style = style)
                     }
@@ -784,10 +809,60 @@ private fun ProcessStepRow(step: ProcessStep) {
     }
 }
 
+/** The animated "still working" tail row shown while the turn is generating. */
+@Composable
+private fun LiveStepRow(messageId: Long) {
+    val rail = MaterialTheme.colorScheme.outlineVariant
+    val nodeBg = MaterialTheme.colorScheme.surfaceContainerHigh
+    val phrase = thinkingPhrase(messageId)
+    val transition = rememberInfiniteTransition(label = "liveTail")
+    val dotCount by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "liveDots"
+    )
+    val dots = ".".repeat(dotCount.toInt().coerceIn(0, 3))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(nodeBg)
+                .border(1.dp, rail, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(13.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = "$phrase$dots",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.outline,
+            fontStyle = FontStyle.Italic
+        )
+    }
+}
+
 /** Web-source chips (favicon + domain) for a search / fetch step. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SourceChips(sources: List<WebSource>) {
+    val context = LocalContext.current
+    var pending by remember { mutableStateOf<WebSource?>(null) }
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -797,6 +872,7 @@ private fun SourceChips(sources: List<WebSource>) {
             Surface(
                 shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.clickable { pending = src }
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -825,6 +901,35 @@ private fun SourceChips(sources: List<WebSource>) {
                 }
             }
         }
+    }
+    // Tap a chip → confirm before leaving the app to open the source.
+    pending?.let { src ->
+        val target = src.url ?: "https://${src.domain}"
+        AlertDialog(
+            onDismissRequest = { pending = null },
+            icon = { Icon(imageVector = Icons.Outlined.Public, contentDescription = null) },
+            title = { Text(text = stringResource(R.string.open_source_title)) },
+            text = {
+                Text(
+                    text = target,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pending = null
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                    }
+                }) { Text(text = stringResource(R.string.open_source_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pending = null }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 }
 
@@ -907,15 +1012,19 @@ private fun extractSources(tc: ToolCallInfo): List<WebSource> = try {
             } else {
                 (0 until arr.length()).mapNotNull { i ->
                     val o = arr.optJSONObject(i) ?: return@mapNotNull null
-                    val domain = o.optString("domain").ifBlank { hostOf(o.optString("url")) }
-                    if (domain.isBlank()) null else WebSource(domain, o.optString("title"))
+                    // Production web_search hides the full URL behind a "ddg:"
+                    // ref, so usually only the domain is available here.
+                    val rawUrl = o.optString("url").ifBlank { null }
+                    val domain = o.optString("domain").ifBlank { rawUrl?.let { hostOf(it) } ?: "" }
+                    if (domain.isBlank()) null else WebSource(domain, o.optString("title"), rawUrl)
                 }.distinctBy { it.domain }
             }
         }
         "web_fetch" -> {
             val o = org.json.JSONObject(tc.result)
-            val domain = hostOf(o.optString("url"))
-            if (domain.isBlank()) emptyList() else listOf(WebSource(domain, o.optString("title")))
+            val rawUrl = o.optString("url").ifBlank { null }
+            val domain = rawUrl?.let { hostOf(it) } ?: ""
+            if (domain.isBlank()) emptyList() else listOf(WebSource(domain, o.optString("title"), rawUrl))
         }
         else -> emptyList()
     }

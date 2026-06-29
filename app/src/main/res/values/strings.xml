@@ -356,6 +356,8 @@
     <string name="process_reasoned_searched">Reasoned and searched the web</string>
     <string name="process_searched">Searched the web</string>
     <string name="process_used_tools">Used tools</string>
+    <string name="open_source_title">Open this source?</string>
+    <string name="open_source_confirm">Open</string>
     <string name="process_sources">Sources</string>
     <string name="process_expand">Show steps</string>
     <string name="process_collapse">Hide steps</string>
