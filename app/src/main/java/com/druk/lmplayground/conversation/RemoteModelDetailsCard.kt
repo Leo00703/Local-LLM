@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +22,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -35,6 +38,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
 import com.druk.lmplayground.remote.ServerModelDetails
+import com.druk.lmplayground.tools.Tool
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
@@ -56,6 +60,10 @@ fun RemoteModelDetailsCard(
     hazeState: HazeState,
     hazeStyle: HazeStyle,
     topPadding: Dp,
+    supportsToolCalling: Boolean = false,
+    tools: List<Tool> = emptyList(),
+    toolEnabledStates: Map<String, Boolean> = emptyMap(),
+    onToolEnabledChanged: (String, Boolean) -> Unit = { _, _ -> },
     onParamsChange: (GenerationParams) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -159,6 +167,50 @@ fun RemoteModelDetailsCard(
                         valueDisplay = "%.2f".format(edited.repetitionPenalty),
                         onValueChange = { edited = edited.copy(repetitionPenalty = (it * 100).roundToInt() / 100f) },
                     )
+
+                    // Tools: enable web_search / web_fetch / run_javascript for this
+                    // remote model (same toggles as the local model's params sheet).
+                    if (supportsToolCalling && tools.isNotEmpty()) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                        Text(
+                            text = stringResource(R.string.tools),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = stringResource(R.string.tools_params_sheet_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        for (tool in tools) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                                    Text(
+                                        text = toolFriendlyName(tool.name),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    toolShortDescription(tool.name)?.let { desc ->
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = desc,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                                Switch(
+                                    checked = toolEnabledStates[tool.name] ?: false,
+                                    onCheckedChange = { onToolEnabledChanged(tool.name, it) },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

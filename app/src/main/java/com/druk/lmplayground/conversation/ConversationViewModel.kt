@@ -453,7 +453,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // Keep the thinking toggle available for remote models; enableThinking
             // is forwarded to the server as chat_template_kwargs when disabled.
             _supportsThinking.postValue(true)
-            _supportsToolCalling.postValue(false)
+            // OpenAI-compatible servers accept the `tools` param; the same VM tool
+            // loop drives RemoteOpenAiBackend (tools only sent when the user enables
+            // them, so non-tool models are unaffected by default).
+            _supportsToolCalling.postValue(true)
             _toolEnabledStates.postValue(emptyMap())
 
             val params = GenerationParams(contextSize = maxContext)

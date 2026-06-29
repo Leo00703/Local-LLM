@@ -695,6 +695,10 @@ class ConversationFragment : Fragment() {
                                 hazeState = hazeState,
                                 hazeStyle = hazeStyle,
                                 topPadding = topBarHeight,
+                                supportsToolCalling = supportsToolCalling,
+                                tools = viewModel.toolRegistry.getAllTools(),
+                                toolEnabledStates = toolEnabledStates,
+                                onToolEnabledChanged = { name, enabled -> viewModel.setToolEnabled(name, enabled) },
                                 onParamsChange = { viewModel.updateGenerationParams(it) },
                                 onDismiss = { showDetailsCard = false },
                             )

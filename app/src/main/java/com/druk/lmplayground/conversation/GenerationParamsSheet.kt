@@ -550,7 +550,7 @@ private fun ParamSlider(
  * any tool without a mapped string.
  */
 @Composable
-private fun toolFriendlyName(name: String): String = when (name) {
+internal fun toolFriendlyName(name: String): String = when (name) {
     "run_javascript" -> stringResource(R.string.tool_run_javascript_title)
     "web_search" -> stringResource(R.string.tool_web_search_title)
     "web_fetch" -> stringResource(R.string.tool_web_fetch_title)
@@ -564,7 +564,7 @@ private fun toolFriendlyName(name: String): String = when (name) {
  * Null for unmapped tools (the subtitle is then hidden).
  */
 @Composable
-private fun toolShortDescription(name: String): String? = when (name) {
+internal fun toolShortDescription(name: String): String? = when (name) {
     "run_javascript" -> stringResource(R.string.tool_run_javascript_desc)
     "web_search" -> stringResource(R.string.tool_web_search_desc)
     "web_fetch" -> stringResource(R.string.tool_web_fetch_desc)

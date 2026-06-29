@@ -25,8 +25,12 @@ import java.io.IOException
  * LM Studio reasoning models). Both are normalized to a single
  * `<think>…</think>answer` stream so the app's thinking card renders it.
  *
- * Tool calling is not forwarded in v1. `stream_options.include_usage` is
- * requested so the server's exact token counts drive the stats via [lastStats].
+ * Tool calling: when [setTools] receives enabled tools they are forwarded as
+ * `tools`; streamed `tool_calls` are accumulated and surfaced through the
+ * [getToolCallsJson] / [submitToolResults] contract — [generateAll] returns 2 so
+ * the ViewModel runs the same tool loop it uses for the local engine.
+ * `stream_options.include_usage` is requested so the server's exact token counts
+ * drive the stats via [lastStats].
  */
 class RemoteOpenAiBackend(
     private val client: RemoteOpenAiClient,
@@ -41,14 +45,35 @@ class RemoteOpenAiBackend(
     private val maxContext: Int,
 ) : GenerationBackend {
 
-    private data class Msg(val role: String, val content: String)
+    // role: system/user/assistant/tool. For an assistant turn that issued tool
+    // calls, [toolCalls] holds the OpenAI-format array and [content] may be null;
+    // for a tool-result turn, [toolCallId] links it to the call it answers.
+    private data class Msg(
+        val role: String,
+        val content: String?,
+        val toolCalls: JSONArray? = null,
+        val toolCallId: String? = null,
+    )
+
+    private data class PendingCall(val id: String, val name: String, val arguments: String)
+
+    /** Accumulates one streamed tool call across SSE delta fragments (by index). */
+    private class ToolCallAcc {
+        var id: String = ""
+        var name: String = ""
+        val args = StringBuilder()
+    }
 
     private val history = mutableListOf<Msg>()
+    private val pendingToolCalls = mutableListOf<PendingCall>()
 
     @Volatile private var currentCall: Call? = null
     @Volatile private var lastEnableThinking = true
     @Volatile private var stats: GenerationStats? = null
     @Volatile private var contextUsed = 0
+    // OpenAI-format tools array (from ToolRegistry.toOpenAIToolsJson), or null when
+    // the user has no tools enabled. Forwarded as `tools` on each request.
+    @Volatile private var toolsJson: String? = null
 
     override fun addMessage(message: String, enableThinking: Boolean) {
         lastEnableThinking = enableThinking
@@ -63,11 +88,42 @@ class RemoteOpenAiBackend(
         }
     }
 
-    override fun setTools(toolsJson: String) { /* tools not forwarded in v1 */ }
+    override fun setTools(toolsJson: String) {
+        this.toolsJson = toolsJson.takeIf { it.isNotBlank() && it.trim() != "[]" }
+    }
 
-    override fun getToolCallsJson(): String = "[]"
+    /** Pending calls from the last [generateAll] that returned 2, as `[{id,name,arguments}]`. */
+    override fun getToolCallsJson(): String {
+        val arr = JSONArray()
+        pendingToolCalls.forEach { c ->
+            arr.put(JSONObject().put("id", c.id).put("name", c.name).put("arguments", c.arguments))
+        }
+        return arr.toString()
+    }
 
-    override fun submitToolResults(resultsJson: String, enableThinking: Boolean): Int = 0
+    /**
+     * Feed tool results (from ToolRegistry: `[{id,name,content}]`) back as `tool`
+     * messages so the next [generateAll] continues the turn. Returns 0; the VM's
+     * loop re-invokes generateAll for the continuation.
+     */
+    override fun submitToolResults(resultsJson: String, enableThinking: Boolean): Int {
+        lastEnableThinking = enableThinking
+        try {
+            val results = JSONArray(resultsJson)
+            for (i in 0 until results.length()) {
+                val r = results.getJSONObject(i)
+                history.add(
+                    Msg(
+                        role = "tool",
+                        content = r.optString("content"),
+                        toolCallId = r.optString("id"),
+                    )
+                )
+            }
+        } catch (_: Exception) { /* malformed results: skip, model continues without them */ }
+        pendingToolCalls.clear()
+        return 0
+    }
 
     override fun setPreambleCachePath(path: String, fingerprint: String) { /* no KV cache */ }
 
@@ -132,15 +188,35 @@ class RemoteOpenAiBackend(
                     put("thinking", JSONObject().put("type", "disabled"))
                 }
             }
+            // Tools: forward the enabled set so the model can call them. The VM's
+            // loop runs each call locally and feeds results back via
+            // submitToolResults, then re-invokes generateAll for the continuation.
+            toolsJson?.let {
+                put("tools", JSONArray(it))
+                put("tool_choice", "auto")
+            }
             put("messages", JSONArray().apply {
-                messages.forEach {
-                    put(JSONObject().put("role", it.role).put("content", it.content))
+                messages.forEach { m ->
+                    val o = JSONObject().put("role", m.role)
+                    when {
+                        m.toolCallId != null -> {
+                            o.put("tool_call_id", m.toolCallId)
+                            o.put("content", m.content ?: "")
+                        }
+                        m.toolCalls != null -> {
+                            o.put("content", if (m.content.isNullOrEmpty()) JSONObject.NULL else m.content)
+                            o.put("tool_calls", m.toolCalls)
+                        }
+                        else -> o.put("content", m.content ?: "")
+                    }
+                    put(o)
                 }
             })
         }.toString()
 
         val reasoning = StringBuilder()
         val content = StringBuilder()
+        val toolAccs = linkedMapOf<Int, ToolCallAcc>()
         val tStart = System.currentTimeMillis()
         var firstTokenMs = 0L
         var promptTokens = 0
@@ -158,7 +234,14 @@ class RemoteOpenAiBackend(
                         if (!line.startsWith("data:")) continue
                         val payload = line.substring(5).trim()
                         if (payload == "[DONE]") break
-                        val obj = JSONObject(payload)
+                        // Skip a malformed / non-JSON data frame (some gateways emit
+                        // error or keep-alive frames) instead of aborting the whole
+                        // stream — which would drop any tool_calls already accumulated.
+                        val obj = try {
+                            JSONObject(payload)
+                        } catch (e: org.json.JSONException) {
+                            continue
+                        }
                         obj.optJSONObject("usage")?.let { u ->
                             promptTokens = u.optInt("prompt_tokens", promptTokens)
                             completionTokens = u.optInt("completion_tokens", completionTokens)
@@ -173,12 +256,27 @@ class RemoteOpenAiBackend(
                             if (text.isNotEmpty()) content.append(text)
                             callback.onFullResponse(render(reasoning, content))
                         }
+                        // Tool calls stream in fragments keyed by `index`: the first
+                        // fragment carries id + function.name, later ones append
+                        // function.arguments. Accumulate per index.
+                        delta?.optJSONArray("tool_calls")?.let { tcs ->
+                            for (j in 0 until tcs.length()) {
+                                val tc = tcs.optJSONObject(j)
+                                if (tc != null) {
+                                    val idx = tc.optInt("index", j)
+                                    val acc = toolAccs.getOrPut(idx) { ToolCallAcc() }
+                                    tc.optString("id").takeIf { it.isNotEmpty() }?.let { acc.id = it }
+                                    tc.optJSONObject("function")?.let { fn ->
+                                        fn.optString("name").takeIf { it.isNotEmpty() }?.let { acc.name = it }
+                                        acc.args.append(fn.optString("arguments"))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
             val endMs = System.currentTimeMillis()
-            // History keeps the answer only (no reasoning) so re-sent turns stay clean.
-            if (content.isNotEmpty()) history.add(Msg("assistant", content.toString()))
             stats = if (completionTokens > 0) {
                 GenerationStats(
                     completionTokens = completionTokens,
@@ -187,6 +285,38 @@ class RemoteOpenAiBackend(
                 )
             } else null
             if (promptTokens + completionTokens > 0) contextUsed = promptTokens + completionTokens
+
+            // Did the model ask to call tools? Record an assistant turn carrying the
+            // tool_calls (so the next request shows the server its own call) and hand
+            // back 2 for the VM's tool loop, which executes them and re-invokes us.
+            val calls = toolAccs.entries.sortedBy { it.key }
+                .map { (idx, acc) ->
+                    PendingCall(
+                        id = acc.id.ifEmpty { "call_$idx" },
+                        name = acc.name,
+                        arguments = acc.args.toString().ifEmpty { "{}" },
+                    )
+                }
+                .filter { it.name.isNotEmpty() }
+            if (calls.isNotEmpty()) {
+                val tcArray = JSONArray()
+                calls.forEach { c ->
+                    tcArray.put(
+                        JSONObject()
+                            .put("id", c.id)
+                            .put("type", "function")
+                            .put("function", JSONObject().put("name", c.name).put("arguments", c.arguments))
+                    )
+                }
+                history.add(Msg("assistant", content.toString().ifEmpty { null }, toolCalls = tcArray))
+                pendingToolCalls.clear()
+                pendingToolCalls.addAll(calls)
+                return 2
+            }
+
+            // Normal turn: history keeps the answer only (no reasoning) so re-sent
+            // turns stay clean.
+            if (content.isNotEmpty()) history.add(Msg("assistant", content.toString()))
             return 0
         } catch (e: CancellationException) {
             currentCall?.cancel()
