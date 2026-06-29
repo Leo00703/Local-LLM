@@ -211,6 +211,9 @@
     <string name="collapse_thinking">Comprimi ragionamento</string>
     <string name="expand_thinking">Espandi ragionamento</string>
     <string name="thoughts">Pensieri</string>
+    <string name="copied">Copiato</string>
+    <string name="show_more">Mostra tutto</string>
+    <string name="show_less">Comprimi</string>
     <string name="functionality_not_available">Funzionalit\u00E0 non disponibile \uD83D\uDE48</string>
     <string name="whats_new">Novit\u00E0</string>
     <string name="whats_new_item_1">Nuovi modelli Gemma 4 (E2B, E4B)</string>

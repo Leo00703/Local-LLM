@@ -28,6 +28,7 @@ androidxHiltNavigationCompose = "1.1.0"
 androix-test-uiautomator = "2.2.0"
 coil = "2.4.0"
 commonmark = "0.24.0"
+jlatexmath = "0.2.0"
 # @keep
 compileSdk = "35"
 compose-compiler = "2.3.0"
@@ -125,6 +126,8 @@ androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version
 coil-kt-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" }
 commonmark-ext-gfm-strikethrough = { module = "org.commonmark:commonmark-ext-gfm-strikethrough", version.ref = "commonmark" }
+commonmark-ext-gfm-tables = { module = "org.commonmark:commonmark-ext-gfm-tables", version.ref = "commonmark" }
+jlatexmath-android = { module = "ru.noties:jlatexmath-android", version.ref = "jlatexmath" }
 core-jdk-desugaring = { module = "com.android.tools:desugar_jdk_libs", version.ref = "jdkDesugar" }
 google-android-material = { module = "com.google.android.material:material", version.ref = "material" }
 googlemaps-compose = { module = "com.google.maps.android:maps-compose", version.ref = "maps-compose" }

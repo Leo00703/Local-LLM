@@ -36,7 +36,6 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -187,16 +186,10 @@ fun ChatItemBubble(
             }
 
             if (split.responseContent.isNotEmpty()) {
-                val styledMessage = messageFormatter(
+                MarkdownContent(
                     text = split.responseContent,
                     primary = false
                 )
-                SelectionContainer {
-                    Text(
-                        text = styledMessage,
-                        style = MaterialTheme.typography.bodyLarge.copy(color = LocalContentColor.current)
-                    )
-                }
             }
         }
 

@@ -258,6 +258,11 @@
     <string name="thoughts">Thoughts</string>
     <string name="enable_thinking">Enable thinking</string>
     <string name="disable_thinking">Disable thinking</string>
+
+    <!-- Code blocks -->
+    <string name="copied">Copied</string>
+    <string name="show_more">Show more</string>
+    <string name="show_less">Show less</string>
     <!-- Rotating labels shown while the model is reasoning (picked at random per reply). -->
     <string-array name="thinking_phrases">
         <item>Thinking</item>
