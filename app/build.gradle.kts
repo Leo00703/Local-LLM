@@ -302,6 +302,7 @@ dependencies {
     implementation(libs.jlatexmath.android)
 
     implementation(libs.haze)
+    implementation(libs.coil.kt.compose)
 
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 

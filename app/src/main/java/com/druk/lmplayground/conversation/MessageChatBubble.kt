@@ -12,27 +12,36 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,18 +56,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
+import coil.compose.SubcomposeAsyncImage
 import com.druk.lmplayground.R
 
 @Composable
@@ -83,8 +96,18 @@ fun ChatItemBubble(
         if (isWaitingForResponse) {
             ThinkingCardLive(message.id)
         } else {
-            // Tool rounds: render each round's thinking immediately before its
-            // tool call(s), in chronological order.
+            val split = remember(message.content) { splitThinking(message.content) }
+            if (!isGenerating && hasToolCalls) {
+                // Finalized multi-step (agentic) turn: collapse the whole
+                // reasoning + tool timeline into one summary card. Every step
+                // stays inspectable on tap; the response renders below.
+                AgentProcessCard(message = message, finalThinking = split.thinkingContent)
+                if (split.responseContent.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            } else {
+            // Live streaming, or a turn with no tool calls: render reasoning and
+            // any completed tool rounds inline, in chronological order.
             if (hasToolCalls) {
                 val thinkingText = stringResource(R.string.thinking)
                 val inputLabel = stringResource(R.string.tool_call_input)
@@ -135,8 +158,6 @@ fun ChatItemBubble(
                 ThinkingCardLive(message.id)
             }
 
-            // ④ Post-tool thinking + ⑤ Response (from content)
-            val split = remember(message.content) { splitThinking(message.content) }
             val hasThinking = split.thinkingContent.isNotEmpty()
             // While the model is still inside an unclosed <think> block, show the
             // animated live card (no duration/tokens/chevron yet); once </think>
@@ -183,6 +204,7 @@ fun ChatItemBubble(
                 if (split.responseContent.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))
                 }
+            }
             }
 
             if (split.responseContent.isNotEmpty()) {
@@ -552,4 +574,358 @@ private fun thinkingPhrase(messageId: Long): String {
     } else {
         phrases[kotlin.random.Random(messageId).nextInt(phrases.size)]
     }
+}
+
+// ---- Agent process card (finalized multi-step turns) ----------------------
+
+/** One entry in a finalized agentic turn: a reasoning block or a tool call. */
+private enum class ProcessKind { THINKING, SEARCH, FETCH, JS, TOOL }
+
+private class ProcessStep(
+    val kind: ProcessKind,
+    val label: String,
+    val body: String,
+    val markdown: Boolean,
+    val sources: List<WebSource>
+)
+
+/** A web source surfaced by web_search / web_fetch, shown as a chip in a step. */
+private data class WebSource(val domain: String, val title: String)
+
+/**
+ * Collapses a finalized multi-step (reasoning + tool) turn into a single
+ * summary row. Tapping it reveals a vertical timeline of every step; tapping a
+ * step reveals that step's reasoning, tool I/O, and web sources. Collapsed by
+ * default so the answer sits right below it, not under a wall of cards.
+ */
+@Composable
+private fun AgentProcessCard(message: Message, finalThinking: String) {
+    val thinkingLabel = stringResource(R.string.thinking)
+    val inputLabel = stringResource(R.string.tool_call_input)
+    val outputLabel = stringResource(R.string.tool_call_output)
+    val toolNames = mapOf(
+        "run_javascript" to stringResource(R.string.tool_run_javascript_title),
+        "web_search" to stringResource(R.string.tool_web_search_title),
+        "web_fetch" to stringResource(R.string.tool_web_fetch_title),
+    )
+    val steps = remember(message.id, message.content, message.toolCalls) {
+        buildProcessSteps(message, finalThinking, thinkingLabel, inputLabel, outputLabel, toolNames)
+    }
+    if (steps.isEmpty()) return
+
+    val searches = message.toolCalls.orEmpty().count { it.name == "web_search" }
+    val fetches = message.toolCalls.orEmpty().count { it.name == "web_fetch" }
+    val runs = message.toolCalls.orEmpty().count { it.name == "run_javascript" }
+    val reasoned = steps.any { it.kind == ProcessKind.THINKING }
+    val web = searches > 0 || fetches > 0
+    val totalThinkSec = message.toolCalls.orEmpty()
+        .sumOf { it.precedingThinkingDurationSeconds } + message.thinkingDurationSeconds
+    val head = when {
+        web && reasoned -> stringResource(R.string.process_reasoned_searched)
+        web -> stringResource(R.string.process_searched)
+        reasoned -> stringResource(R.string.process_reasoned)
+        else -> stringResource(R.string.process_used_tools)
+    }
+    val parts = mutableListOf(head)
+    if (totalThinkSec > 0) parts.add(formatDuration(totalThinkSec))
+    if (searches > 0) parts.add(pluralStringResource(R.plurals.process_search_count, searches, searches))
+    if (fetches > 0) parts.add(pluralStringResource(R.plurals.process_page_count, fetches, fetches))
+    if (runs > 0) parts.add(pluralStringResource(R.plurals.process_run_count, runs, runs))
+    val summary = parts.joinToString(" · ")
+
+    var expanded by remember(message.id) { mutableStateOf(false) }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "processChevron"
+    )
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AutoAwesome,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = stringResource(
+                        if (expanded) R.string.process_collapse else R.string.process_expand
+                    ),
+                    modifier = Modifier
+                        .size(18.dp)
+                        .rotate(chevronRotation),
+                    tint = MaterialTheme.colorScheme.outline
+                )
+            }
+            AnimatedVisibility(visible = expanded) {
+                Box(modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 10.dp)) {
+                    // Continuous timeline spine behind the step nodes. matchParentSize
+                    // gives it a BOUNDED height (the steps column's), so fillMaxHeight
+                    // works even inside the unbounded-height LazyColumn; the opaque
+                    // node circles mask it where they sit. Inset from the top so the
+                    // line starts at the first node's centre.
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .padding(start = 10.dp, top = 17.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(1.5.dp)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.outlineVariant)
+                        )
+                    }
+                    Column {
+                        steps.forEach { step ->
+                            ProcessStepRow(step = step)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A single timeline row: a node badge + label header (tap to expand) over an
+ * optional body with the step's reasoning / tool I/O / web sources. The
+ * connecting line is drawn separately as a spine behind these rows, so this row
+ * never relies on fillMaxHeight (which is a no-op inside the LazyColumn).
+ */
+@Composable
+private fun ProcessStepRow(step: ProcessStep) {
+    var expanded by remember { mutableStateOf(false) }
+    val rail = MaterialTheme.colorScheme.outlineVariant
+    val nodeBg = MaterialTheme.colorScheme.surfaceContainerHigh
+    val rowChevron by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "stepChevron"
+    )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Node badge sitting on the spine.
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(nodeBg)
+                    .border(1.dp, rail, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = iconFor(step.kind),
+                    contentDescription = null,
+                    modifier = Modifier.size(13.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = step.label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = Icons.Outlined.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(16.dp)
+                    .rotate(rowChevron),
+                tint = MaterialTheme.colorScheme.outline
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            // Indent the body past the node + spacer so it lines up under the label.
+            Column(modifier = Modifier.padding(start = 32.dp, bottom = 8.dp)) {
+                if (step.sources.isNotEmpty()) {
+                    SourceChips(step.sources)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                SelectionContainer {
+                    val style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (step.markdown) {
+                        Text(text = messageFormatter(text = step.body, primary = false), style = style)
+                    } else {
+                        Text(text = step.body, style = style)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Web-source chips (favicon + domain) for a search / fetch step. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SourceChips(sources: List<WebSource>) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        for (src in sources) {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SubcomposeAsyncImage(
+                        model = "https://www.google.com/s2/favicons?domain=${src.domain}&sz=64",
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        error = {
+                            Icon(
+                                imageVector = Icons.Outlined.Public,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = src.domain,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun iconFor(kind: ProcessKind): ImageVector = when (kind) {
+    ProcessKind.THINKING -> Icons.Outlined.AutoAwesome
+    ProcessKind.SEARCH -> Icons.Outlined.Search
+    ProcessKind.FETCH -> Icons.Outlined.Public
+    ProcessKind.JS -> Icons.Outlined.Code
+    ProcessKind.TOOL -> Icons.Outlined.Build
+}
+
+/**
+ * Flattens a finalized turn's tool calls (each preceded by its reasoning) plus
+ * the final post-tool reasoning into an ordered list of timeline steps.
+ */
+private fun buildProcessSteps(
+    message: Message,
+    finalThinking: String,
+    thinkingLabel: String,
+    inputLabel: String,
+    outputLabel: String,
+    toolNames: Map<String, String>
+): List<ProcessStep> {
+    val steps = mutableListOf<ProcessStep>()
+    message.toolCalls?.forEach { tc ->
+        val pre = splitThinking(tc.precedingThinking)
+        if (pre.thinkingContent.isNotEmpty()) {
+            steps += ProcessStep(
+                kind = ProcessKind.THINKING,
+                label = buildString {
+                    append("$thinkingLabel · ${formatDuration(tc.precedingThinkingDurationSeconds)}")
+                    if (tc.precedingThinkingTokens > 0) append(" · ${tc.precedingThinkingTokens} tokens")
+                },
+                body = pre.thinkingContent,
+                markdown = true,
+                sources = emptyList()
+            )
+        }
+        val durationSec = (tc.durationMs / 1000).toInt().coerceAtLeast(if (tc.durationMs > 0) 1 else 0)
+        steps += ProcessStep(
+            kind = when (tc.name) {
+                "web_search" -> ProcessKind.SEARCH
+                "web_fetch" -> ProcessKind.FETCH
+                "run_javascript" -> ProcessKind.JS
+                else -> ProcessKind.TOOL
+            },
+            label = "${toolNames[tc.name] ?: tc.name} · ${formatDuration(durationSec)}",
+            body = buildString {
+                if (tc.arguments.isNotBlank()) {
+                    append(inputLabel).append('\n').append(prettyJson(tc.arguments)).append("\n\n")
+                }
+                append(outputLabel).append('\n').append(prettyJson(tc.result))
+            },
+            markdown = false,
+            sources = extractSources(tc)
+        )
+    }
+    if (finalThinking.isNotEmpty()) {
+        steps += ProcessStep(
+            kind = ProcessKind.THINKING,
+            label = buildString {
+                append("$thinkingLabel · ${formatDuration(message.thinkingDurationSeconds)}")
+                if (message.thinkingTokens > 0) append(" · ${message.thinkingTokens} tokens")
+            },
+            body = finalThinking,
+            markdown = true,
+            sources = emptyList()
+        )
+    }
+    return steps
+}
+
+/** Pull the source domains out of a web_search / web_fetch result for display. */
+private fun extractSources(tc: ToolCallInfo): List<WebSource> = try {
+    when (tc.name) {
+        "web_search" -> {
+            val arr = org.json.JSONObject(tc.result).optJSONArray("results")
+            if (arr == null) {
+                emptyList()
+            } else {
+                (0 until arr.length()).mapNotNull { i ->
+                    val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                    val domain = o.optString("domain").ifBlank { hostOf(o.optString("url")) }
+                    if (domain.isBlank()) null else WebSource(domain, o.optString("title"))
+                }.distinctBy { it.domain }
+            }
+        }
+        "web_fetch" -> {
+            val o = org.json.JSONObject(tc.result)
+            val domain = hostOf(o.optString("url"))
+            if (domain.isBlank()) emptyList() else listOf(WebSource(domain, o.optString("title")))
+        }
+        else -> emptyList()
+    }
+} catch (_: Exception) {
+    emptyList()
+}
+
+/** Bare host without the leading "www.", or "" if the URL can't be parsed. */
+private fun hostOf(url: String): String = try {
+    (java.net.URI(url).host ?: "").removePrefix("www.")
+} catch (_: Exception) {
+    ""
 }

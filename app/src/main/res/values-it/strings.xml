@@ -336,6 +336,26 @@
     <string name="tool_run_javascript_example">\"Quanto fa (2 + 3) × 4 e che giorno della settimana è il 1° gennaio 2027?\"</string>
     <string name="tool_call_input">Input</string>
     <string name="tool_call_output">Output</string>
+    <!-- Card di processo: comprime un turno multi-step (ragionamento + strumenti). -->
+    <string name="process_reasoned">Ha ragionato</string>
+    <string name="process_reasoned_searched">Ha ragionato e cercato sul web</string>
+    <string name="process_searched">Ha cercato sul web</string>
+    <string name="process_used_tools">Ha usato gli strumenti</string>
+    <string name="process_sources">Fonti</string>
+    <string name="process_expand">Mostra i passaggi</string>
+    <string name="process_collapse">Nascondi i passaggi</string>
+    <plurals name="process_search_count">
+        <item quantity="one">%d ricerca</item>
+        <item quantity="other">%d ricerche</item>
+    </plurals>
+    <plurals name="process_page_count">
+        <item quantity="one">%d pagina</item>
+        <item quantity="other">%d pagine</item>
+    </plurals>
+    <plurals name="process_run_count">
+        <item quantity="one">%d esecuzione</item>
+        <item quantity="other">%d esecuzioni</item>
+    </plurals>
     <string name="response_copied">Copiato negli appunti</string>
     <string name="folder_picker_unavailable">Nessuna app disponibile per scegliere una cartella. Installa o attiva l\'app File / Documenti di sistema.</string>
 

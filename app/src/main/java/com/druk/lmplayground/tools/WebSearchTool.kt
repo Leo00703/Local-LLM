@@ -61,6 +61,10 @@ class WebSearchTool(private val linkStore: WebLinkStore? = null) : Tool {
 
                 val obj = JSONObject()
                 obj.put("title", title)
+                // Short host (e.g. "nasdaq.com") — useful to the model as a
+                // source label, and lets the chat UI show the source domain
+                // even though the full URL is hidden behind a compact ref.
+                hostOf(actualUrl).takeIf { it.isNotEmpty() }?.let { obj.put("domain", it) }
                 if (linkStore != null) {
                     // Hand the model a compact reference instead of the full
                     // URL to save context tokens; web_fetch resolves it back.
@@ -83,6 +87,13 @@ class WebSearchTool(private val linkStore: WebLinkStore? = null) : Tool {
         } catch (e: Exception) {
             errorJson(e.message ?: "Search failed")
         }
+    }
+
+    /** Bare host without the leading "www.", or "" if the URL can't be parsed. */
+    private fun hostOf(url: String): String = try {
+        (java.net.URI(url).host ?: "").removePrefix("www.")
+    } catch (_: Exception) {
+        ""
     }
 
     private fun extractDdgUrl(href: String): String {

@@ -350,6 +350,27 @@
     <!-- Tool-call detail in the chat bubble -->
     <string name="tool_call_input">Input</string>
     <string name="tool_call_output">Output</string>
+    <!-- Agent process card: collapses a multi-step (reasoning + tool) turn into
+         one summary row that expands into a timeline of steps. -->
+    <string name="process_reasoned">Reasoned</string>
+    <string name="process_reasoned_searched">Reasoned and searched the web</string>
+    <string name="process_searched">Searched the web</string>
+    <string name="process_used_tools">Used tools</string>
+    <string name="process_sources">Sources</string>
+    <string name="process_expand">Show steps</string>
+    <string name="process_collapse">Hide steps</string>
+    <plurals name="process_search_count">
+        <item quantity="one">%d search</item>
+        <item quantity="other">%d searches</item>
+    </plurals>
+    <plurals name="process_page_count">
+        <item quantity="one">%d page</item>
+        <item quantity="other">%d pages</item>
+    </plurals>
+    <plurals name="process_run_count">
+        <item quantity="one">%d run</item>
+        <item quantity="other">%d runs</item>
+    </plurals>
     <!-- Model capability badges (content descriptions) -->
     <string name="cd_supports_tools">Supports tools</string>
     <string name="cd_supports_thinking">Supports thinking</string>
