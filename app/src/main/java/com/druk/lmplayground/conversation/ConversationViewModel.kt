@@ -1,6 +1,7 @@
 package com.druk.lmplayground.conversation
 
 import android.app.Application
+import android.net.Uri
 import android.text.format.Formatter
 import androidx.annotation.MainThread
 import androidx.lifecycle.AndroidViewModel
@@ -38,10 +39,12 @@ import com.druk.lmplayground.files.AttachmentKind
 import com.druk.lmplayground.files.FileExtractionResult
 import com.druk.lmplayground.files.FileTextExtractor
 import com.druk.lmplayground.files.StagedAttachment
+import com.druk.lmplayground.files.StagedState
 import com.druk.lmplayground.storage.StoragePreferences
 import com.druk.lmplayground.storage.StorageRepository
 import com.druk.lmplayground.tools.ToolRegistry
 import org.json.JSONArray
+import org.json.JSONObject
 import androidx.compose.runtime.snapshots.Snapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -96,10 +99,12 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     private val _toolEnabledStates = MutableLiveData<Map<String, Boolean>>(emptyMap())
     val toolRegistry = ToolRegistry.createDefault(app)
     val toolEnabledStates: LiveData<Map<String, Boolean>> = _toolEnabledStates
-    // A file the user picked but hasn't sent yet (the composer chip). Extraction
-    // + prompt injection happen at send time in [sendUserMessage].
-    private val _stagedAttachment = MutableLiveData<StagedAttachment?>(null)
-    val stagedAttachment: LiveData<StagedAttachment?> = _stagedAttachment
+    // Files the user picked but hasn't sent yet (the composer chips). Text is
+    // extracted at pick time (so the chip shows the token cost); the combined
+    // context budget + prompt injection happen at send time.
+    private val _stagedAttachments = MutableLiveData<List<StagedAttachment>>(emptyList())
+    val stagedAttachments: LiveData<List<StagedAttachment>> = _stagedAttachments
+    private var stagedIdCounter = 0L
     private val _systemPrompt = MutableLiveData("")
     private val _systemPromptId = MutableLiveData<String?>(null)
     /**
@@ -1090,67 +1095,70 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Pick-time: stage the file immediately (Extracting), then extract its text. */
     @MainThread
-    fun stageAttachment(attachment: StagedAttachment) {
-        _stagedAttachment.value = attachment
+    fun stageAttachment(uri: Uri, filename: String, mimeType: String?) {
+        val id = ++stagedIdCounter
+        _stagedAttachments.value = _stagedAttachments.value.orEmpty() +
+            StagedAttachment(id, uri, filename, mimeType)
+        viewModelScope.launch {
+            val state = when (val r = FileTextExtractor.extract(app, uri, filename, mimeType)) {
+                is FileExtractionResult.Success -> StagedState.Ready(r.text, r.charCount, r.truncated)
+                is FileExtractionResult.Empty ->
+                    StagedState.Error(app.getString(com.druk.lmplayground.R.string.attachment_empty, filename))
+                is FileExtractionResult.Unsupported ->
+                    StagedState.Error(app.getString(com.druk.lmplayground.R.string.attachment_unsupported, filename))
+                is FileExtractionResult.Failure ->
+                    StagedState.Error(app.getString(com.druk.lmplayground.R.string.attachment_failed, filename))
+            }
+            _stagedAttachments.value = _stagedAttachments.value.orEmpty()
+                .map { if (it.id == id) it.copy(state = state) else it }
+        }
     }
 
     @MainThread
-    fun clearStagedAttachment() {
-        _stagedAttachment.value = null
+    fun removeStagedAttachment(id: Long) {
+        _stagedAttachments.value = _stagedAttachments.value.orEmpty().filter { it.id != id }
+    }
+
+    @MainThread
+    fun clearStagedAttachments() {
+        _stagedAttachments.value = emptyList()
     }
 
     /**
-     * Send a user turn, attaching the staged file (if any). For a DOCUMENT the
-     * file's text is extracted off-thread, truncated to fit the context window,
-     * and carried on the Message; [buildModelPrompt] folds it into the prompt at
-     * every backend callsite. The visible message stays the user's typed text.
-     * On extraction failure the typed text is still sent, with an error surfaced.
+     * Send a user turn with any staged files attached. Text was already extracted
+     * at pick time; here we apply a combined context-window budget across all
+     * ready files. Files still extracting or in error are skipped (their chip
+     * already showed the state). The visible content stays the user's typed text;
+     * [buildModelPrompt] folds the file text into the prompt.
      */
     @MainThread
     fun sendUserMessage(content: String) {
         if (_isGenerating.value == true) return
-        val staged = _stagedAttachment.value
-        _stagedAttachment.value = null
-        if (staged == null) {
+        val staged = _stagedAttachments.value.orEmpty()
+        _stagedAttachments.value = emptyList()
+        val ready = staged.mapNotNull { s -> (s.state as? StagedState.Ready)?.let { s to it } }
+        if (ready.isEmpty()) {
             addMessage(Message("User", content))
             return
         }
-        // Mark generating up front so the composer can't fire a second turn
-        // during the async extraction window (addMessage only flips this once it
-        // runs, after extraction); truncation guarantees addMessage then proceeds.
-        _isGenerating.value = true
-        viewModelScope.launch {
-            val attachment = when (
-                val r = FileTextExtractor.extract(app, staged.uri, staged.filename, staged.mimeType)
-            ) {
-                is FileExtractionResult.Success -> {
-                    val (text, truncated) = truncateForContext(r.text, content)
-                    Attachment(
-                        name = staged.filename,
-                        mime = staged.mimeType,
-                        kind = AttachmentKind.DOCUMENT,
-                        extractedText = text,
-                        charCount = text.length,
-                        truncated = truncated || r.truncated,
-                    )
-                }
-                is FileExtractionResult.Empty -> {
-                    _userError.postValue(app.getString(com.druk.lmplayground.R.string.attachment_empty, staged.filename))
-                    null
-                }
-                is FileExtractionResult.Unsupported -> {
-                    _userError.postValue(app.getString(com.druk.lmplayground.R.string.attachment_unsupported, staged.filename))
-                    null
-                }
-                is FileExtractionResult.Failure -> {
-                    _userError.postValue(app.getString(com.druk.lmplayground.R.string.attachment_failed, staged.filename))
-                    null
-                }
-            }
-            addMessage(
-                Message("User", content, attachments = attachment?.let { listOf(it) } ?: emptyList())
-            )
+        addMessage(Message("User", content, attachments = buildAttachments(ready, content)))
+    }
+
+    /** Distribute one shared budget (~half the context window, under the binder cap) across files. */
+    private fun buildAttachments(
+        ready: List<Pair<StagedAttachment, StagedState.Ready>>,
+        userContent: String,
+    ): List<Attachment> {
+        val contextSize = _generationParams.value?.contextSize ?: 4096
+        val byteCeilingChars = (InferenceLimits.MAX_PAYLOAD_BYTES / 2) - userContent.length - 512
+        var remaining = minOf((contextSize * 0.5).toInt() * 4, byteCeilingChars).coerceAtLeast(0)
+        return ready.map { (s, r) ->
+            val text = if (r.text.length > remaining) r.text.take(remaining) else r.text
+            val truncated = r.truncated || text.length < r.text.length
+            remaining = (remaining - text.length).coerceAtLeast(0)
+            Attachment(s.filename, s.mimeType, AttachmentKind.DOCUMENT, text, text.length, truncated)
         }
     }
 
@@ -1177,15 +1185,6 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Trim an attachment's text to ~half the context window (and under the binder cap). */
-    private fun truncateForContext(text: String, userContent: String): Pair<String, Boolean> {
-        val contextSize = _generationParams.value?.contextSize ?: 4096
-        val maxFileTokens = (contextSize * 0.5).toInt()
-        val byteCeilingChars = (InferenceLimits.MAX_PAYLOAD_BYTES / 2) - userContent.length - 512
-        val maxFileChars = minOf(maxFileTokens * 4, byteCeilingChars).coerceAtLeast(0)
-        return if (text.length > maxFileChars) text.take(maxFileChars) to true else text to false
-    }
-
     @MainThread
     fun addMessage(message: Message) {
         val enableThinking = _thinkingEnabled.value == true
@@ -1199,6 +1198,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         // The model receives the user's text PLUS any attachment's extracted
         // text (buildModelPrompt); size-guard and feed the native side that.
         val modelPrompt = buildModelPrompt(message)
+        // Live context-ring estimate: jump up on send (prompt incl. attachment),
+        // grow per output token below; the real getReport() corrects it at the end.
+        val ctxBaseline = _contextUsedTokens.value ?: 0
+        val promptTokenEstimate = modelPrompt.length / 4
         val sizeBytes = modelPrompt.length * 2
         if (sizeBytes > InferenceLimits.MAX_PAYLOAD_BYTES) {
             _userError.postValue(
@@ -1276,6 +1279,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     // best-effort; failures don't block generation.
                     applyPreambleCache(llamaSession, toolsJson)
                     llamaSession.addMessage(modelPrompt, enableThinking)
+                    // Reflect the prompt (incl. any attachment) in the ring now,
+                    // before the first token, so it doesn't sit at the old value.
+                    _contextUsedTokens.postValue(ctxBaseline + promptTokenEstimate)
                 } catch (e: InferenceUnavailableException) {
                     android.util.Log.w("ConversationViewModel", "addMessage failed: service unavailable", e)
                     _userError.postValue(
@@ -1309,9 +1315,15 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     // Throttle the per-token haptic tick so fast streams feel
                     // like rapid typing instead of one continuous buzz.
                     var lastHapticMs = 0L
+                    // Throttle the live context-ring estimate update.
+                    var lastCtxMs = 0L
                     override fun onFullResponse(response: String) {
                         totalTokens++
                         val nowMs = System.currentTimeMillis()
+                        if (nowMs - lastCtxMs >= 300L) {
+                            lastCtxMs = nowMs
+                            _contextUsedTokens.postValue(ctxBaseline + promptTokenEstimate + totalTokens)
+                        }
                         if (nowMs - lastNotifUpdateMs >= 1000L) {
                             lastNotifUpdateMs = nowMs
                             updateInferenceNotification(
@@ -1665,7 +1677,6 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     }
 
     private fun Message.toChatMessageEntity(sessionId: String): ChatMessageEntity {
-        val a = attachments.firstOrNull()
         return ChatMessageEntity(
             sessionId = sessionId,
             author = author,
@@ -1676,23 +1687,53 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             responseDurationSeconds = responseDurationSeconds,
             responseDecodeSeconds = responseDecodeSeconds,
             timestamp = timestamp,
-            attachmentName = a?.name,
-            attachmentMime = a?.mime,
-            attachmentKind = a?.kind?.name?.lowercase(),
-            attachmentText = a?.extractedText,
-            attachmentUri = null,
-            attachmentTruncated = a?.truncated ?: false,
+            // attachmentsJson is the source of truth (supports multiple files);
+            // the single-attachment columns are kept only for reading old rows.
+            attachmentsJson = attachmentsToJson(attachments),
         )
     }
 
-    /** Re-hydrate a Message's attachment list from its persisted columns. */
+    private fun attachmentsToJson(list: List<Attachment>): String? {
+        if (list.isEmpty()) return null
+        val arr = JSONArray()
+        for (a in list) {
+            arr.put(JSONObject().apply {
+                put("name", a.name)
+                put("mime", a.mime ?: "")
+                put("kind", a.kind.name.lowercase())
+                put("text", a.extractedText)
+                put("charCount", a.charCount)
+                put("truncated", a.truncated)
+            })
+        }
+        return arr.toString()
+    }
+
+    /** Re-hydrate a Message's attachments: prefer attachmentsJson, else the old columns. */
     private fun attachmentsFrom(e: ChatMessageEntity): List<Attachment> {
+        e.attachmentsJson?.let { json ->
+            return try {
+                val arr = JSONArray(json)
+                (0 until arr.length()).map { i ->
+                    val o = arr.getJSONObject(i)
+                    Attachment(
+                        name = o.getString("name"),
+                        mime = o.optString("mime").ifEmpty { null },
+                        kind = if (o.optString("kind") == "image") AttachmentKind.IMAGE else AttachmentKind.DOCUMENT,
+                        extractedText = o.optString("text"),
+                        charCount = o.optInt("charCount"),
+                        truncated = o.optBoolean("truncated"),
+                    )
+                }
+            } catch (_: Throwable) {
+                emptyList()
+            }
+        }
+        // Fallback: v1.9.12 single-column rows.
         val name = e.attachmentName ?: return emptyList()
         val kind = if (e.attachmentKind == "image") AttachmentKind.IMAGE else AttachmentKind.DOCUMENT
         val text = e.attachmentText.orEmpty()
-        return listOf(
-            Attachment(name, e.attachmentMime, kind, text, text.length, e.attachmentTruncated)
-        )
+        return listOf(Attachment(name, e.attachmentMime, kind, text, text.length, e.attachmentTruncated))
     }
 
     private suspend fun ensureSession(firstUserMessage: Message): String {

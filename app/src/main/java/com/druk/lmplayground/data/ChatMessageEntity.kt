@@ -38,5 +38,9 @@ data class ChatMessageEntity(
     val attachmentKind: String? = null,
     val attachmentText: String? = null,
     val attachmentUri: String? = null,
-    val attachmentTruncated: Boolean = false
+    val attachmentTruncated: Boolean = false,
+    // Source of truth from v10: a JSON array of all attachments on this message
+    // (supports multiple files). The single columns above are read-only legacy
+    // for rows written by v9.
+    val attachmentsJson: String? = null
 )

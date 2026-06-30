@@ -9,7 +9,10 @@ import android.view.ViewGroup.LayoutParams
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -62,7 +65,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.viewModels
-import com.druk.lmplayground.files.StagedAttachment
+import com.druk.lmplayground.files.StagedState
 import androidx.core.os.bundleOf
 import androidx.navigation.fragment.findNavController
 import com.druk.lmplayground.settings.SettingsFragment
@@ -88,14 +91,15 @@ class ConversationFragment : Fragment() {
         "text/*", "application/json", "application/xml", "application/octet-stream"
     )
 
-    /** System file picker for document attachments; stages the pick on the ViewModel. */
+    /** System file picker for document attachments; stages each pick on the ViewModel. */
     private val openDocumentLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri ?: return@registerForActivityResult
-        val name = resolveDisplayName(uri)
-        val mime = requireContext().contentResolver.getType(uri)
-        viewModel.stageAttachment(StagedAttachment(uri, name, mime))
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        uris.forEach { uri ->
+            val name = resolveDisplayName(uri)
+            val mime = requireContext().contentResolver.getType(uri)
+            viewModel.stageAttachment(uri, name, mime)
+        }
     }
 
     private fun resolveDisplayName(uri: Uri): String {
@@ -119,7 +123,7 @@ class ConversationFragment : Fragment() {
         viewModel.refreshShowGenerationStats()
     }
 
-    @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3WindowSizeClassApi::class)
+    @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3WindowSizeClassApi::class, ExperimentalLayoutApi::class)
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -150,7 +154,7 @@ class ConversationFragment : Fragment() {
             val remoteModelsLoading by viewModel.remoteModelsLoading.observeAsState(false)
             val sessions by viewModel.sessions.observeAsState(emptyList())
             val folders by viewModel.folders.observeAsState(emptyList())
-            val stagedAttachment by viewModel.stagedAttachment.observeAsState()
+            val stagedAttachments by viewModel.stagedAttachments.observeAsState(emptyList())
             val currentSessionId by viewModel.currentSessionId.observeAsState()
             val generationParams by viewModel.generationParams.observeAsState(GenerationParams())
             val maxContextSize by viewModel.maxContextSize.observeAsState(4096)
@@ -621,22 +625,31 @@ class ConversationFragment : Fragment() {
                                     modifier = Modifier.padding(bottom = 8.dp)
                                 )
                             }
-                            // Staged file attachment (removable chip) above the composer.
-                            // ExitTransition.None: the content reads the now-null
-                            // stagedAttachment during exit, so animate in only and
-                            // drop instantly on send/remove (no empty-box flash).
+                            // Staged file attachments (removable chips) above the
+                            // composer. ExitTransition.None: the content reads the
+                            // now-empty list during exit, so animate in only.
                             androidx.compose.animation.AnimatedVisibility(
-                                visible = stagedAttachment != null,
+                                visible = stagedAttachments.isNotEmpty(),
                                 exit = androidx.compose.animation.ExitTransition.None
                             ) {
-                                stagedAttachment?.let { sa ->
-                                    AttachmentChip(
-                                        filename = sa.filename,
-                                        onRemove = { viewModel.clearStagedAttachment() },
-                                        modifier = Modifier.padding(
-                                            start = 16.dp, end = 16.dp, bottom = 8.dp
+                                FlowRow(
+                                    modifier = Modifier.padding(
+                                        start = 16.dp, end = 16.dp, bottom = 8.dp
+                                    ),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    stagedAttachments.forEach { sa ->
+                                        val ready = sa.state as? StagedState.Ready
+                                        AttachmentChip(
+                                            filename = sa.filename,
+                                            extracting = sa.state is StagedState.Extracting,
+                                            tokenCount = ready?.let { it.charCount / 4 },
+                                            truncated = ready?.truncated == true,
+                                            errorText = (sa.state as? StagedState.Error)?.message,
+                                            onRemove = { viewModel.removeStagedAttachment(sa.id) },
                                         )
-                                    )
+                                    }
                                 }
                             }
                             UserInput(

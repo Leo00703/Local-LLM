@@ -21,10 +21,26 @@ data class Attachment(
     val truncated: Boolean,
 )
 
-/** A file the user has picked but not yet sent (shown as a removable chip). */
+/**
+ * A file the user has picked but not yet sent (a removable chip). Its text is
+ * extracted at PICK time (not send) so the chip can show the token cost and the
+ * preview before sending. [id] identifies it within the staged list.
+ */
 data class StagedAttachment(
+    val id: Long,
     val uri: Uri,
     val filename: String,
     val mimeType: String?,
     val kind: AttachmentKind = AttachmentKind.DOCUMENT,
+    val state: StagedState = StagedState.Extracting,
 )
+
+/** Extraction state of a [StagedAttachment]. */
+sealed interface StagedState {
+    /** Reading the file (a spinner on the chip). */
+    data object Extracting : StagedState
+    /** Text ready; [charCount] drives the token estimate shown on the chip. */
+    data class Ready(val text: String, val charCount: Int, val truncated: Boolean) : StagedState
+    /** Couldn't read it (unsupported / empty / failure) — shown on the chip, skipped on send. */
+    data class Error(val message: String) : StagedState
+}

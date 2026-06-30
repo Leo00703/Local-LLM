@@ -396,6 +396,8 @@
     <string name="attachment_empty">%1$s has no readable text</string>
     <string name="attachment_unsupported">%1$s isn\'t supported yet</string>
     <string name="attachment_failed">Couldn\'t read %1$s</string>
+    <string name="attachment_reading">Reading…</string>
+    <string name="attachment_token_count">~%1$s tokens</string>
     <string name="process_sources">Sources</string>
     <string name="process_expand">Show steps</string>
     <string name="process_collapse">Hide steps</string>

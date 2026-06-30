@@ -283,7 +283,7 @@ private fun UserInputText(
         IconButton(
             onClick = onAttachClick,
             enabled = attachEnabled,
-            modifier = Modifier.padding(start = 4.dp)
+            modifier = Modifier.padding(start = 2.dp).size(40.dp)
         ) {
             Icon(
                 imageVector = Icons.Outlined.AttachFile,
@@ -297,7 +297,7 @@ private fun UserInputText(
             IconButton(
                 onClick = onThinkingToggle,
                 enabled = !isDisabled,
-                modifier = Modifier.padding(start = 4.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(
                     imageVector = if (thinkingEnabled) Icons.Filled.Lightbulb else Icons.Outlined.Lightbulb,
