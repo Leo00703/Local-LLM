@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -63,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -693,12 +695,7 @@ private fun AgentProcessCard(
                     tint = MaterialTheme.colorScheme.outline
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = summary,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.weight(1f)
-                )
+                ProcessSummaryText(summary = summary, isGenerating = isGenerating)
                 Icon(
                     imageVector = Icons.Outlined.KeyboardArrowDown,
                     contentDescription = stringResource(
@@ -734,7 +731,9 @@ private fun AgentProcessCard(
                             ProcessStepRow(step = step)
                         }
                         if (showLiveTail) {
-                            LiveStepRow(message.id)
+                            // finalThinking (not the suppressed effective one) holds the
+                            // reasoning streaming in right now — peeked in the live tail.
+                            LiveStepRow(message.id, finalThinking)
                         }
                     }
                 }
@@ -826,9 +825,76 @@ private fun ProcessStepRow(step: ProcessStep) {
     }
 }
 
-/** The animated "still working" tail row shown while the turn is generating. */
+/**
+ * The process-card summary line. While [isGenerating] a light band sweeps across
+ * it (Gemini/ChatGPT "working" shimmer). Split out so the per-frame animated read
+ * lives in [ShimmerSummaryText]'s own scope and only that row recomposes each
+ * frame — not the whole [AgentProcessCard] — and the infinite transition only
+ * exists while generating.
+ */
 @Composable
-private fun LiveStepRow(messageId: Long) {
+private fun RowScope.ProcessSummaryText(summary: String, isGenerating: Boolean) {
+    val mod = Modifier.weight(1f)
+    if (isGenerating) {
+        ShimmerSummaryText(summary, mod)
+    } else {
+        Text(
+            text = summary,
+            style = MaterialTheme.typography.labelMedium.copy(
+                color = MaterialTheme.colorScheme.outline
+            ),
+            modifier = mod
+        )
+    }
+}
+
+@Composable
+private fun ShimmerSummaryText(summary: String, modifier: Modifier) {
+    val base = MaterialTheme.colorScheme.outline
+    val highlight = MaterialTheme.colorScheme.onSurface
+    var width by remember { mutableStateOf(0) }
+    val transition = rememberInfiniteTransition(label = "summaryShimmer")
+    val x by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerX"
+    )
+    // A 3-stop gradient band sweeping left→right across the measured text width;
+    // before the first measure it's a plain colour.
+    val style = if (width > 0) {
+        val band = width * 0.45f
+        val travel = width + band
+        val startX = -band + x * travel
+        MaterialTheme.typography.labelMedium.copy(
+            brush = Brush.linearGradient(
+                colors = listOf(base, highlight, base),
+                start = Offset(startX, 0f),
+                end = Offset(startX + band, 0f)
+            )
+        )
+    } else {
+        MaterialTheme.typography.labelMedium.copy(color = base)
+    }
+    Text(
+        text = summary,
+        style = style,
+        onTextLayout = { width = it.size.width },
+        modifier = modifier
+    )
+}
+
+/**
+ * The animated "still working" tail row shown while the turn is generating: an
+ * animated phrase + dots, and — when the model is mid-reasoning — a live peek of
+ * the streaming thought (last couple of lines, top dissolving away like the
+ * finished thinking card) so you can watch it think in place.
+ */
+@Composable
+private fun LiveStepRow(messageId: Long, liveReasoning: String) {
     val rail = MaterialTheme.colorScheme.outlineVariant
     val nodeBg = MaterialTheme.colorScheme.surfaceContainerHigh
     val phrase = thinkingPhrase(messageId)
@@ -847,7 +913,7 @@ private fun LiveStepRow(messageId: Long) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Top
     ) {
         Box(
             modifier = Modifier
@@ -865,11 +931,66 @@ private fun LiveStepRow(messageId: Long) {
             )
         }
         Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = "$phrase$dots",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.outline,
-            fontStyle = FontStyle.Italic
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "$phrase$dots",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.outline,
+                fontStyle = FontStyle.Italic
+            )
+            if (liveReasoning.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                LivePeek(liveReasoning)
+            }
+        }
+    }
+}
+
+/**
+ * A compact (~2 line) peek of the reasoning streaming in right now, newest text
+ * pinned to the bottom and the top dissolving into the card. Same effect as the
+ * collapsed thinking card's [ThinkingPeek], scaled down for the live tail.
+ */
+@Composable
+private fun LivePeek(content: String) {
+    val scroll = rememberScrollState()
+    LaunchedEffect(scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
+    val container = MaterialTheme.colorScheme.surfaceContainerHigh
+    val peekHeight = 38.dp
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(peekHeight)
+            .clipToBounds()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scroll)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = peekHeight),
+                contentAlignment = Alignment.BottomStart
+            ) {
+                Text(
+                    text = messageFormatter(text = content, primary = false, flatCode = true),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to container,
+                        0.5f to container.copy(alpha = 0f)
+                    )
+                )
         )
     }
 }

@@ -452,13 +452,41 @@ object ModelInfoProvider {
     fun createCustomModelInfo(filename: String, name: String, sizeBytes: Long): ModelInfo {
         val sizeLabel = formatFileSize(sizeBytes)
         return ModelInfo(
-            name = name.ifEmpty { filename.removeSuffix(".gguf") },
+            name = sanitizeCustomModelName(name, filename),
             filename = filename,
             remoteUri = null,
             releaseDate = null,
             description = "Custom model \u00B7 $sizeLabel",
             logoRes = R.drawable.penrose_triangle
         )
+    }
+
+    private val HEX_HASH = Regex("[0-9a-fA-F]{12,}")
+    private val QUANT_SUFFIX = Regex("[._-]?(IQ|Q)\\d+(_[A-Za-z0-9]+)*$", RegexOption.IGNORE_CASE)
+    private val GGUF_SUFFIX = Regex("[._-]?GGUF$", RegexOption.IGNORE_CASE)
+    private val SEPARATORS = Regex("[-_ ]")
+
+    /**
+     * Pick a sensible display name for a custom GGUF. The GGUF `general.name`
+     * metadata is usually good, but some files ship a blank or junk value \u2014 e.g.
+     * a bare hex hash like "feb5e04da4910dd56d3" \u2014 which surfaced in the model
+     * list as a random string. When the probed name looks like that, fall back
+     * to the filename with the ".gguf" extension and the quantization suffix
+     * (e.g. "-Q4_K_M") stripped, then prettified ("LFM2.5-8B-A1B-Q4_K_M.gguf" \u2192
+     * "LFM 2.5 8B A1B"). A real, human-readable name is always kept as-is. Runs
+     * on every load, so already-cached junk names get fixed too.
+     */
+    private fun sanitizeCustomModelName(rawName: String, filename: String): String {
+        val name = rawName.trim()
+        val condensed = name.replace(SEPARATORS, "")
+        val looksJunk = name.isEmpty() || (!name.contains(' ') && HEX_HASH.matches(condensed))
+        if (!looksJunk) return name
+        val cleaned = filename
+            .removeSuffix(".gguf").removeSuffix(".GGUF")
+            .let { QUANT_SUFFIX.replace(it, "") }
+            .let { GGUF_SUFFIX.replace(it, "") }
+            .trim('-', '_', '.', ' ')
+        return prettifyModelId(cleaned).ifBlank { filename.removeSuffix(".gguf") }
     }
 
     /**

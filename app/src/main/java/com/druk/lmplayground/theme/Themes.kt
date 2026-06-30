@@ -90,7 +90,7 @@ enum class ThemeColor(val key: String, val seed: Color?, val labelRes: Int) {
     PURPLE("purple", Color(0xFF6750A4), R.string.theme_color_purple),
     TEAL("teal", Color(0xFF00897B), R.string.theme_color_teal),
     ORANGE("orange", Color(0xFFE8740C), R.string.theme_color_orange),
-    ROSE("rose", Color(0xFFD81B60), R.string.theme_color_rose),
+    ROSE("rose", Color(0xFFEC407A), R.string.theme_color_rose),
     RED("red", Color(0xFFD32F2F), R.string.theme_color_red),
     GREY("grey", Color(0xFF757575), R.string.theme_color_grey);
 
