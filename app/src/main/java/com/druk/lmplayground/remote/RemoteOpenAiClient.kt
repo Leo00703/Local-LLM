@@ -23,6 +23,10 @@ data class ServerModelDetails(
     val publisher: String? = null,
     val maxContext: Int = 0,
     val loadedContext: Int = 0,
+    // Ollama-only: parameter count (e.g. "7.6B") and capabilities the server
+    // reports (e.g. "tools", "vision", "thinking"). Empty/null for LM Studio.
+    val parameterSize: String? = null,
+    val capabilities: List<String> = emptyList(),
 )
 
 /**
@@ -153,6 +157,9 @@ class RemoteOpenAiClient(baseUrl: String) {
                     info.keys().asSequence().firstOrNull { it.endsWith(".context_length") }
                         ?.let { info.optInt(it, 0) }
                 } ?: 0
+                val caps = o.optJSONArray("capabilities")?.let { a ->
+                    (0 until a.length()).mapNotNull { a.optString(it).ifBlank { null } }
+                } ?: emptyList()
                 return@withContext ServerModelDetails(
                     quantization = det?.optString("quantization_level")?.ifBlank { null },
                     architecture = det?.optString("family")?.ifBlank { null },
@@ -160,6 +167,8 @@ class RemoteOpenAiClient(baseUrl: String) {
                     format = det?.optString("format")?.ifBlank { null },
                     publisher = null,
                     maxContext = ctx,
+                    parameterSize = det?.optString("parameter_size")?.ifBlank { null },
+                    capabilities = caps,
                 )
             }
         }

@@ -358,6 +358,19 @@
     <string name="process_used_tools">Used tools</string>
     <string name="open_source_title">Open this source?</string>
     <string name="open_source_confirm">Open</string>
+    <!-- Present-tense summary shown while the turn is still generating. -->
+    <string name="process_reasoning">Reasoning</string>
+    <string name="process_reasoning_searching">Reasoning and searching the web</string>
+    <string name="process_searching">Searching the web</string>
+    <string name="process_using_tools">Using tools</string>
+    <plurals name="process_sources_count">
+        <item quantity="one">%d source</item>
+        <item quantity="other">%d sources</item>
+    </plurals>
+    <!-- Ollama model capabilities (shown as badges in the remote model card). -->
+    <string name="capability_tools">Tools</string>
+    <string name="capability_vision">Vision</string>
+    <string name="capability_thinking">Thinking</string>
     <string name="process_sources">Sources</string>
     <string name="process_expand">Show steps</string>
     <string name="process_collapse">Hide steps</string>

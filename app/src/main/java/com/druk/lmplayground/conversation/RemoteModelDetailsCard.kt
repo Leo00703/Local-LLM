@@ -15,10 +15,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -32,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -123,11 +131,36 @@ fun RemoteModelDetailsCard(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         details?.quantization?.let { Pill(it) }
+                        details?.parameterSize?.let { Pill(it) }
                         details?.architecture?.let { Pill(it) }
                         details?.type?.takeIf { it.isNotBlank() }?.let { Pill(it.uppercase()) }
                         details?.format?.takeIf { it.isNotBlank() }?.let { Pill(it.uppercase()) }
                         if (maxContext > 0) Pill(stringResource(R.string.context_pill, formatTokens(maxContext)))
                         details?.publisher?.let { Pill(it) }
+                    }
+
+                    // Capability badges (Ollama exposes these in /api/show; LM
+                    // Studio doesn't). Shows at a glance if the model can use
+                    // tools, read images, or reason.
+                    val capTools = stringResource(R.string.capability_tools)
+                    val capVision = stringResource(R.string.capability_vision)
+                    val capThinking = stringResource(R.string.capability_thinking)
+                    val caps = details?.capabilities.orEmpty()
+                    val capBadges = buildList {
+                        if ("tools" in caps) add(Icons.Outlined.Build to capTools)
+                        if ("vision" in caps) add(Icons.Outlined.Image to capVision)
+                        if ("thinking" in caps) add(Icons.Outlined.AutoAwesome to capThinking)
+                    }
+                    if (capBadges.isNotEmpty()) {
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            capBadges.forEach { (icon, label) -> CapabilityBadge(icon, label) }
+                        }
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
@@ -230,6 +263,24 @@ private fun Pill(text: String) {
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             maxLines = 1,
         )
+    }
+}
+
+@Composable
+private fun CapabilityBadge(icon: ImageVector, label: String) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(text = label, style = MaterialTheme.typography.labelMedium)
+        }
     }
 }
 

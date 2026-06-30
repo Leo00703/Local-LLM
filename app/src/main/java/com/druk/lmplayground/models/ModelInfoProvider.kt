@@ -473,6 +473,7 @@ object ModelInfoProvider {
             "bonsai" to R.drawable.logo_bonsai,
             "prism" to R.drawable.logo_bonsai,
             "deepseek" to R.drawable.logo_deepseek,
+            "minicpm" to R.drawable.logo_minicpm,
             "qwen" to R.drawable.logo_qwen,
             "gemma" to R.drawable.logo_google,
             "gemini" to R.drawable.logo_google,
@@ -496,6 +497,12 @@ object ModelInfoProvider {
             "ernie" to R.drawable.logo_ernie,
             "baidu" to R.drawable.logo_ernie,
             "ornith" to R.drawable.logo_ornith,
+            "glm" to R.drawable.logo_glm,
+            "command" to R.drawable.logo_command,
+            "exaone" to R.drawable.logo_exaone,
+            "kimi" to R.drawable.logo_kimi,
+            "hunyuan" to R.drawable.logo_hunyuan,
+            "stablelm" to R.drawable.logo_stablelm,
         )
         return rules.firstOrNull { (kw, _) -> id.contains(kw) }?.second
             ?: R.drawable.penrose_triangle
@@ -514,7 +521,10 @@ object ModelInfoProvider {
         "mixtral" to "Mixtral", "phi" to "Phi", "granite" to "Granite",
         "nemotron" to "Nemotron", "bonsai" to "Bonsai", "deepseek" to "DeepSeek",
         "gpt" to "GPT", "gemini" to "Gemini", "openai" to "OpenAI", "yi" to "Yi",
-        "ernie" to "ERNIE", "ornith" to "Ornith",
+        "ernie" to "ERNIE", "ornith" to "Ornith", "glm" to "GLM",
+        "command" to "Command", "aya" to "Aya", "minicpm" to "MiniCPM",
+        "olmo" to "OLMo", "smollm" to "SmolLM", "hunyuan" to "Hunyuan",
+        "kimi" to "Kimi", "exaone" to "EXAONE", "stablelm" to "StableLM",
     )
     private val PARAM_SIZE = Regex("^\\d+(\\.\\d+)?[bmk]$")          // 4b, 0.5b, 350m
     private val ACTIVE_PARAMS = Regex("^a\\d+(\\.\\d+)?b$")          // a3b, a1b
@@ -565,6 +575,7 @@ object ModelInfoProvider {
             "bonsai" to "Bonsai",
             "prism" to "Bonsai",
             "deepseek" to "DeepSeek",
+            "minicpm" to "MiniCPM",
             "qwq" to "Qwen",
             "qwen" to "Qwen",
             "gemma" to "Gemma",
@@ -585,6 +596,14 @@ object ModelInfoProvider {
             "ernie" to "ERNIE",
             "baidu" to "ERNIE",
             "ornith" to "Ornith",
+            "command" to "Command",
+            "aya" to "Aya",
+            "olmo" to "OLMo",
+            "smollm" to "SmolLM",
+            "hunyuan" to "Hunyuan",
+            "kimi" to "Kimi",
+            "exaone" to "EXAONE",
+            "stablelm" to "StableLM",
         )
         return rules.firstOrNull { (kw, _) -> id.contains(kw) }?.second ?: "Other"
     }

@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -639,11 +640,21 @@ private fun AgentProcessCard(
     val web = searches > 0 || fetches > 0
     val totalThinkSec = message.toolCalls.orEmpty()
         .sumOf { it.precedingThinkingDurationSeconds } + message.thinkingDurationSeconds
-    val head = when {
-        web && reasoned -> stringResource(R.string.process_reasoned_searched)
-        web -> stringResource(R.string.process_searched)
-        reasoned -> stringResource(R.string.process_reasoned)
-        else -> stringResource(R.string.process_used_tools)
+    val head = if (isGenerating) {
+        // Present tense while the turn is still running.
+        when {
+            web && reasoned -> stringResource(R.string.process_reasoning_searching)
+            web -> stringResource(R.string.process_searching)
+            reasoned -> stringResource(R.string.process_reasoning)
+            else -> stringResource(R.string.process_using_tools)
+        }
+    } else {
+        when {
+            web && reasoned -> stringResource(R.string.process_reasoned_searched)
+            web -> stringResource(R.string.process_searched)
+            reasoned -> stringResource(R.string.process_reasoned)
+            else -> stringResource(R.string.process_used_tools)
+        }
     }
     val parts = mutableListOf(head)
     if (totalThinkSec > 0) parts.add(formatDuration(totalThinkSec))
@@ -778,6 +789,12 @@ private fun ProcessStepRow(step: ProcessStep) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
             )
+            // Perplexity-style cluster of visited-site favicons on the collapsed
+            // row; the full clickable chips appear when the step is expanded.
+            if (!expanded && step.sources.isNotEmpty()) {
+                SourceFaviconCluster(step.sources)
+                Spacer(modifier = Modifier.width(8.dp))
+            }
             Icon(
                 imageVector = Icons.Outlined.KeyboardArrowDown,
                 contentDescription = null,
@@ -853,6 +870,55 @@ private fun LiveStepRow(messageId: Long) {
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.outline,
             fontStyle = FontStyle.Italic
+        )
+    }
+}
+
+/** Overlapping favicons of the visited sites + a count, for a collapsed row. */
+@Composable
+private fun SourceFaviconCluster(sources: List<WebSource>, max: Int = 3) {
+    val rail = MaterialTheme.colorScheme.outlineVariant
+    val chipBg = MaterialTheme.colorScheme.surfaceContainerHighest
+    val shown = sources.take(max)
+    val stepDp = 12.dp // visible slice of each overlapped favicon
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .width(stepDp * (shown.size - 1) + 18.dp)
+                .height(18.dp)
+        ) {
+            shown.forEachIndexed { i, src ->
+                Box(
+                    modifier = Modifier
+                        .offset(x = stepDp * i)
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(chipBg)
+                        .border(1.dp, rail, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    SubcomposeAsyncImage(
+                        model = "https://www.google.com/s2/favicons?domain=${src.domain}&sz=64",
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        error = {
+                            Icon(
+                                imageVector = Icons.Outlined.Public,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = pluralStringResource(R.plurals.process_sources_count, sources.size, sources.size),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline,
+            maxLines = 1
         )
     }
 }

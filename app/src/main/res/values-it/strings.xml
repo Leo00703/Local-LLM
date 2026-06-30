@@ -343,6 +343,19 @@
     <string name="process_used_tools">Ha usato gli strumenti</string>
     <string name="open_source_title">Aprire questa fonte?</string>
     <string name="open_source_confirm">Apri</string>
+    <!-- Riassunto al presente mostrato mentre il turno sta ancora generando. -->
+    <string name="process_reasoning">Sta ragionando</string>
+    <string name="process_reasoning_searching">Sta ragionando e cercando sul web</string>
+    <string name="process_searching">Sta cercando sul web</string>
+    <string name="process_using_tools">Sta usando gli strumenti</string>
+    <plurals name="process_sources_count">
+        <item quantity="one">%d fonte</item>
+        <item quantity="other">%d fonti</item>
+    </plurals>
+    <!-- Capacità del modello Ollama (badge nella card del modello remoto). -->
+    <string name="capability_tools">Strumenti</string>
+    <string name="capability_vision">Immagini</string>
+    <string name="capability_thinking">Ragionamento</string>
     <string name="process_sources">Fonti</string>
     <string name="process_expand">Mostra i passaggi</string>
     <string name="process_collapse">Nascondi i passaggi</string>
