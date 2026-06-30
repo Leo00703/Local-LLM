@@ -383,6 +383,8 @@
     <string name="attachment_failed">Impossibile leggere %1$s</string>
     <string name="attachment_reading">Lettura…</string>
     <string name="attachment_token_count">~%1$s token</string>
+    <string name="preview_formatted">Formattato</string>
+    <string name="preview_raw">Grezzo</string>
     <string name="process_sources">Fonti</string>
     <string name="process_expand">Mostra i passaggi</string>
     <string name="process_collapse">Nascondi i passaggi</string>

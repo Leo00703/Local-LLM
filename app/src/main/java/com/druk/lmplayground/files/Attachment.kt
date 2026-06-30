@@ -19,6 +19,12 @@ data class Attachment(
     val extractedText: String,
     val charCount: Int,
     val truncated: Boolean,
+    /**
+     * Original source text for the preview's "raw" view, when it differs from
+     * [extractedText] — i.e. the raw HTML for an HTML file (extractedText is the
+     * Markdown the model receives). Null for plain text (raw == extractedText).
+     */
+    val rawText: String? = null,
 )
 
 /**
@@ -39,8 +45,13 @@ data class StagedAttachment(
 sealed interface StagedState {
     /** Reading the file (a spinner on the chip). */
     data object Extracting : StagedState
-    /** Text ready; [charCount] drives the token estimate shown on the chip. */
-    data class Ready(val text: String, val charCount: Int, val truncated: Boolean) : StagedState
+    /** Text ready; [charCount] drives the token estimate shown on the chip. [rawText] = original source for HTML. */
+    data class Ready(
+        val text: String,
+        val charCount: Int,
+        val truncated: Boolean,
+        val rawText: String? = null,
+    ) : StagedState
     /** Couldn't read it (unsupported / empty / failure) — shown on the chip, skipped on send. */
     data class Error(val message: String) : StagedState
 }

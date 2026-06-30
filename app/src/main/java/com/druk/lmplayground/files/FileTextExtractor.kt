@@ -15,6 +15,8 @@ sealed interface FileExtractionResult {
         val charCount: Int,
         val truncated: Boolean,
         val name: String,
+        /** Original source for the preview's raw view (raw HTML); null = same as [text]. */
+        val rawText: String? = null,
     ) : FileExtractionResult
     /** Opened fine but produced no usable text (e.g. an empty or image-only file). */
     data class Empty(val reason: String, val name: String) : FileExtractionResult
@@ -84,7 +86,13 @@ object FileTextExtractor {
         // Jsoup auto-detects the charset from the document; null lets it decide.
         val doc = Jsoup.parse(bytes.inputStream(), null, "")
         val md = HtmlToMarkdown.convert(doc)
-        return finalize(md, md.length > MAX_TEXT_CHARS, name)
+        // Keep the raw HTML source for the preview, decoded with the charset Jsoup
+        // detected (not a hardcoded UTF-8) so non-UTF-8 pages don't mojibake.
+        val charset = doc.charset() ?: Charsets.UTF_8
+        val rawHtml = bytes.toString(charset).let {
+            if (it.length > MAX_TEXT_CHARS) it.take(MAX_TEXT_CHARS) else it
+        }
+        return finalize(md, md.length > MAX_TEXT_CHARS, name, rawText = rawHtml)
     }
 
     /** Read up to [MAX_TEXT_CHARS] so a huge file can't OOM the read. */
@@ -107,7 +115,12 @@ object FileTextExtractor {
 
     private fun stripBom(s: String) = if (s.startsWith('﻿')) s.substring(1) else s
 
-    private fun finalize(text: String, alreadyTruncated: Boolean, name: String): FileExtractionResult {
+    private fun finalize(
+        text: String,
+        alreadyTruncated: Boolean,
+        name: String,
+        rawText: String? = null,
+    ): FileExtractionResult {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return FileExtractionResult.Empty("no extractable text", name)
         val capped = if (trimmed.length > MAX_TEXT_CHARS) trimmed.take(MAX_TEXT_CHARS) else trimmed
@@ -116,6 +129,7 @@ object FileTextExtractor {
             charCount = capped.length,
             truncated = alreadyTruncated || capped.length < trimmed.length,
             name = name,
+            rawText = rawText,
         )
     }
 }

@@ -934,10 +934,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         }
         this@ConversationViewModel.llamaSession = newSession
         prevSession?.destroy()
-        // KV cache is rebuilt lazily on the next turn, so the context meter is
-        // empty until then. Covers params-change, system-prompt, load-session,
-        // and edit/regenerate (which re-fills it when generation completes).
-        _contextUsedTokens.postValue(0)
+        // The KV cache is rebuilt lazily on the next turn, but show the loaded
+        // conversation's estimated context now (switching chats used to reset the
+        // ring to 0). The real getReport() corrects it after the next generation.
+        _contextUsedTokens.postValue(estimateContextTokens(messages))
         return true
     }
 
@@ -1103,7 +1103,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             StagedAttachment(id, uri, filename, mimeType)
         viewModelScope.launch {
             val state = when (val r = FileTextExtractor.extract(app, uri, filename, mimeType)) {
-                is FileExtractionResult.Success -> StagedState.Ready(r.text, r.charCount, r.truncated)
+                is FileExtractionResult.Success -> StagedState.Ready(r.text, r.charCount, r.truncated, r.rawText)
                 is FileExtractionResult.Empty ->
                     StagedState.Error(app.getString(com.druk.lmplayground.R.string.attachment_empty, filename))
                 is FileExtractionResult.Unsupported ->
@@ -1158,7 +1158,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             val text = if (r.text.length > remaining) r.text.take(remaining) else r.text
             val truncated = r.truncated || text.length < r.text.length
             remaining = (remaining - text.length).coerceAtLeast(0)
-            Attachment(s.filename, s.mimeType, AttachmentKind.DOCUMENT, text, text.length, truncated)
+            Attachment(s.filename, s.mimeType, AttachmentKind.DOCUMENT, text, text.length, truncated, r.rawText)
         }
     }
 
@@ -1183,6 +1183,19 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
             append(m.content)
         }
+    }
+
+    /**
+     * Rough token estimate of a whole conversation's context (system prompt + all
+     * messages, user turns incl. their attachment text). Fills the context ring
+     * when switching chats, instead of resetting it to 0 until the next turn.
+     */
+    private fun estimateContextTokens(messages: List<Message>): Int {
+        var chars = composeSystemPrompt(_systemPrompt.value.orEmpty()).length
+        for (m in messages) {
+            chars += if (m.author == "User") buildModelPrompt(m).length else m.content.length
+        }
+        return chars / 4
     }
 
     @MainThread
@@ -1704,6 +1717,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 put("text", a.extractedText)
                 put("charCount", a.charCount)
                 put("truncated", a.truncated)
+                a.rawText?.let { put("raw", it) }
             })
         }
         return arr.toString()
@@ -1723,6 +1737,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         extractedText = o.optString("text"),
                         charCount = o.optInt("charCount"),
                         truncated = o.optBoolean("truncated"),
+                        rawText = o.optString("raw").ifEmpty { null },
                     )
                 }
             } catch (_: Throwable) {

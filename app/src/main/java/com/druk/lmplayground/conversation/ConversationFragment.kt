@@ -647,6 +647,9 @@ class ConversationFragment : Fragment() {
                                             tokenCount = ready?.let { it.charCount / 4 },
                                             truncated = ready?.truncated == true,
                                             errorText = (sa.state as? StagedState.Error)?.message,
+                                            mime = sa.mimeType,
+                                            previewText = ready?.text,
+                                            previewRaw = ready?.rawText,
                                             onRemove = { viewModel.removeStagedAttachment(sa.id) },
                                         )
                                     }

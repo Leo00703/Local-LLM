@@ -3,6 +3,7 @@
 package com.druk.lmplayground.conversation
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +28,10 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -53,8 +58,13 @@ fun AttachmentChip(
     extracting: Boolean = false,
     truncated: Boolean = false,
     errorText: String? = null,
+    mime: String? = null,
+    previewText: String? = null,
+    previewRaw: String? = null,
     onRemove: (() -> Unit)? = null,
 ) {
+    var showPreview by remember { mutableStateOf(false) }
+    val canPreview = previewText != null && !extracting && errorText == null
     val tokenText = tokenCount?.let { formatTokens(it) }
     TooltipBox(
         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
@@ -77,7 +87,9 @@ fun AttachmentChip(
             shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            modifier = modifier,
+            modifier = modifier.then(
+                if (canPreview) Modifier.clickable { showPreview = true } else Modifier
+            ),
         ) {
             Row(
                 modifier = Modifier.padding(
@@ -153,5 +165,14 @@ fun AttachmentChip(
                 }
             }
         }
+    }
+    if (showPreview && previewText != null) {
+        FilePreviewDialog(
+            filename = filename,
+            mime = mime,
+            text = previewText,
+            rawText = previewRaw,
+            onDismiss = { showPreview = false },
+        )
     }
 }
