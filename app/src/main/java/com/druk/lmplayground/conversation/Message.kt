@@ -49,6 +49,14 @@ fun Message(
                 .padding(start = 60.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
             horizontalAlignment = Alignment.End
         ) {
+            // File the user attached to this turn (its text was fed to the model).
+            msg.attachments.firstOrNull()?.let { att ->
+                AttachmentChip(
+                    filename = att.name,
+                    truncated = att.truncated,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
             Surface(
                 color = MaterialTheme.colorScheme.primary,
                 shape = UserBubbleShape

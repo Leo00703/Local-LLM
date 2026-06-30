@@ -390,6 +390,12 @@
     <string name="advanced_subtitle">Power-user options</string>
     <string name="disable_repack_title">Disable weight repacking</string>
     <string name="disable_repack_desc">Load models memory-mapped to use far less RAM, at the cost of slower generation. Useful on low-memory devices.</string>
+    <string name="attach_file">Attach file</string>
+    <string name="remove_attachment">Remove attachment</string>
+    <string name="attachment_truncated_label">Truncated to fit</string>
+    <string name="attachment_empty">%1$s has no readable text</string>
+    <string name="attachment_unsupported">%1$s isn\'t supported yet</string>
+    <string name="attachment_failed">Couldn\'t read %1$s</string>
     <string name="process_sources">Sources</string>
     <string name="process_expand">Show steps</string>
     <string name="process_collapse">Hide steps</string>

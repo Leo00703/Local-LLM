@@ -33,6 +33,11 @@ import com.druk.lmplayground.models.ModelInfo
 import com.druk.lmplayground.models.ModelInfoProvider
 import com.druk.lmplayground.models.ModelWithStatus
 import com.druk.lmplayground.models.resolveCapabilities
+import com.druk.lmplayground.files.Attachment
+import com.druk.lmplayground.files.AttachmentKind
+import com.druk.lmplayground.files.FileExtractionResult
+import com.druk.lmplayground.files.FileTextExtractor
+import com.druk.lmplayground.files.StagedAttachment
 import com.druk.lmplayground.storage.StoragePreferences
 import com.druk.lmplayground.storage.StorageRepository
 import com.druk.lmplayground.tools.ToolRegistry
@@ -91,6 +96,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     private val _toolEnabledStates = MutableLiveData<Map<String, Boolean>>(emptyMap())
     val toolRegistry = ToolRegistry.createDefault(app)
     val toolEnabledStates: LiveData<Map<String, Boolean>> = _toolEnabledStates
+    // A file the user picked but hasn't sent yet (the composer chip). Extraction
+    // + prompt injection happen at send time in [sendUserMessage].
+    private val _stagedAttachment = MutableLiveData<StagedAttachment?>(null)
+    val stagedAttachment: LiveData<StagedAttachment?> = _stagedAttachment
     private val _systemPrompt = MutableLiveData("")
     private val _systemPromptId = MutableLiveData<String?>(null)
     /**
@@ -836,7 +845,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             return false
         }
         for (msg in messages) {
-            if (msg.content.length * 2 > InferenceLimits.MAX_PAYLOAD_BYTES) {
+            // Measure the COMPOSED prompt (incl. any attachment text), not just
+            // the visible content, so an oversized file is caught here at
+            // pre-flight rather than overflowing the binder at replay.
+            if (buildModelPrompt(msg).length * 2 > InferenceLimits.MAX_PAYLOAD_BYTES) {
                 _userError.postValue(
                     app.getString(com.druk.lmplayground.R.string.history_message_too_large)
                 )
@@ -854,7 +866,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         while (i < messages.size) {
             val msg = messages[i]
             if (msg.author == "User" && i + 1 < messages.size && messages[i + 1].author == "Assistant") {
-                userMessages.add(msg.content)
+                userMessages.add(buildModelPrompt(msg))
                 assistantMessages.add(messages[i + 1].content)
                 i += 2
             } else {
@@ -1079,6 +1091,102 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     }
 
     @MainThread
+    fun stageAttachment(attachment: StagedAttachment) {
+        _stagedAttachment.value = attachment
+    }
+
+    @MainThread
+    fun clearStagedAttachment() {
+        _stagedAttachment.value = null
+    }
+
+    /**
+     * Send a user turn, attaching the staged file (if any). For a DOCUMENT the
+     * file's text is extracted off-thread, truncated to fit the context window,
+     * and carried on the Message; [buildModelPrompt] folds it into the prompt at
+     * every backend callsite. The visible message stays the user's typed text.
+     * On extraction failure the typed text is still sent, with an error surfaced.
+     */
+    @MainThread
+    fun sendUserMessage(content: String) {
+        if (_isGenerating.value == true) return
+        val staged = _stagedAttachment.value
+        _stagedAttachment.value = null
+        if (staged == null) {
+            addMessage(Message("User", content))
+            return
+        }
+        // Mark generating up front so the composer can't fire a second turn
+        // during the async extraction window (addMessage only flips this once it
+        // runs, after extraction); truncation guarantees addMessage then proceeds.
+        _isGenerating.value = true
+        viewModelScope.launch {
+            val attachment = when (
+                val r = FileTextExtractor.extract(app, staged.uri, staged.filename, staged.mimeType)
+            ) {
+                is FileExtractionResult.Success -> {
+                    val (text, truncated) = truncateForContext(r.text, content)
+                    Attachment(
+                        name = staged.filename,
+                        mime = staged.mimeType,
+                        kind = AttachmentKind.DOCUMENT,
+                        extractedText = text,
+                        charCount = text.length,
+                        truncated = truncated || r.truncated,
+                    )
+                }
+                is FileExtractionResult.Empty -> {
+                    _userError.postValue(app.getString(com.druk.lmplayground.R.string.attachment_empty, staged.filename))
+                    null
+                }
+                is FileExtractionResult.Unsupported -> {
+                    _userError.postValue(app.getString(com.druk.lmplayground.R.string.attachment_unsupported, staged.filename))
+                    null
+                }
+                is FileExtractionResult.Failure -> {
+                    _userError.postValue(app.getString(com.druk.lmplayground.R.string.attachment_failed, staged.filename))
+                    null
+                }
+            }
+            addMessage(
+                Message("User", content, attachments = attachment?.let { listOf(it) } ?: emptyList())
+            )
+        }
+    }
+
+    /**
+     * Compose the text actually sent to the model for [m]: each DOCUMENT
+     * attachment's extracted text fenced and prepended, then the user's content.
+     * IMAGE attachments are skipped (they route to the vision pipeline). This is
+     * the ONE composition point used by every backend callsite; Message.content
+     * stays the user's typed text (display + share/copy).
+     */
+    private fun buildModelPrompt(m: Message): String {
+        val docs = m.attachments.filter {
+            it.kind == AttachmentKind.DOCUMENT && it.extractedText.isNotBlank()
+        }
+        if (docs.isEmpty()) return m.content
+        return buildString {
+            for (a in docs) {
+                append("[Attached file: ").append(a.name).append("]\n```\n")
+                append(a.extractedText)
+                if (a.truncated) append("\n[… file truncated to fit the context window …]")
+                append("\n```\n\n")
+            }
+            append(m.content)
+        }
+    }
+
+    /** Trim an attachment's text to ~half the context window (and under the binder cap). */
+    private fun truncateForContext(text: String, userContent: String): Pair<String, Boolean> {
+        val contextSize = _generationParams.value?.contextSize ?: 4096
+        val maxFileTokens = (contextSize * 0.5).toInt()
+        val byteCeilingChars = (InferenceLimits.MAX_PAYLOAD_BYTES / 2) - userContent.length - 512
+        val maxFileChars = minOf(maxFileTokens * 4, byteCeilingChars).coerceAtLeast(0)
+        return if (text.length > maxFileChars) text.take(maxFileChars) to true else text to false
+    }
+
+    @MainThread
     fun addMessage(message: Message) {
         val enableThinking = _thinkingEnabled.value == true
 
@@ -1088,7 +1196,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         // with `_isGenerating=true` and a half-empty assistant bubble.
         // A clean abort here matches what the user expects: nothing
         // visibly happened, but the input shows an error.
-        val sizeBytes = message.content.length * 2
+        // The model receives the user's text PLUS any attachment's extracted
+        // text (buildModelPrompt); size-guard and feed the native side that.
+        val modelPrompt = buildModelPrompt(message)
+        val sizeBytes = modelPrompt.length * 2
         if (sizeBytes > InferenceLimits.MAX_PAYLOAD_BYTES) {
             _userError.postValue(
                 app.getString(
@@ -1164,7 +1275,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     // info is unavailable. Pruning the cache directory is
                     // best-effort; failures don't block generation.
                     applyPreambleCache(llamaSession, toolsJson)
-                    llamaSession.addMessage(message.content, enableThinking)
+                    llamaSession.addMessage(modelPrompt, enableThinking)
                 } catch (e: InferenceUnavailableException) {
                     android.util.Log.w("ConversationViewModel", "addMessage failed: service unavailable", e)
                     _userError.postValue(
@@ -1465,7 +1576,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         if (lastUserIdx < 0) return
         val userContent = msgs[lastUserIdx].content
         val prior = msgs.subList(0, lastUserIdx).toList()
-        resendUserTurn(prior, userContent)
+        resendUserTurn(prior, userContent, msgs[lastUserIdx].attachments)
     }
 
     /**
@@ -1484,7 +1595,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         val idx = msgs.indexOfFirst { it.id == messageId }
         if (idx < 0 || msgs[idx].author != "User") return
         val prior = msgs.subList(0, idx).toList()
-        resendUserTurn(prior, trimmed)
+        // Keep the original turn's attachment when re-sending the edited text.
+        resendUserTurn(prior, trimmed, msgs[idx].attachments)
     }
 
     /**
@@ -1496,14 +1608,19 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      * The native rebuild happens FIRST: if the engine is unavailable the
      * conversation is left untouched rather than truncated with nothing to show.
      */
-    private fun resendUserTurn(priorMessages: List<Message>, newUserContent: String) {
+    private fun resendUserTurn(
+        priorMessages: List<Message>,
+        newUserContent: String,
+        attachments: List<Attachment> = emptyList(),
+    ) {
         val model = llamaModel ?: return
         val params = _generationParams.value ?: GenerationParams()
         val systemPrompt = _systemPrompt.value.orEmpty()
 
-        // Size guards mirror addMessage / validateReplaySize so we never half-
-        // rebuild the session and then fail on an oversized payload.
-        val sizeBytes = newUserContent.length * 2
+        // The resent turn carries the original attachment; size-guard the COMPOSED
+        // prompt (text + attachment) so we never half-rebuild then fail on payload.
+        val resentMessage = Message("User", newUserContent, attachments = attachments)
+        val sizeBytes = buildModelPrompt(resentMessage).length * 2
         if (sizeBytes > InferenceLimits.MAX_PAYLOAD_BYTES) {
             _userError.postValue(
                 app.getString(
@@ -1543,21 +1660,40 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 )
             }
 
-            addMessage(Message("User", newUserContent))
+            addMessage(resentMessage)
         }
     }
 
-    private fun Message.toChatMessageEntity(sessionId: String) = ChatMessageEntity(
-        sessionId = sessionId,
-        author = author,
-        content = content,
-        thinkingDurationSeconds = thinkingDurationSeconds,
-        thinkingTokens = thinkingTokens,
-        responseTokens = responseTokens,
-        responseDurationSeconds = responseDurationSeconds,
-        responseDecodeSeconds = responseDecodeSeconds,
-        timestamp = timestamp
-    )
+    private fun Message.toChatMessageEntity(sessionId: String): ChatMessageEntity {
+        val a = attachments.firstOrNull()
+        return ChatMessageEntity(
+            sessionId = sessionId,
+            author = author,
+            content = content,
+            thinkingDurationSeconds = thinkingDurationSeconds,
+            thinkingTokens = thinkingTokens,
+            responseTokens = responseTokens,
+            responseDurationSeconds = responseDurationSeconds,
+            responseDecodeSeconds = responseDecodeSeconds,
+            timestamp = timestamp,
+            attachmentName = a?.name,
+            attachmentMime = a?.mime,
+            attachmentKind = a?.kind?.name?.lowercase(),
+            attachmentText = a?.extractedText,
+            attachmentUri = null,
+            attachmentTruncated = a?.truncated ?: false,
+        )
+    }
+
+    /** Re-hydrate a Message's attachment list from its persisted columns. */
+    private fun attachmentsFrom(e: ChatMessageEntity): List<Attachment> {
+        val name = e.attachmentName ?: return emptyList()
+        val kind = if (e.attachmentKind == "image") AttachmentKind.IMAGE else AttachmentKind.DOCUMENT
+        val text = e.attachmentText.orEmpty()
+        return listOf(
+            Attachment(name, e.attachmentMime, kind, text, text.length, e.attachmentTruncated)
+        )
+    }
 
     private suspend fun ensureSession(firstUserMessage: Message): String {
         val existing = _currentSessionId.value
@@ -1609,19 +1745,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun persistMessage(sessionId: String, message: Message) {
-        chatRepository?.insertMessage(
-            ChatMessageEntity(
-                sessionId = sessionId,
-                author = message.author,
-                content = message.content,
-                thinkingDurationSeconds = message.thinkingDurationSeconds,
-                thinkingTokens = message.thinkingTokens,
-                responseTokens = message.responseTokens,
-                responseDurationSeconds = message.responseDurationSeconds,
-                responseDecodeSeconds = message.responseDecodeSeconds,
-                timestamp = message.timestamp
-            )
-        )
+        // Single mapper so attachment columns are never written by only one path.
+        chatRepository?.insertMessage(message.toChatMessageEntity(sessionId))
     }
 
     @MainThread
@@ -1638,7 +1763,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     responseTokens = entity.responseTokens,
                     responseDurationSeconds = entity.responseDurationSeconds,
                     responseDecodeSeconds = entity.responseDecodeSeconds,
-                    timestamp = entity.timestamp
+                    timestamp = entity.timestamp,
+                    attachments = attachmentsFrom(entity)
                 )
             }
 

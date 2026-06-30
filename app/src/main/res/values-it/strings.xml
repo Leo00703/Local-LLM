@@ -375,6 +375,12 @@
     <string name="advanced_subtitle">Opzioni per utenti esperti</string>
     <string name="disable_repack_title">Disabilita weight repacking</string>
     <string name="disable_repack_desc">Carica i modelli in memory-mapping per usare molta meno RAM, al costo di una generazione più lenta. Utile sui dispositivi con poca memoria.</string>
+    <string name="attach_file">Allega file</string>
+    <string name="remove_attachment">Rimuovi allegato</string>
+    <string name="attachment_truncated_label">Troncato per rientrare</string>
+    <string name="attachment_empty">%1$s non contiene testo leggibile</string>
+    <string name="attachment_unsupported">%1$s non è ancora supportato</string>
+    <string name="attachment_failed">Impossibile leggere %1$s</string>
     <string name="process_sources">Fonti</string>
     <string name="process_expand">Mostra i passaggi</string>
     <string name="process_collapse">Nascondi i passaggi</string>

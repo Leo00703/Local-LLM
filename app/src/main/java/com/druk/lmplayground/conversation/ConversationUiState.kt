@@ -192,5 +192,7 @@ data class Message(
     val ttftMs: Int = 0,
     val timestamp: Long = System.currentTimeMillis(),
     val id: Long = messageIdCounter.incrementAndGet(),
-    val toolCalls: List<ToolCallInfo>? = null
+    val toolCalls: List<ToolCallInfo>? = null,
+    /** Files attached to this (user) turn — their text is injected into the prompt. */
+    val attachments: List<com.druk.lmplayground.files.Attachment> = emptyList()
 )

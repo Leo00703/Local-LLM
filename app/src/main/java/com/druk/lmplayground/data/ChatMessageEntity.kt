@@ -28,5 +28,15 @@ data class ChatMessageEntity(
     val responseDurationSeconds: Float = 0f,
     /** Decode window (first token → end) in seconds; the honest tok/s denominator. */
     val responseDecodeSeconds: Float = 0f,
-    val timestamp: Long
+    val timestamp: Long,
+    // Single attachment per message (v1). attachmentKind routes: "document" =
+    // attachmentText holds the extracted text; "image" (future vision) = the
+    // pixels live at attachmentUri and attachmentText is null. Designed so vision
+    // reuses these columns with no further migration.
+    val attachmentName: String? = null,
+    val attachmentMime: String? = null,
+    val attachmentKind: String? = null,
+    val attachmentText: String? = null,
+    val attachmentUri: String? = null,
+    val attachmentTruncated: Boolean = false
 )

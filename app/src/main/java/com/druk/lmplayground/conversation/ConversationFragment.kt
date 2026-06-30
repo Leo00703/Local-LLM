@@ -58,7 +58,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.Fragment
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.viewModels
+import com.druk.lmplayground.files.StagedAttachment
 import androidx.core.os.bundleOf
 import androidx.navigation.fragment.findNavController
 import com.druk.lmplayground.settings.SettingsFragment
@@ -78,6 +82,33 @@ class ConversationFragment : Fragment() {
 
     private val viewModel: ConversationViewModel by viewModels()
     private val storageViewModel: StorageViewModel by viewModels()
+
+    /** MIME types the document picker offers. PDF is added in the next build. */
+    private val docMimeFilter = arrayOf(
+        "text/*", "application/json", "application/xml", "application/octet-stream"
+    )
+
+    /** System file picker for document attachments; stages the pick on the ViewModel. */
+    private val openDocumentLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri ?: return@registerForActivityResult
+        val name = resolveDisplayName(uri)
+        val mime = requireContext().contentResolver.getType(uri)
+        viewModel.stageAttachment(StagedAttachment(uri, name, mime))
+    }
+
+    private fun resolveDisplayName(uri: Uri): String {
+        requireContext().contentResolver
+            .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { c ->
+                if (c.moveToFirst()) {
+                    val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0) c.getString(idx)?.let { return it }
+                }
+            }
+        return uri.lastPathSegment ?: "file"
+    }
 
     override fun onResume() {
         super.onResume()
@@ -119,6 +150,7 @@ class ConversationFragment : Fragment() {
             val remoteModelsLoading by viewModel.remoteModelsLoading.observeAsState(false)
             val sessions by viewModel.sessions.observeAsState(emptyList())
             val folders by viewModel.folders.observeAsState(emptyList())
+            val stagedAttachment by viewModel.stagedAttachment.observeAsState()
             val currentSessionId by viewModel.currentSessionId.observeAsState()
             val generationParams by viewModel.generationParams.observeAsState(GenerationParams())
             val maxContextSize by viewModel.maxContextSize.observeAsState(4096)
@@ -589,6 +621,24 @@ class ConversationFragment : Fragment() {
                                     modifier = Modifier.padding(bottom = 8.dp)
                                 )
                             }
+                            // Staged file attachment (removable chip) above the composer.
+                            // ExitTransition.None: the content reads the now-null
+                            // stagedAttachment during exit, so animate in only and
+                            // drop instantly on send/remove (no empty-box flash).
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = stagedAttachment != null,
+                                exit = androidx.compose.animation.ExitTransition.None
+                            ) {
+                                stagedAttachment?.let { sa ->
+                                    AttachmentChip(
+                                        filename = sa.filename,
+                                        onRemove = { viewModel.clearStagedAttachment() },
+                                        modifier = Modifier.padding(
+                                            start = 16.dp, end = 16.dp, bottom = 8.dp
+                                        )
+                                    )
+                                }
+                            }
                             UserInput(
                                 integrateWithSurface = showPermanent,
                                 hazeState = hazeState,
@@ -612,10 +662,22 @@ class ConversationFragment : Fragment() {
                                     if (isModelReady) showParamsSheet = true
                                 },
                                 onMessageSent = { content ->
-                                    viewModel.addMessage(
-                                        Message("User", content)
-                                    )
+                                    // Routes through the ViewModel, which attaches
+                                    // any staged file's extracted text to the turn.
+                                    viewModel.sendUserMessage(content)
                                 },
+                                onAttachClick = {
+                                    try {
+                                        openDocumentLauncher.launch(docMimeFilter)
+                                    } catch (_: android.content.ActivityNotFoundException) {
+                                        android.widget.Toast.makeText(
+                                            requireContext(),
+                                            R.string.folder_picker_unavailable,
+                                            android.widget.Toast.LENGTH_LONG,
+                                        ).show()
+                                    }
+                                },
+                                attachEnabled = isModelReady && isGenerating != true,
                                 onCancelClicked = {
                                     viewModel.cancelGeneration()
                                 },

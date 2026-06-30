@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
@@ -124,6 +125,8 @@ fun UserInput(
     onMessageSent: (String) -> Unit,
     onCancelClicked: () -> Unit = {},
     resetScroll: () -> Unit = {},
+    onAttachClick: () -> Unit = {},
+    attachEnabled: Boolean = false,
 ) {
 
     var textState by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -203,6 +206,8 @@ fun UserInput(
                     resetScroll()
                 },
                 onCancelClicked = onCancelClicked,
+                onAttachClick = onAttachClick,
+                attachEnabled = attachEnabled,
                 // On tablet landscape (integrateWithSurface) reduce the row's
                 // vertical padding from 8dp → 2dp so the input dock saves ~12dp
                 // of message area — vertical space is the constrained dimension
@@ -259,10 +264,14 @@ private fun UserInputText(
     sendMessageEnabled: Boolean,
     onMessageSent: () -> Unit,
     onCancelClicked: () -> Unit,
+    onAttachClick: () -> Unit = {},
+    attachEnabled: Boolean = false,
     compact: Boolean = false
 ) {
     val a11ylabel = stringResource(id = R.string.textfield_desc)
-    val textStartPadding = if (supportsThinking) 4.dp else 32.dp
+    // A leading attach button now occupies the start slot, so the text never
+    // needs the extra left inset.
+    val textStartPadding = 4.dp
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -271,6 +280,18 @@ private fun UserInputText(
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        IconButton(
+            onClick = onAttachClick,
+            enabled = attachEnabled,
+            modifier = Modifier.padding(start = 4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.AttachFile,
+                contentDescription = stringResource(R.string.attach_file),
+                modifier = if (!attachEnabled) Modifier.alpha(0.4f) else Modifier,
+                tint = LocalContentColor.current
+            )
+        }
         if (supportsThinking) {
             val isDisabled = status == UserInputStatus.GENERATING
             IconButton(
