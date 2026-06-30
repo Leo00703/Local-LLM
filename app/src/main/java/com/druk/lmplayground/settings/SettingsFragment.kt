@@ -55,6 +55,7 @@ class SettingsFragment : Fragment() {
     private val toolsViewModel: ToolsViewModel by viewModels()
     private val soundHapticViewModel: SoundHapticViewModel by viewModels()
     private val remoteServerViewModel: RemoteServerViewModel by viewModels()
+    private val advancedViewModel: AdvancedViewModel by viewModels()
 
     // Pending download model held across the notification-permission
     // request, mirroring the original ModelsFragment behaviour.
@@ -234,6 +235,9 @@ class SettingsFragment : Fragment() {
                     onRemoteServerClick = {
                         findNavController().navigateFromSettings(R.id.action_settings_to_remote_server)
                     },
+                    onAdvancedClick = {
+                        findNavController().navigateFromSettings(R.id.action_settings_to_advanced)
+                    },
                     onSendFeedbackClick = {
                         val email = getString(R.string.privacy_policy_contact_email)
                         val intent = Intent(Intent.ACTION_SENDTO).apply {
@@ -259,6 +263,9 @@ class SettingsFragment : Fragment() {
                     } else null,
                     remoteServerDetailContent = if (twoPane) {
                         { RemoteServerDetailPane() }
+                    } else null,
+                    advancedDetailContent = if (twoPane) {
+                        { AdvancedDetailPane() }
                     } else null,
                     initialDetailKey = openDetail,
                     masterWidth = masterWidth,
@@ -391,6 +398,19 @@ class SettingsFragment : Fragment() {
             onEnabledChange = { remoteServerViewModel.setEnabled(it) },
             onScan = { remoteServerViewModel.scan() },
             onUseServer = { remoteServerViewModel.useServer(it) },
+        )
+    }
+
+    /**
+     * Embedded Advanced pane — power-user toggles (disable weight repacking),
+     * rendered without the Scaffold/topBar that [AdvancedFragment] adds on phone.
+     */
+    @androidx.compose.runtime.Composable
+    private fun AdvancedDetailPane() {
+        val disableRepack by advancedViewModel.disableRepack.observeAsState(false)
+        AdvancedContent(
+            disableRepack = disableRepack,
+            onDisableRepackChanged = { advancedViewModel.setDisableRepack(it) },
         )
     }
 

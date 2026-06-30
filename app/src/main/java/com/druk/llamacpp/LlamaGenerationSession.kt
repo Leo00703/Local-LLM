@@ -77,7 +77,7 @@ class LlamaGenerationSession internal constructor(
      * client side — every [generateAll] uses whatever was last set.
      */
     override fun setTools(toolsJson: String) {
-        client.requireConnected().setTools(sessionId, toolsJson)
+        client.withService { it.setTools(sessionId, toolsJson) }
     }
 
     /**
@@ -86,7 +86,7 @@ class LlamaGenerationSession internal constructor(
      * `arguments` fields. Returns `"[]"` when no calls are pending.
      */
     override fun getToolCallsJson(): String =
-        client.requireConnected().getToolCallsJson(sessionId)
+        client.withService { it.getToolCallsJson(sessionId) }
 
     /**
      * Submit tool execution results back into the session's KV cache so
@@ -95,7 +95,7 @@ class LlamaGenerationSession internal constructor(
      * Returns 0 on success, non-zero on error.
      */
     override fun submitToolResults(resultsJson: String, enableThinking: Boolean): Int =
-        client.requireConnected().submitToolResults(sessionId, resultsJson, enableThinking)
+        client.withService { it.submitToolResults(sessionId, resultsJson, enableThinking) }
 
     /**
      * Wire up the persistent preamble (system prompt + tools) KV cache.

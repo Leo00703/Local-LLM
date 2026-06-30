@@ -393,6 +393,11 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun cancelDownload(model: ModelInfo) {
-        downloadRepo.cancelDownload(model)
+        // cancelDownload does blocking DocumentsContract/DocumentFile (SAF)
+        // binder calls to delete the partial file — keep them off the main
+        // thread so a cancel mid-download can't ANR.
+        viewModelScope.launch(Dispatchers.IO) {
+            downloadRepo.cancelDownload(model)
+        }
     }
 }

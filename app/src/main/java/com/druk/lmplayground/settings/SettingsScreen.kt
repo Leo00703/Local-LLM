@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -62,7 +63,7 @@ import java.util.Locale
  * [promptsDetailContent] slots — the caller owns the ViewModels and passes
  * the appropriate Composable when on tablet.
  */
-private enum class SettingsDetail { Models, Prompts, Language, Tools, SoundHaptic, RemoteServer, PrivacyPolicy, Faq }
+private enum class SettingsDetail { Models, Prompts, Language, Tools, SoundHaptic, RemoteServer, Advanced, PrivacyPolicy, Faq }
 
 @Composable
 fun SettingsScreen(
@@ -75,6 +76,7 @@ fun SettingsScreen(
     onToolsClick: () -> Unit,
     onSoundHapticClick: () -> Unit,
     onRemoteServerClick: () -> Unit,
+    onAdvancedClick: () -> Unit,
     onSendFeedbackClick: () -> Unit,
     appVersion: String,
     /**
@@ -107,6 +109,10 @@ fun SettingsScreen(
      * Tablet-only mirror of [modelsDetailContent] for the Remote server section.
      */
     remoteServerDetailContent: (@Composable () -> Unit)? = null,
+    /**
+     * Tablet-only mirror of [modelsDetailContent] for the Advanced section.
+     */
+    advancedDetailContent: (@Composable () -> Unit)? = null,
     /**
      * Optional deep-link target: when "tools", the screen opens directly on the
      * Tools detail (tablet). Used by the What's New "Set up tools" button.
@@ -232,6 +238,13 @@ fun SettingsScreen(
                                 onRemoteServerClick()
                             }
                         },
+                        onAdvancedClick = {
+                            if (advancedDetailContent != null) {
+                                detail = SettingsDetail.Advanced
+                            } else {
+                                onAdvancedClick()
+                            }
+                        },
                         onPrivacyPolicyClick = { detail = SettingsDetail.PrivacyPolicy },
                         onFaqClick = { detail = SettingsDetail.Faq },
                         onCrashEngineClick = onCrashEngineClick
@@ -249,6 +262,7 @@ fun SettingsScreen(
                 SettingsDetail.Tools -> stringResource(R.string.tools)
                 SettingsDetail.SoundHaptic -> stringResource(R.string.sound_and_haptic)
                 SettingsDetail.RemoteServer -> stringResource(R.string.remote_server)
+                SettingsDetail.Advanced -> stringResource(R.string.advanced)
                 SettingsDetail.PrivacyPolicy -> stringResource(R.string.privacy_policy)
                 SettingsDetail.Faq -> stringResource(R.string.faq)
                 null -> ""
@@ -271,6 +285,7 @@ fun SettingsScreen(
                         SettingsDetail.Tools -> toolsDetailContent?.invoke()
                         SettingsDetail.SoundHaptic -> soundHapticDetailContent?.invoke()
                         SettingsDetail.RemoteServer -> remoteServerDetailContent?.invoke()
+                        SettingsDetail.Advanced -> advancedDetailContent?.invoke()
                         SettingsDetail.PrivacyPolicy ->
                             PrivacyPolicyContent(onSendFeedbackClick = onSendFeedbackClick)
                         SettingsDetail.Faq -> FaqContent()
@@ -309,6 +324,7 @@ fun SettingsScreen(
                 onToolsClick = onToolsClick,
                 onSoundHapticClick = onSoundHapticClick,
                 onRemoteServerClick = onRemoteServerClick,
+                onAdvancedClick = onAdvancedClick,
                 onPrivacyPolicyClick = onPrivacyPolicyClick,
                 onFaqClick = onFaqClick,
                 onCrashEngineClick = onCrashEngineClick,
@@ -336,6 +352,7 @@ private fun SettingsList(
     onToolsClick: () -> Unit,
     onSoundHapticClick: () -> Unit,
     onRemoteServerClick: () -> Unit,
+    onAdvancedClick: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
     onFaqClick: () -> Unit,
     onCrashEngineClick: (() -> Unit)?,
@@ -397,6 +414,15 @@ private fun SettingsList(
             subtitle = stringResource(R.string.remote_server_subtitle),
             selected = selectedDetail == SettingsDetail.RemoteServer,
             onClick = onRemoteServerClick
+        )
+
+        // Advanced row (power-user toggles, e.g. disable weight repacking)
+        SettingsRow(
+            icon = Icons.Outlined.Tune,
+            title = stringResource(R.string.advanced),
+            subtitle = stringResource(R.string.advanced_subtitle),
+            selected = selectedDetail == SettingsDetail.Advanced,
+            onClick = onAdvancedClick
         )
 
         // Theme color picker (self-contained: opens a swatch dialog, applies
@@ -539,6 +565,7 @@ private fun SettingsScreenPreview() {
             onToolsClick = {},
             onSoundHapticClick = {},
             onRemoteServerClick = {},
+            onAdvancedClick = {},
             onPrivacyPolicyClick = {},
             onFaqClick = {},
             onSendFeedbackClick = {},

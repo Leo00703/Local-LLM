@@ -435,7 +435,11 @@ class ConversationFragment : Fragment() {
                     val pickerVisible = isModelReady &&
                         messages.isEmpty() &&
                         recentSystemPrompts.isNotEmpty() &&
-                        systemPrompt.isEmpty()
+                        systemPrompt.isEmpty() &&
+                        // Only on a genuinely new chat (no session yet), not the
+                        // transient empty frame while regenerate rebuilds an
+                        // existing session — which otherwise flashed the picker.
+                        currentSessionId == null
 
                     // Surface restores what the old Scaffold provided: it paints
                     // the chat background AND propagates the correct content

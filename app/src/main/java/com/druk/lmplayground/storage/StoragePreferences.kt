@@ -47,6 +47,15 @@ class StoragePreferences(context: Context) {
         get() = prefs.getBoolean("include_datetime_in_prompt", true)
         set(value) = prefs.edit { putBoolean("include_datetime_in_prompt", value) }
 
+    /**
+     * Globally load every model memory-mapped (weight repacking off). Trades
+     * matmul speed for a much smaller resident set; useful on tight-RAM devices.
+     * Off by default — over-budget models already disable repacking automatically.
+     */
+    var disableRepack: Boolean
+        get() = prefs.getBoolean("disable_repack", false)
+        set(value) = prefs.edit { putBoolean("disable_repack", value) }
+
     // --- Remote (OpenAI-compatible) server ---
 
     /** User-given display name for the remote server (shown in the model picker). */

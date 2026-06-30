@@ -387,6 +387,9 @@
     <string name="datetime_in_prompt_title">Current date</string>
     <string name="datetime_in_prompt_desc">Add the current date to the system prompt so the model knows what day it is.</string>
     <string name="changelog_title">Changelog</string>
+    <string name="advanced_subtitle">Power-user options</string>
+    <string name="disable_repack_title">Disable weight repacking</string>
+    <string name="disable_repack_desc">Load models memory-mapped to use far less RAM, at the cost of slower generation. Useful on low-memory devices.</string>
     <string name="process_sources">Sources</string>
     <string name="process_expand">Show steps</string>
     <string name="process_collapse">Hide steps</string>

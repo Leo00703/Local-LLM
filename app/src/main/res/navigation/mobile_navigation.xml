@@ -43,6 +43,9 @@
             android:id="@+id/action_settings_to_remote_server"
             app:destination="@id/nav_remote_server" />
         <action
+            android:id="@+id/action_settings_to_advanced"
+            app:destination="@id/nav_advanced" />
+        <action
             android:id="@+id/action_settings_to_faq"
             app:destination="@id/nav_faq" />
         <action
@@ -85,6 +88,11 @@
         android:id="@+id/nav_remote_server"
         android:name="com.druk.lmplayground.settings.RemoteServerFragment"
         android:label="@string/remote_server" />
+
+    <fragment
+        android:id="@+id/nav_advanced"
+        android:name="com.druk.lmplayground.settings.AdvancedFragment"
+        android:label="@string/advanced" />
 
     <fragment
         android:id="@+id/nav_privacy_policy"

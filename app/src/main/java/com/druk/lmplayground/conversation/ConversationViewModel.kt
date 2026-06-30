@@ -561,7 +561,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
             val totalRamBytes = DeviceCapability.totalRamBytes(app)
             val exceedsRam = DeviceCapability.exceedsRamBudget(fileSizeBytes, totalRamBytes)
-            if (!forceLoad && exceedsRam) {
+            // Advanced setting: when the user has globally disabled weight
+            // repacking, load everything memory-mapped and skip the over-budget
+            // warning (they've already accepted the mmap speed trade-off).
+            val userDisableRepack = storagePreferences.disableRepack
+            if (!forceLoad && exceedsRam && !userDisableRepack) {
                 _pendingRamWarning.value = RamWarning(
                     modelInfo = modelInfo,
                     neededRam = Formatter.formatFileSize(app, fileSizeBytes),
@@ -676,7 +680,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                                 )
                             }
                         },
-                        disableRepack = exceedsRam,
+                        // Disable repack if the model is over budget (auto, to
+                        // avoid an OOM-kill) OR the user turned it off globally.
+                        disableRepack = exceedsRam || userDisableRepack,
                     )
                     val modelSize = llamaModel.getModelSize()
                     val modelDescription = Formatter.formatFileSize(app, modelSize)
