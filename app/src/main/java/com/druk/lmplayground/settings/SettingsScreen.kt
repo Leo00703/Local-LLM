@@ -341,6 +341,12 @@ private fun SettingsList(
     onCrashEngineClick: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
+    // Tapping the version row a few times opens the changelog (easter egg).
+    var versionTaps by remember { mutableStateOf(0) }
+    var showChangelog by remember { mutableStateOf(false) }
+    if (showChangelog) {
+        ChangelogDialog(onDismiss = { showChangelog = false })
+    }
     // verticalScroll so the master list scrolls when the rows overflow the
     // available height — e.g. landscape phone, short tablet windows, or when
     // debug build adds the Crash row.
@@ -362,6 +368,9 @@ private fun SettingsList(
             selected = selectedDetail == SettingsDetail.Prompts,
             onClick = onSystemPromptsClick
         )
+
+        // Current date & time in the system prompt (self-contained toggle).
+        DateTimePromptRow()
 
         // Tools row
         SettingsRow(
@@ -439,10 +448,17 @@ private fun SettingsList(
             )
         }
 
-        // Version row (static, not clickable)
+        // Version row — tap it a few times to reveal the changelog.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable {
+                    versionTaps++
+                    if (versionTaps >= 5) {
+                        versionTaps = 0
+                        showChangelog = true
+                    }
+                }
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

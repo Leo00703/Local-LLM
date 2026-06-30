@@ -468,10 +468,12 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _sessionModelHint.postValue(null)
 
             val model = RemoteOpenAiModel(url, modelId, maxContext)
+            val effectiveSystemPrompt = composeSystemPrompt("")
+            currentEffectiveSystemPrompt = effectiveSystemPrompt
             val session = model.createSession(
                 params.contextSize, params.temperature, params.topP,
                 params.repetitionPenalty, params.topK, params.minP, params.seed,
-                params.thinkingBudget, ""
+                params.thinkingBudget, effectiveSystemPrompt
             )
             llamaModel = model
             llamaSession = session
@@ -921,11 +923,41 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         _thinkingEnabled.value = _thinkingEnabled.value != true
     }
 
+    /**
+     * Effective system prompt of the CURRENT session, captured when it was
+     * created. The preamble-cache fingerprint reuses this exact string so the
+     * cache key matches what was actually fed to the model (and tracks the date
+     * when [composeSystemPrompt] prepends it — otherwise a stale "yesterday"
+     * preamble could be reused).
+     */
+    private var currentEffectiveSystemPrompt: String = ""
+
+    /**
+     * The system prompt actually sent to the model. When the "include date"
+     * setting is on, the current local date is prepended to [userPrompt] so the
+     * model knows what day it is (it otherwise has no idea). Date only, not time:
+     * a snapshot preamble would freeze the clock at session creation anyway, and
+     * a minute-precision string would change every session and defeat the
+     * preamble KV cache. Date granularity stays stable for a whole day, so the
+     * cache is reused within the day and invalidates correctly at the rollover.
+     */
+    private fun composeSystemPrompt(userPrompt: String): String {
+        if (!storagePreferences.includeDateTimeInPrompt) return userPrompt
+        val now = java.text.DateFormat.getDateInstance(
+            java.text.DateFormat.FULL,
+            java.util.Locale.getDefault()
+        ).format(java.util.Date())
+        val line = app.getString(com.druk.lmplayground.R.string.system_prompt_datetime, now)
+        return if (userPrompt.isBlank()) line else "$line\n\n$userPrompt"
+    }
+
     private fun createSessionWithParams(
         model: GenerationModel,
         params: GenerationParams,
         systemPrompt: String = _systemPrompt.value.orEmpty()
     ): GenerationBackend? {
+        val effective = composeSystemPrompt(systemPrompt)
+        currentEffectiveSystemPrompt = effective
         return try {
             model.createSession(
                 params.contextSize,
@@ -936,7 +968,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 params.minP,
                 params.seed,
                 params.thinkingBudget,
-                systemPrompt
+                effective
             )
         } catch (e: InferenceUnavailableException) {
             // The :llama service died (or hasn't bound yet). Surface a
@@ -2038,7 +2070,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // call backed by an in-memory llama_model field.
             val modelSize = try { llamaModel?.getModelSize() ?: 0L } catch (_: Throwable) { 0L }
             val modelKey = "$modelName:$modelSize"
-            val systemPrompt = _systemPrompt.value.orEmpty()
+            // The exact effective prompt the session was created with (may carry
+            // a date/time prefix), so the cache key tracks it and never reuses a
+            // preamble built for a different day's date line.
+            val systemPrompt = currentEffectiveSystemPrompt
             val fingerprint = sha1Hex(
                 "$modelKey $systemPrompt $toolsJson"
             )

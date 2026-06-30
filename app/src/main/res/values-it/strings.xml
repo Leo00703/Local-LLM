@@ -368,6 +368,10 @@
     <string name="theme_color_red">Rosso</string>
     <string name="theme_color_grey">Grigio</string>
     <string name="theme_color_system_short">Sistema</string>
+    <string name="system_prompt_datetime">Data corrente: %1$s</string>
+    <string name="datetime_in_prompt_title">Data corrente</string>
+    <string name="datetime_in_prompt_desc">Aggiunge la data corrente al system prompt, così il modello sa che giorno è.</string>
+    <string name="changelog_title">Changelog</string>
     <string name="process_sources">Fonti</string>
     <string name="process_expand">Mostra i passaggi</string>
     <string name="process_collapse">Nascondi i passaggi</string>

@@ -383,6 +383,10 @@
     <string name="theme_color_red">Red</string>
     <string name="theme_color_grey">Grey</string>
     <string name="theme_color_system_short">System</string>
+    <string name="system_prompt_datetime">Current date: %1$s</string>
+    <string name="datetime_in_prompt_title">Current date</string>
+    <string name="datetime_in_prompt_desc">Add the current date to the system prompt so the model knows what day it is.</string>
+    <string name="changelog_title">Changelog</string>
     <string name="process_sources">Sources</string>
     <string name="process_expand">Show steps</string>
     <string name="process_collapse">Hide steps</string>

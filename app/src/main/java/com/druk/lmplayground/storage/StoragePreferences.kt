@@ -42,6 +42,11 @@ class StoragePreferences(context: Context) {
         get() = prefs.getString("theme_color", null)
         set(value) = prefs.edit { putString("theme_color", value) }
 
+    /** Prepend the current local date & time to the system prompt sent to the model. */
+    var includeDateTimeInPrompt: Boolean
+        get() = prefs.getBoolean("include_datetime_in_prompt", true)
+        set(value) = prefs.edit { putBoolean("include_datetime_in_prompt", value) }
+
     // --- Remote (OpenAI-compatible) server ---
 
     /** User-given display name for the remote server (shown in the model picker). */
