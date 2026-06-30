@@ -386,9 +386,6 @@ private fun SettingsList(
             onClick = onSystemPromptsClick
         )
 
-        // Current date & time in the system prompt (self-contained toggle).
-        DateTimePromptRow()
-
         // Tools row
         SettingsRow(
             icon = Icons.Outlined.Build,

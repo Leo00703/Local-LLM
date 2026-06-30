@@ -120,6 +120,9 @@ fun ToolsContent(
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
+        // Not a tool, but the same "extra context given to the model" family:
+        // prepend today's date to the system prompt. Self-contained row.
+        DateTimePromptRow()
     }
 }
 

@@ -32,7 +32,8 @@ import com.druk.lmplayground.storage.StoragePreferences
  * writes [StoragePreferences.includeDateTimeInPrompt] directly, no plumbing
  * through the fragment. Takes effect on the next session (new chat / model
  * reload), since the system prompt is captured when a session is created.
- * Typography matches the surrounding [SettingsRow]s (bodyLarge / bodySmall).
+ * Lives in the Tools screen, so its typography matches the tool rows there
+ * (titleMedium / bodyMedium).
  */
 @Composable
 fun DateTimePromptRow() {
@@ -60,12 +61,12 @@ fun DateTimePromptRow() {
         Column(Modifier.weight(1f)) {
             Text(
                 text = stringResource(R.string.datetime_in_prompt_title),
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.titleMedium,
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 text = stringResource(R.string.datetime_in_prompt_desc),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

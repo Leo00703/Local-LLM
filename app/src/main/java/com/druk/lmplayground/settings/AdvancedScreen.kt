@@ -16,7 +16,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +36,8 @@ import com.druk.lmplayground.R
 
 @Composable
 fun AdvancedScreen(
+    showGenerationStats: Boolean,
+    onShowGenerationStatsChanged: (Boolean) -> Unit,
     disableRepack: Boolean,
     onDisableRepackChanged: (Boolean) -> Unit,
     onBackClick: () -> Unit,
@@ -54,6 +58,8 @@ fun AdvancedScreen(
         }
     ) { padding ->
         AdvancedContent(
+            showGenerationStats = showGenerationStats,
+            onShowGenerationStatsChanged = onShowGenerationStatsChanged,
             disableRepack = disableRepack,
             onDisableRepackChanged = onDisableRepackChanged,
             modifier = Modifier
@@ -65,11 +71,21 @@ fun AdvancedScreen(
 
 @Composable
 fun AdvancedContent(
+    showGenerationStats: Boolean,
+    onShowGenerationStatsChanged: (Boolean) -> Unit,
     disableRepack: Boolean,
     onDisableRepackChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.verticalScroll(rememberScrollState())) {
+        ToggleRow(
+            icon = Icons.Outlined.Speed,
+            title = stringResource(R.string.generation_stats_title),
+            description = stringResource(R.string.generation_stats_desc),
+            checked = showGenerationStats,
+            onCheckedChange = onShowGenerationStatsChanged,
+        )
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         ToggleRow(
             icon = Icons.Outlined.Memory,
             title = stringResource(R.string.disable_repack_title),

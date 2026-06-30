@@ -26,8 +26,11 @@ class AdvancedFragment : Fragment() {
         layoutParams = LayoutParams(MATCH_PARENT, MATCH_PARENT)
         setContent {
             PlaygroundTheme {
+                val showGenerationStats by viewModel.showGenerationStats.observeAsState(true)
                 val disableRepack by viewModel.disableRepack.observeAsState(false)
                 AdvancedScreen(
+                    showGenerationStats = showGenerationStats,
+                    onShowGenerationStatsChanged = { viewModel.setShowGenerationStats(it) },
                     disableRepack = disableRepack,
                     onDisableRepackChanged = { viewModel.setDisableRepack(it) },
                     onBackClick = { findNavController().popBackStack() },

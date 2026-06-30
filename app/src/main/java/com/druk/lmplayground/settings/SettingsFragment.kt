@@ -364,14 +364,11 @@ class SettingsFragment : Fragment() {
     private fun SoundHapticDetailPane() {
         val soundEnabled by soundHapticViewModel.soundEnabled.observeAsState(true)
         val hapticEnabled by soundHapticViewModel.hapticEnabled.observeAsState(true)
-        val showStatsEnabled by soundHapticViewModel.showStatsEnabled.observeAsState(true)
         SoundHapticContent(
             soundEnabled = soundEnabled,
             hapticEnabled = hapticEnabled,
-            showStatsEnabled = showStatsEnabled,
             onSoundChanged = { soundHapticViewModel.setSoundEnabled(it) },
             onHapticChanged = { soundHapticViewModel.setHapticEnabled(it) },
-            onShowStatsChanged = { soundHapticViewModel.setShowStatsEnabled(it) },
         )
     }
 
@@ -407,8 +404,11 @@ class SettingsFragment : Fragment() {
      */
     @androidx.compose.runtime.Composable
     private fun AdvancedDetailPane() {
+        val showGenerationStats by advancedViewModel.showGenerationStats.observeAsState(true)
         val disableRepack by advancedViewModel.disableRepack.observeAsState(false)
         AdvancedContent(
+            showGenerationStats = showGenerationStats,
+            onShowGenerationStatsChanged = { advancedViewModel.setShowGenerationStats(it) },
             disableRepack = disableRepack,
             onDisableRepackChanged = { advancedViewModel.setDisableRepack(it) },
         )

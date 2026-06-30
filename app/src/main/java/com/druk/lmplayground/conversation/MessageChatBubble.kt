@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -70,12 +71,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.druk.lmplayground.R
@@ -889,9 +892,12 @@ private fun ShimmerSummaryText(summary: String, modifier: Modifier) {
 
 /**
  * The animated "still working" tail row shown while the turn is generating: an
- * animated phrase + dots, and — when the model is mid-reasoning — a live peek of
- * the streaming thought (last couple of lines, top dissolving away like the
- * finished thinking card) so you can watch it think in place.
+ * animated phrase + dots, and — once the model starts emitting reasoning — a
+ * live peek of the streaming thought below it. The header (node + phrase) is
+ * always vertically centred like every other step row, so during prefill (no
+ * tokens yet, no peek) the phrase sits exactly on its node instead of floating
+ * above it; the peek then animates in below. A chevron expands the peek into a
+ * taller scrollable view so the full reasoning is readable mid-generation.
  */
 @Composable
 private fun LiveStepRow(messageId: Long, liveReasoning: String) {
@@ -909,58 +915,87 @@ private fun LiveStepRow(messageId: Long, liveReasoning: String) {
         label = "liveDots"
     )
     val dots = ".".repeat(dotCount.toInt().coerceIn(0, 3))
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Box(
+    val hasPeek = liveReasoning.isNotBlank()
+    var expanded by remember(messageId) { mutableStateOf(false) }
+    val chevron by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "liveChevron"
+    )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
-                .size(22.dp)
-                .clip(CircleShape)
-                .background(nodeBg)
-                .border(1.dp, rail, CircleShape),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .then(if (hasPeek) Modifier.clickable { expanded = !expanded } else Modifier)
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Outlined.AutoAwesome,
-                contentDescription = null,
-                modifier = Modifier.size(13.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-        }
-        Spacer(modifier = Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(nodeBg)
+                    .border(1.dp, rail, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AutoAwesome,
+                    contentDescription = null,
+                    modifier = Modifier.size(13.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = "$phrase$dots",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.outline,
-                fontStyle = FontStyle.Italic
+                fontStyle = FontStyle.Italic,
+                modifier = Modifier.weight(1f)
             )
-            if (liveReasoning.isNotBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                LivePeek(liveReasoning)
+            // Tap to expand the live reasoning (peek <-> taller scrollable view).
+            if (hasPeek) {
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = stringResource(
+                        if (expanded) R.string.process_collapse else R.string.process_expand
+                    ),
+                    modifier = Modifier
+                        .size(16.dp)
+                        .rotate(chevron),
+                    tint = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+        AnimatedVisibility(visible = hasPeek) {
+            // Animated height: a compact peek collapsed, a taller scrollable view
+            // expanded. Indented past the node + spacer to line up under the phrase.
+            val peekHeight by animateDpAsState(
+                targetValue = if (expanded) 200.dp else 38.dp,
+                label = "livePeekHeight"
+            )
+            Box(modifier = Modifier.padding(start = 32.dp, bottom = 4.dp)) {
+                LivePeek(content = liveReasoning, height = peekHeight)
             }
         }
     }
 }
 
 /**
- * A compact (~2 line) peek of the reasoning streaming in right now, newest text
- * pinned to the bottom and the top dissolving into the card. Same effect as the
- * collapsed thinking card's [ThinkingPeek], scaled down for the live tail.
+ * A peek of the reasoning streaming in right now: newest text pinned to the
+ * bottom, the top ~16dp dissolving into the card (so it reads as "more above").
+ * [height] is animated by the caller between a collapsed peek and an expanded
+ * scrollable view; the dissolve stays a fixed pixel band regardless of height.
  */
 @Composable
-private fun LivePeek(content: String) {
+private fun LivePeek(content: String, height: Dp) {
     val scroll = rememberScrollState()
     LaunchedEffect(scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
     val container = MaterialTheme.colorScheme.surfaceContainerHigh
-    val peekHeight = 38.dp
+    val fadePx = with(LocalDensity.current) { 16.dp.toPx() }
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(peekHeight)
+            .height(height)
             .clipToBounds()
     ) {
         Box(
@@ -971,7 +1006,7 @@ private fun LivePeek(content: String) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .defaultMinSize(minHeight = peekHeight),
+                    .defaultMinSize(minHeight = height),
                 contentAlignment = Alignment.BottomStart
             ) {
                 Text(
@@ -987,8 +1022,9 @@ private fun LivePeek(content: String) {
                 .matchParentSize()
                 .background(
                     Brush.verticalGradient(
-                        0f to container,
-                        0.5f to container.copy(alpha = 0f)
+                        colors = listOf(container, container.copy(alpha = 0f)),
+                        startY = 0f,
+                        endY = fadePx
                     )
                 )
         )

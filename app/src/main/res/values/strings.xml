@@ -333,7 +333,7 @@
 
     <!-- Sound and Haptic -->
     <string name="sound_and_haptic">Sound, Haptics &amp; Stats</string>
-    <string name="sound_and_haptic_subtitle">Completion sound, typing haptics, and generation stats</string>
+    <string name="sound_and_haptic_subtitle">Completion sound and typing haptics</string>
     <string name="sound_on_completion_title">Play sound when generation finishes</string>
     <string name="sound_on_completion_desc">Plays a short chime when the model finishes a response while the app is in the background.</string>
     <string name="haptic_on_generation_title">Haptic feedback on generation</string>
