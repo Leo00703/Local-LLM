@@ -32,10 +32,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
 import com.druk.lmplayground.storage.StoragePreferences
@@ -72,7 +74,7 @@ fun ThemeColorRow() {
             )
             Text(
                 text = stringResource(current.labelRes),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -105,29 +107,43 @@ private fun ThemeColorDialog(
     onSelect: (ThemeColor) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // "Sistema / Material You" is dynamic — show it as a multi-colour swatch so
+    // it reads as "any colour", instead of whatever accent happens to be active.
+    val systemBrush = Brush.linearGradient(
+        listOf(
+            Color(0xFF1F9E3E), Color(0xFF1565C0), Color(0xFF6750A4),
+            Color(0xFFE8740C), Color(0xFFD81B60),
+        )
+    )
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.theme_color)) },
         text = {
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 for (choice in ThemeColor.values()) {
                     val selected = choice == current
-                    val swatch = choice.seed ?: MaterialTheme.colorScheme.primary
+                    val isSystem = choice == ThemeColor.SYSTEM
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
-                            .width(64.dp)
+                            .width(76.dp)
                             .clickable { onSelect(choice) },
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(CircleShape)
-                                .background(swatch)
+                                .then(
+                                    if (isSystem) {
+                                        Modifier.background(systemBrush)
+                                    } else {
+                                        Modifier.background(choice.seed ?: MaterialTheme.colorScheme.primary)
+                                    }
+                                )
                                 .border(
                                     width = if (selected) 3.dp else 1.dp,
                                     color = if (selected) {
@@ -140,20 +156,34 @@ private fun ThemeColorDialog(
                             contentAlignment = Alignment.Center,
                         ) {
                             if (selected) {
+                                val dark = !isSystem && (choice.seed?.luminance() ?: 0f) > 0.5f
                                 Icon(
                                     imageVector = Icons.Outlined.Check,
                                     contentDescription = null,
                                     modifier = Modifier.size(22.dp),
-                                    tint = if (swatch.luminance() > 0.5f) Color.Black else Color.White,
+                                    tint = if (dark) Color.Black else Color.White,
                                 )
                             }
                         }
                         Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = stringResource(choice.labelRes),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        // Fixed height so multi-line labels (e.g. "Verde acqua")
+                        // don't push the swatches out of alignment across rows.
+                        Box(
+                            modifier = Modifier.height(32.dp),
+                            contentAlignment = Alignment.TopCenter,
+                        ) {
+                            Text(
+                                text = if (isSystem) {
+                                    stringResource(R.string.theme_color_system_short)
+                                } else {
+                                    stringResource(choice.labelRes)
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                            )
+                        }
                     }
                 }
             }

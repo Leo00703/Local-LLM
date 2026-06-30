@@ -365,6 +365,9 @@
     <string name="theme_color_teal">Verde acqua</string>
     <string name="theme_color_orange">Arancione</string>
     <string name="theme_color_rose">Rosa</string>
+    <string name="theme_color_red">Rosso</string>
+    <string name="theme_color_grey">Grigio</string>
+    <string name="theme_color_system_short">Sistema</string>
     <string name="process_sources">Fonti</string>
     <string name="process_expand">Mostra i passaggi</string>
     <string name="process_collapse">Nascondi i passaggi</string>

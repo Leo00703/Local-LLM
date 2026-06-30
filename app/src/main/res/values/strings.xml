@@ -380,6 +380,9 @@
     <string name="theme_color_teal">Teal</string>
     <string name="theme_color_orange">Orange</string>
     <string name="theme_color_rose">Rose</string>
+    <string name="theme_color_red">Red</string>
+    <string name="theme_color_grey">Grey</string>
+    <string name="theme_color_system_short">System</string>
     <string name="process_sources">Sources</string>
     <string name="process_expand">Show steps</string>
     <string name="process_collapse">Hide steps</string>
