@@ -390,6 +390,10 @@ private fun SettingsList(
             onClick = onRemoteServerClick
         )
 
+        // Theme color picker (self-contained: opens a swatch dialog, applies
+        // the choice app-wide live + persists it).
+        ThemeColorRow()
+
         // Language row
         val currentTag = currentLanguageTag()
         val languageSubtitle = if (currentTag == null) {

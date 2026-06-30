@@ -37,6 +37,11 @@ class StoragePreferences(context: Context) {
         get() = prefs.getBoolean("show_generation_stats", true)
         set(value) = prefs.edit { putBoolean("show_generation_stats", value) }
 
+    /** Selected UI accent theme key (see [com.druk.lmplayground.theme.ThemeColor]); null = System. */
+    var themeColor: String?
+        get() = prefs.getString("theme_color", null)
+        set(value) = prefs.edit { putString("theme_color", value) }
+
     // --- Remote (OpenAI-compatible) server ---
 
     /** User-given display name for the remote server (shown in the model picker). */

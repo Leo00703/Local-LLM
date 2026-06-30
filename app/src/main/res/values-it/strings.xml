@@ -356,6 +356,15 @@
     <string name="capability_tools">Strumenti</string>
     <string name="capability_vision">Immagini</string>
     <string name="capability_thinking">Ragionamento</string>
+    <!-- Selettore colore tema -->
+    <string name="theme_color">Colore del tema</string>
+    <string name="theme_color_system">Sistema (Material You)</string>
+    <string name="theme_color_green">Verde</string>
+    <string name="theme_color_blue">Blu</string>
+    <string name="theme_color_purple">Viola</string>
+    <string name="theme_color_teal">Verde acqua</string>
+    <string name="theme_color_orange">Arancione</string>
+    <string name="theme_color_rose">Rosa</string>
     <string name="process_sources">Fonti</string>
     <string name="process_expand">Mostra i passaggi</string>
     <string name="process_collapse">Nascondi i passaggi</string>

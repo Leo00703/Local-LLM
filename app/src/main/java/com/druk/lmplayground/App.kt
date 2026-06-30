@@ -13,6 +13,9 @@ import com.druk.lmplayground.download.DownloadNotificationManager
 import com.druk.lmplayground.inference.LlamaService
 import com.druk.lmplayground.inference.ProcessUtils
 import com.druk.lmplayground.storage.LegacyDownloadCleanup
+import com.druk.lmplayground.storage.StoragePreferences
+import com.druk.lmplayground.theme.AppThemeState
+import com.druk.lmplayground.theme.ThemeColor
 import kotlin.concurrent.thread
 
 class App : Application() {
@@ -43,6 +46,9 @@ class App : Application() {
         // process only needs to host LlamaService — skip Room, repos, and
         // the inference-client binding (no service to bind from there).
         if (ProcessUtils.isLlamaProcess()) return
+
+        // Restore the user's chosen UI accent before any Compose UI is shown.
+        AppThemeState.current = ThemeColor.fromKey(StoragePreferences(this).themeColor)
 
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {

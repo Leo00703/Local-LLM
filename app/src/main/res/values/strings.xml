@@ -371,6 +371,15 @@
     <string name="capability_tools">Tools</string>
     <string name="capability_vision">Vision</string>
     <string name="capability_thinking">Thinking</string>
+    <!-- Theme color picker -->
+    <string name="theme_color">Theme color</string>
+    <string name="theme_color_system">System (Material You)</string>
+    <string name="theme_color_green">Green</string>
+    <string name="theme_color_blue">Blue</string>
+    <string name="theme_color_purple">Purple</string>
+    <string name="theme_color_teal">Teal</string>
+    <string name="theme_color_orange">Orange</string>
+    <string name="theme_color_rose">Rose</string>
     <string name="process_sources">Sources</string>
     <string name="process_expand">Show steps</string>
     <string name="process_collapse">Hide steps</string>
