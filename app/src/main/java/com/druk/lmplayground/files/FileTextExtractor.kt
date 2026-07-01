@@ -10,7 +10,11 @@ import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
+import org.jsoup.parser.Parser
 import java.io.Reader
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 
 /** Outcome of trying to read a picked file's text. */
 sealed interface FileExtractionResult {
@@ -24,7 +28,7 @@ sealed interface FileExtractionResult {
     ) : FileExtractionResult
     /** Opened fine but produced no usable text (e.g. an empty or image-only file). */
     data class Empty(val reason: String, val name: String) : FileExtractionResult
-    /** A type we don't extract (yet) — e.g. PDF before the PDF build, or Office docs. */
+    /** A type we don't extract — e.g. legacy binary .doc/.xls/.ppt, or archives. */
     data class Unsupported(val mime: String?, val name: String) : FileExtractionResult
     data class Failure(val message: String) : FileExtractionResult
 }
@@ -33,7 +37,8 @@ sealed interface FileExtractionResult {
  * Extracts plain text from a picked file so it can be injected into the model
  * prompt. Pure Kotlin, off the main thread, never throws (errors map to a
  * [FileExtractionResult]). This build handles plain text (txt/md/code/csv/json/
- * xml/yaml…), HTML (via the existing [HtmlToMarkdown]) and PDF (text, via pdfbox).
+ * xml/yaml…), HTML (via the existing [HtmlToMarkdown]), PDF (text, via pdfbox)
+ * and Office Open XML (DOCX/XLSX/PPTX, unzipped and parsed with jsoup).
  * The output is capped to bound memory; the caller applies a further
  * context-window-aware truncation at send time.
  */
@@ -56,6 +61,9 @@ object FileTextExtractor {
             val ext = displayName.substringAfterLast('.', "").lowercase()
             when {
                 isPdf(effectiveMime, ext) -> extractPdf(context, uri, displayName)
+                isDocx(effectiveMime, ext) -> extractDocx(context, uri, displayName)
+                isXlsx(effectiveMime, ext) -> extractXlsx(context, uri, displayName)
+                isPptx(effectiveMime, ext) -> extractPptx(context, uri, displayName)
                 isHtml(effectiveMime, ext) -> extractHtml(context, uri, displayName)
                 isPlainText(effectiveMime, ext) -> extractPlainText(context, uri, displayName)
                 else -> FileExtractionResult.Unsupported(effectiveMime, displayName)
@@ -67,6 +75,21 @@ object FileTextExtractor {
 
     private fun isPdf(mime: String?, ext: String) =
         mime == "application/pdf" || ext == "pdf"
+
+    private fun isDocx(mime: String?, ext: String) =
+        mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+            mime == "application/vnd.ms-word.document.macroEnabled.12" ||
+            ext == "docx" || ext == "docm"
+
+    private fun isXlsx(mime: String?, ext: String) =
+        mime == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+            mime == "application/vnd.ms-excel.sheet.macroEnabled.12" ||
+            ext == "xlsx" || ext == "xlsm"
+
+    private fun isPptx(mime: String?, ext: String) =
+        mime == "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+            mime == "application/vnd.ms-powerpoint.presentation.macroEnabled.12" ||
+            ext == "pptx" || ext == "pptm"
 
     private fun isHtml(mime: String?, ext: String) =
         mime == "text/html" || mime == "application/xhtml+xml" || ext == "html" || ext == "htm"
@@ -113,6 +136,135 @@ object FileTextExtractor {
         } ?: return FileExtractionResult.Failure("cannot open file")
         // finalize() maps blank text (scanned / image-only PDFs, no OCR) to Empty.
         return finalize(text, alreadyTruncated = false, name = name)
+    }
+
+    /** Read just the named entries out of an OOXML (zip) container in one streaming pass. */
+    private fun readZipEntries(
+        context: Context,
+        uri: Uri,
+        keep: (String) -> Boolean,
+    ): Map<String, ByteArray> {
+        val out = LinkedHashMap<String, ByteArray>()
+        context.contentResolver.openInputStream(uri)?.use { raw ->
+            ZipInputStream(raw.buffered()).use { zip ->
+                var e: ZipEntry? = zip.nextEntry
+                while (e != null) {
+                    if (!e.isDirectory && keep(e.name)) out[e.name] = zip.readBytes()
+                    zip.closeEntry()
+                    e = zip.nextEntry
+                }
+            }
+        }
+        return out
+    }
+
+    // OOXML tags are namespaced (w:t, a:t); the XML parser preserves them (the HTML
+    // parser would lower-case and mangle them). wholeText() keeps xml:space runs.
+    private fun parseOoxml(bytes: ByteArray) =
+        Jsoup.parse(bytes.inputStream(), "UTF-8", "", Parser.xmlParser())
+
+    /** Natural-sort key for slideN.xml / sheetN.xml (zip entry order is undefined). */
+    private fun naturalIndex(name: String): Int =
+        Regex("(\\d+)\\.xml$").find(name)?.groupValues?.get(1)?.toIntOrNull() ?: Int.MAX_VALUE
+
+    private fun extractDocx(context: Context, uri: Uri, name: String): FileExtractionResult {
+        val bytes = readZipEntries(context, uri) { it == "word/document.xml" }["word/document.xml"]
+            ?: return FileExtractionResult.Failure("unreadable or protected Office file")
+        val sb = StringBuilder()
+        for (p in parseOoxml(bytes).getElementsByTag("w:p")) {
+            // Skip paragraphs nested in another (text boxes / shapes): the outer
+            // paragraph's walk below already includes their text once.
+            if (p.parents().any { it.tagName() == "w:p" }) continue
+            for (node in p.getAllElements()) {
+                when (node.tagName()) {
+                    "w:t" -> sb.append(node.wholeText())
+                    "w:tab" -> sb.append('\t')
+                    "w:br", "w:cr" -> sb.append('\n')
+                }
+            }
+            sb.append('\n')
+            if (sb.length > MAX_TEXT_CHARS) break
+        }
+        return finalize(sb.toString(), sb.length > MAX_TEXT_CHARS, name)
+    }
+
+    private fun extractPptx(context: Context, uri: Uri, name: String): FileExtractionResult {
+        val slides = readZipEntries(context, uri) {
+            it.startsWith("ppt/slides/slide") && it.endsWith(".xml")
+        }
+        if (slides.isEmpty()) return FileExtractionResult.Failure("unreadable or protected Office file")
+        val sb = StringBuilder()
+        for ((_, bytes) in slides.entries.sortedBy { naturalIndex(it.key) }) {
+            for (para in parseOoxml(bytes).getElementsByTag("a:p")) {
+                for (t in para.getElementsByTag("a:t")) sb.append(t.wholeText())
+                sb.append('\n')
+            }
+            sb.append('\n')
+            if (sb.length > MAX_TEXT_CHARS) break
+        }
+        return finalize(sb.toString(), sb.length > MAX_TEXT_CHARS, name)
+    }
+
+    private fun extractXlsx(context: Context, uri: Uri, name: String): FileExtractionResult {
+        val entries = readZipEntries(context, uri) {
+            it == "xl/sharedStrings.xml" ||
+                (it.startsWith("xl/worksheets/sheet") && it.endsWith(".xml"))
+        }
+        val sheets = entries.filterKeys { it.startsWith("xl/worksheets/sheet") }
+        if (sheets.isEmpty()) return FileExtractionResult.Failure("unreadable or protected Office file")
+        // Shared strings are a 0-based table cells reference by index.
+        val shared = entries["xl/sharedStrings.xml"]?.let { bytes ->
+            parseOoxml(bytes).getElementsByTag("si").map { si ->
+                si.getElementsByTag("t").joinToString("") { it.wholeText() }
+            }
+        } ?: emptyList()
+        val sb = StringBuilder()
+        var sheetNo = 0
+        for ((_, bytes) in sheets.entries.sortedBy { naturalIndex(it.key) }) {
+            sheetNo++
+            if (sheetNo > 1) sb.append('\n')
+            sb.append("Sheet ").append(sheetNo).append('\n')
+            for (row in parseOoxml(bytes).getElementsByTag("row")) {
+                // Excel omits empty cells, so place each cell at the column its
+                // r="A1" reference encodes and pad the gaps, else columns misalign.
+                val byCol = HashMap<Int, String>()
+                var maxCol = -1
+                for (c in row.getElementsByTag("c")) {
+                    val col = c.attr("r").takeIf { it.isNotEmpty() }
+                        ?.let { columnIndex(it) } ?: (maxCol + 1)
+                    if (col >= 0) {
+                        byCol[col] = cellText(c, shared)
+                        if (col > maxCol) maxCol = col
+                    }
+                }
+                sb.append((0..maxCol).joinToString("\t") { byCol[it].orEmpty() })
+                sb.append('\n')
+                if (sb.length > MAX_TEXT_CHARS) break
+            }
+            if (sb.length > MAX_TEXT_CHARS) break
+        }
+        return finalize(sb.toString(), sb.length > MAX_TEXT_CHARS, name)
+    }
+
+    /** 0-based column index from a cell reference like "C2" → 2, "AA1" → 26. */
+    private fun columnIndex(ref: String): Int {
+        var idx = 0
+        for (ch in ref) {
+            val u = ch.uppercaseChar()
+            if (u !in 'A'..'Z') break
+            idx = idx * 26 + (u - 'A' + 1)
+        }
+        return idx - 1
+    }
+
+    /** A cell's display text: shared-string lookup, inline string, or the literal value. */
+    private fun cellText(c: Element, shared: List<String>): String = when (c.attr("t")) {
+        "s" -> {
+            val i = c.getElementsByTag("v").firstOrNull()?.wholeText()?.trim()?.toIntOrNull()
+            if (i != null) shared.getOrNull(i).orEmpty() else ""
+        }
+        "inlineStr" -> c.getElementsByTag("t").joinToString("") { it.wholeText() }
+        else -> c.getElementsByTag("v").firstOrNull()?.wholeText()?.trim().orEmpty()
     }
 
     private fun extractHtml(context: Context, uri: Uri, name: String): FileExtractionResult {

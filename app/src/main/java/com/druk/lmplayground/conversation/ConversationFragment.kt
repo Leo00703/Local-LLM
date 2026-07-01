@@ -88,7 +88,11 @@ class ConversationFragment : Fragment() {
 
     /** MIME types the document picker offers. */
     private val docMimeFilter = arrayOf(
-        "text/*", "application/json", "application/xml", "application/pdf", "application/octet-stream"
+        "text/*", "application/json", "application/xml", "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/octet-stream",
     )
 
     /** System file picker for document attachments; stages each pick on the ViewModel. */
