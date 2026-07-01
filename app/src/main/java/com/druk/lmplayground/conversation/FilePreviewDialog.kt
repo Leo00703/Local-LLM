@@ -94,12 +94,17 @@ fun FilePreviewDialog(
     mime: String?,
     text: String,
     rawText: String?,
+    pdfPath: String?,
     onDismiss: () -> Unit,
 ) {
     val ext = filename.substringAfterLast('.', "").lowercase()
     val isHtml = mime == "text/html" || ext == "html" || ext == "htm"
     val isMd = mime == "text/markdown" || ext == "md" || ext == "markdown"
-    val hasToggle = isHtml || isMd
+    val isPdf = mime == "application/pdf" || ext == "pdf"
+    // PDFs preview as rendered pages; the text tab appears only when there is text.
+    val hasToggle = isHtml || isMd || (isPdf && pdfPath != null && text.isNotBlank())
+    val formattedLabel = if (isPdf) R.string.preview_pages else R.string.preview_formatted
+    val rawLabel = if (isPdf) R.string.preview_text else R.string.preview_raw
     var showRaw by remember { mutableStateOf(false) }
     val rawSource = rawText ?: text
 
@@ -139,24 +144,26 @@ fun FilePreviewDialog(
                         FilterChip(
                             selected = !showRaw,
                             onClick = { showRaw = false },
-                            label = { Text(stringResource(R.string.preview_formatted)) },
+                            label = { Text(stringResource(formattedLabel)) },
                         )
                         Spacer(Modifier.width(8.dp))
                         FilterChip(
                             selected = showRaw,
                             onClick = { showRaw = true },
-                            label = { Text(stringResource(R.string.preview_raw)) },
+                            label = { Text(stringResource(rawLabel)) },
                         )
                     }
                 }
                 Spacer(Modifier.size(12.dp))
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when {
-                        showRaw || (!isHtml && !isMd) -> RawTextView(rawSource)
+                        isPdf && pdfPath != null && !showRaw -> PdfPagesView(pdfPath)
+                        showRaw || (!isHtml && !isMd && !isPdf) -> RawTextView(rawSource)
                         isHtml -> AndroidView(
                             factory = { ctx -> buildPreviewWebView(ctx, rawSource) },
                             modifier = Modifier.fillMaxSize(),
                         )
+                        isPdf -> RawTextView(rawSource)
                         else -> Column(
                             modifier = Modifier
                                 .fillMaxWidth()

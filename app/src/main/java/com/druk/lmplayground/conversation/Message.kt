@@ -58,6 +58,7 @@ fun Message(
                     mime = att.mime,
                     previewText = att.extractedText,
                     previewRaw = att.rawText,
+                    previewPdfPath = att.localPath,
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
             }

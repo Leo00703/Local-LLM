@@ -25,6 +25,12 @@ data class Attachment(
      * Markdown the model receives). Null for plain text (raw == extractedText).
      */
     val rawText: String? = null,
+    /**
+     * Absolute path to an app-private copy of the source file, kept so the file
+     * can be re-rendered later (the visual PDF page preview). Only set for PDFs;
+     * null otherwise. Cleaned up by the ViewModel's orphan sweep.
+     */
+    val localPath: String? = null,
 )
 
 /**
@@ -51,6 +57,8 @@ sealed interface StagedState {
         val charCount: Int,
         val truncated: Boolean,
         val rawText: String? = null,
+        /** App-private copy of the source (PDF) for the visual preview; null otherwise. */
+        val localPath: String? = null,
     ) : StagedState
     /** Couldn't read it (unsupported / empty / failure) — shown on the chip, skipped on send. */
     data class Error(val message: String) : StagedState

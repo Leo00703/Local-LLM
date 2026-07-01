@@ -16,6 +16,10 @@ interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     suspend fun getMessages(sessionId: String): List<ChatMessageEntity>
 
+    /** Every message's attachments JSON — used to find orphaned attachment file copies. */
+    @Query("SELECT attachmentsJson FROM chat_messages WHERE attachmentsJson IS NOT NULL")
+    suspend fun getAllAttachmentsJson(): List<String>
+
     @Insert
     suspend fun insertSession(session: ChatSessionEntity)
 

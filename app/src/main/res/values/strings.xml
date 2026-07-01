@@ -400,7 +400,11 @@
     <string name="attachment_token_count">~%1$s tokens</string>
     <string name="preview_formatted">Formatted</string>
     <string name="preview_raw">Raw</string>
+    <string name="preview_pages">Pages</string>
+    <string name="preview_text">Text</string>
     <string name="preview_truncated_note">Preview truncated — showing the first %1$s characters.</string>
+    <string name="attachment_image_only">Image-only</string>
+    <string name="pdf_preview_unavailable">Couldn\'t render this PDF.</string>
     <string name="process_sources">Sources</string>
     <string name="process_expand">Show steps</string>
     <string name="process_collapse">Hide steps</string>

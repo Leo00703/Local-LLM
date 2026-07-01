@@ -61,10 +61,13 @@ fun AttachmentChip(
     mime: String? = null,
     previewText: String? = null,
     previewRaw: String? = null,
+    previewPdfPath: String? = null,
     onRemove: (() -> Unit)? = null,
 ) {
     var showPreview by remember { mutableStateOf(false) }
-    val canPreview = previewText != null && !extracting && errorText == null
+    val canPreview = (previewText != null || previewPdfPath != null) && !extracting && errorText == null
+    // An image-only PDF (pages but no extractable text) shows a label, not a token count.
+    val imageOnly = previewPdfPath != null && previewText.isNullOrBlank()
     val tokenText = tokenCount?.let { formatTokens(it) }
     TooltipBox(
         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
@@ -129,6 +132,7 @@ fun AttachmentChip(
                     val subtitle = when {
                         extracting -> stringResource(R.string.attachment_reading)
                         errorText != null -> errorText
+                        imageOnly -> stringResource(R.string.attachment_image_only)
                         tokenText != null -> {
                             val tokens = stringResource(R.string.attachment_token_count, tokenText)
                             if (truncated) {
@@ -166,12 +170,13 @@ fun AttachmentChip(
             }
         }
     }
-    if (showPreview && previewText != null) {
+    if (showPreview) {
         FilePreviewDialog(
             filename = filename,
             mime = mime,
-            text = previewText,
+            text = previewText ?: "",
             rawText = previewRaw,
+            pdfPath = previewPdfPath,
             onDismiss = { showPreview = false },
         )
     }

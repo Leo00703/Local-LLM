@@ -9,6 +9,9 @@ class ChatRepository(private val dao: ChatDao) {
     suspend fun getMessages(sessionId: String): List<ChatMessageEntity> =
         dao.getMessages(sessionId)
 
+    suspend fun getAllAttachmentsJson(): List<String> =
+        dao.getAllAttachmentsJson()
+
     suspend fun insertSession(session: ChatSessionEntity) =
         dao.insertSession(session)
 

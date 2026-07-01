@@ -20,6 +20,10 @@ private data class ChangelogEntry(val version: String, val changes: List<String>
 
 // Newest first. User-facing release notes (kept short, English).
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.18", listOf(
+        "Preview PDFs as real pages, not just text — with a Pages ⇄ Text toggle.",
+        "Scanned or image-only PDFs now preview too (pages shown even without text).",
+    )),
     ChangelogEntry("1.9.17", listOf(
         "Attach PDF files — their text is extracted and sent to the model.",
     )),

@@ -56,6 +56,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 import kotlin.math.ln
 import kotlin.math.min
@@ -270,6 +271,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+        sweepOrphanAttachments()
     }
 
     private fun onInferenceCrashed() {
@@ -1102,14 +1104,36 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         _stagedAttachments.value = _stagedAttachments.value.orEmpty() +
             StagedAttachment(id, uri, filename, mimeType)
         viewModelScope.launch {
+            // PDFs get an app-private copy so their pages can be re-rendered later
+            // (the visual preview), even after the SAF read grant is gone.
+            val isPdf = mimeType == "application/pdf" ||
+                filename.substringAfterLast('.', "").equals("pdf", ignoreCase = true)
+            val localPath = if (isPdf) copyToAttachments(uri) else null
+            // The chip may have been removed / the message sent while we copied or
+            // extracted; if the item is gone, discard the copy instead of leaking it.
+            if (localPath != null && _stagedAttachments.value.orEmpty().none { it.id == id }) {
+                deleteAttachmentFile(localPath)
+                return@launch
+            }
             val state = when (val r = FileTextExtractor.extract(app, uri, filename, mimeType)) {
-                is FileExtractionResult.Success -> StagedState.Ready(r.text, r.charCount, r.truncated, r.rawText)
+                is FileExtractionResult.Success ->
+                    StagedState.Ready(r.text, r.charCount, r.truncated, r.rawText, localPath)
                 is FileExtractionResult.Empty ->
-                    StagedState.Error(app.getString(com.druk.lmplayground.R.string.attachment_empty, filename))
-                is FileExtractionResult.Unsupported ->
+                    // A scanned / image-only PDF has no text but can still preview visually.
+                    if (localPath != null) StagedState.Ready("", 0, false, null, localPath)
+                    else StagedState.Error(app.getString(com.druk.lmplayground.R.string.attachment_empty, filename))
+                is FileExtractionResult.Unsupported -> {
+                    deleteAttachmentFile(localPath)
                     StagedState.Error(app.getString(com.druk.lmplayground.R.string.attachment_unsupported, filename))
-                is FileExtractionResult.Failure ->
+                }
+                is FileExtractionResult.Failure -> {
+                    deleteAttachmentFile(localPath)
                     StagedState.Error(app.getString(com.druk.lmplayground.R.string.attachment_failed, filename))
+                }
+            }
+            if (_stagedAttachments.value.orEmpty().none { it.id == id }) {
+                deleteAttachmentFile(localPath)
+                return@launch
             }
             _stagedAttachments.value = _stagedAttachments.value.orEmpty()
                 .map { if (it.id == id) it.copy(state = state) else it }
@@ -1118,12 +1142,80 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
     @MainThread
     fun removeStagedAttachment(id: Long) {
-        _stagedAttachments.value = _stagedAttachments.value.orEmpty().filter { it.id != id }
+        val current = _stagedAttachments.value.orEmpty()
+        // Drop the file copy of a removed (never-sent) PDF so it doesn't leak.
+        (current.firstOrNull { it.id == id }?.state as? StagedState.Ready)?.localPath
+            ?.let { deleteAttachmentFile(it) }
+        _stagedAttachments.value = current.filter { it.id != id }
     }
 
     @MainThread
     fun clearStagedAttachments() {
+        _stagedAttachments.value.orEmpty().forEach { sa ->
+            (sa.state as? StagedState.Ready)?.localPath?.let { deleteAttachmentFile(it) }
+        }
         _stagedAttachments.value = emptyList()
+    }
+
+    private val attachmentsDir: File get() = File(app.filesDir, "attachments")
+
+    /** Copy a picked file into app-private storage; returns the path, or null on failure/too-large. */
+    private suspend fun copyToAttachments(uri: Uri): String? = withContext(Dispatchers.IO) {
+        val maxBytes = 50L * 1024 * 1024
+        val out = File(attachmentsDir.apply { mkdirs() }, UUID.randomUUID().toString() + ".pdf")
+        try {
+            var tooBig = false
+            app.contentResolver.openInputStream(uri)?.use { input ->
+                out.outputStream().use { os ->
+                    val buf = ByteArray(64 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        total += n
+                        if (total > maxBytes) { tooBig = true; break }
+                        os.write(buf, 0, n)
+                    }
+                }
+            } ?: return@withContext null
+            if (tooBig) { out.delete(); return@withContext null }
+            out.absolutePath
+        } catch (t: Throwable) {
+            out.delete()
+            null
+        }
+    }
+
+    private fun deleteAttachmentFile(path: String?) {
+        if (path == null) return
+        runCatching { File(path).delete() }
+    }
+
+    /**
+     * Delete app-private attachment copies that no persisted message references.
+     * Safe at startup: staged attachments live only in memory, so at process start
+     * every file not named by a saved message is a leftover (removed-before-send or
+     * a deleted chat).
+     */
+    private fun sweepOrphanAttachments() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val files = attachmentsDir.listFiles() ?: return@launch
+                if (files.isEmpty()) return@launch
+                val referenced = HashSet<String>()
+                chatRepository?.getAllAttachmentsJson()?.forEach { json ->
+                    runCatching {
+                        val arr = JSONArray(json)
+                        for (i in 0 until arr.length()) {
+                            arr.getJSONObject(i).optString("path")
+                                .takeIf { it.isNotEmpty() }?.let { referenced.add(it) }
+                        }
+                    }
+                }
+                files.forEach { f -> if (f.absolutePath !in referenced) f.delete() }
+            } catch (_: Throwable) {
+            }
+        }
     }
 
     /**
@@ -1158,7 +1250,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             val text = if (r.text.length > remaining) r.text.take(remaining) else r.text
             val truncated = r.truncated || text.length < r.text.length
             remaining = (remaining - text.length).coerceAtLeast(0)
-            Attachment(s.filename, s.mimeType, AttachmentKind.DOCUMENT, text, text.length, truncated, r.rawText)
+            Attachment(s.filename, s.mimeType, AttachmentKind.DOCUMENT, text, text.length, truncated, r.rawText, r.localPath)
         }
     }
 
@@ -1718,6 +1810,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 put("charCount", a.charCount)
                 put("truncated", a.truncated)
                 a.rawText?.let { put("raw", it) }
+                a.localPath?.let { put("path", it) }
             })
         }
         return arr.toString()
@@ -1738,6 +1831,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         charCount = o.optInt("charCount"),
                         truncated = o.optBoolean("truncated"),
                         rawText = o.optString("raw").ifEmpty { null },
+                        localPath = o.optString("path").ifEmpty { null },
                     )
                 }
             } catch (_: Throwable) {

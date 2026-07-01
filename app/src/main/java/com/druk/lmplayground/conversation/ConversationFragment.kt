@@ -650,6 +650,7 @@ class ConversationFragment : Fragment() {
                                             mime = sa.mimeType,
                                             previewText = ready?.text,
                                             previewRaw = ready?.rawText,
+                                            previewPdfPath = ready?.localPath,
                                             onRemove = { viewModel.removeStagedAttachment(sa.id) },
                                         )
                                     }
