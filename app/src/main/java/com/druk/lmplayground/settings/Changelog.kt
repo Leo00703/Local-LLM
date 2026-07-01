@@ -20,6 +20,9 @@ private data class ChangelogEntry(val version: String, val changes: List<String>
 
 // Newest first. User-facing release notes (kept short, English).
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.16", listOf(
+        "HTML preview now shows the whole page, including sections that reveal on scroll.",
+    )),
     ChangelogEntry("1.9.15", listOf(
         "File preview card is now much larger for easier reading.",
         "HTML files preview correctly, and switching to the Raw view no longer freezes the app.",

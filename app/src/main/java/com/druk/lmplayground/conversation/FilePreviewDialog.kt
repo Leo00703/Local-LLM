@@ -50,6 +50,30 @@ import com.druk.lmplayground.R
 private const val PREVIEW_TEXT_CAP = 20_000
 
 /**
+ * Injected after the HTML preview loads. Many single-file "sites" hide their
+ * sections until scrolled into view (AOS-style: start at opacity:0, revealed by a
+ * script). With the network blocked that script may never load — or its scroll
+ * observer may not fire inside a dialog WebView — leaving whole sections blank
+ * even though their background shows.
+ *
+ * To reveal them WITHOUT touching intentional design, this only bumps elements
+ * that are (near) fully transparent — the tell-tale of reveal-on-scroll content —
+ * up to opacity 1, so a partly-transparent hero scrim (e.g. opacity 0.4) is left
+ * exactly as it is. Known reveal hooks ([data-aos], .reveal/.fade/… classes) also
+ * get their hiding transform/animation neutralised. Wrapped in try/catch.
+ */
+private const val REVEAL_HIDDEN_CONTENT_JS =
+    """(function(){try{
+if(document.body){document.body.style.setProperty('opacity','1','important');document.body.style.setProperty('overflow','visible','important');}
+if(document.documentElement){document.documentElement.style.setProperty('opacity','1','important');}
+var all=document.querySelectorAll('body *');
+for(var i=0;i<all.length;i++){if(parseFloat(getComputedStyle(all[i]).opacity)<0.1){all[i].style.setProperty('opacity','1','important');}}
+var hooks=document.querySelectorAll('[data-aos],[data-sr],[data-scroll],[data-reveal],[data-animate],[class*="reveal"],[class*="fade"],[class*="animate"],[class*="slide"],[class*="appear"],[class*="scroll"]');
+for(var j=0;j<hooks.length;j++){var h=hooks[j];var hs=h.style;if(parseFloat(getComputedStyle(h).opacity)<0.1){hs.setProperty('opacity','1','important');}hs.setProperty('visibility','visible','important');hs.setProperty('transform','none','important');hs.setProperty('transition','none','important');hs.setProperty('animation','none','important');}
+window.dispatchEvent(new Event('scroll'));
+}catch(e){}})();"""
+
+/**
  * A large centered preview of an attached file. A Raw ⇄ Formatted toggle (shown
  * for HTML and Markdown) switches between the source text and a rendered view:
  * HTML → an offline WebView (network + navigation blocked, so nothing leaves the
@@ -212,6 +236,11 @@ private fun buildPreviewWebView(ctx: Context, html: String): WebView =
                 view: WebView,
                 request: WebResourceRequest,
             ): Boolean = true
+
+            // Reveal scroll-hidden sections so the whole page previews (see above).
+            override fun onPageFinished(view: WebView, url: String?) {
+                view.evaluateJavascript(REVEAL_HIDDEN_CONTENT_JS, null)
+            }
         }
         loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
     }
