@@ -20,6 +20,28 @@ private data class ChangelogEntry(val version: String, val changes: List<String>
 
 // Newest first. User-facing release notes (kept short, English).
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.15", listOf(
+        "File preview card is now much larger for easier reading.",
+        "HTML files preview correctly, and switching to the Raw view no longer freezes the app.",
+    )),
+    ChangelogEntry("1.9.14", listOf(
+        "The context-usage ring now reflects each chat when you switch between them.",
+        "Tap an attached file to preview it, with a Raw ⇄ Formatted toggle (rendered page for HTML).",
+    )),
+    ChangelogEntry("1.9.13", listOf(
+        "Attach several files at once; long-press a file chip to see its full name and token cost.",
+        "Roomier message box.",
+    )),
+    ChangelogEntry("1.9.12", listOf(
+        "Attach text and HTML files — their contents are extracted and sent along with your message.",
+    )),
+    ChangelogEntry("1.9.11", listOf(
+        "Settings reorganised into clearer sections.",
+        "The live reasoning tail now stays aligned and can be expanded while the model writes.",
+    )),
+    ChangelogEntry("1.9.10", listOf(
+        "New Advanced settings screen, plus stability and picker fixes.",
+    )),
     ChangelogEntry("1.9.9", listOf(
         "In-app changelog — tap the version number a few times to open this list.",
         "Optional current date in the system prompt (toggle in Settings).",

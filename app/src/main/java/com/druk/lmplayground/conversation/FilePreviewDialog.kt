@@ -2,14 +2,18 @@
 
 package com.druk.lmplayground.conversation
 
+import android.annotation.SuppressLint
+import android.content.Context
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,13 +43,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.druk.lmplayground.R
 
+/** Preview render cap — enough to skim, small enough to lay out instantly. */
+private const val PREVIEW_TEXT_CAP = 20_000
+
 /**
- * A centered preview of an attached file. A Raw ⇄ Formatted toggle (shown for
- * HTML and Markdown) switches between the source text and a rendered view:
- * HTML → an offline WebView (JS + network disabled), Markdown → the app's
- * Markdown renderer. Plain text / code show as monospace source.
+ * A large centered preview of an attached file. A Raw ⇄ Formatted toggle (shown
+ * for HTML and Markdown) switches between the source text and a rendered view:
+ * HTML → an offline WebView (network + navigation blocked, so nothing leaves the
+ * device), Markdown → the app's Markdown renderer. Plain text / code show as
+ * monospace source.
+ *
+ * The raw/monospace and Markdown views are capped to [PREVIEW_TEXT_CAP] characters
+ * so a very large file (e.g. a single-file website's raw HTML, up to ~1M chars)
+ * can't freeze the UI thread while Compose lays the text out. The WebView renders
+ * the full HTML natively, which stays fast.
  *
  * @param text the model-facing text (Markdown for HTML, the file text otherwise)
  * @param rawText the original source for the raw view (raw HTML); null = use [text]
@@ -65,13 +79,18 @@ fun FilePreviewDialog(
     var showRaw by remember { mutableStateOf(false) }
     val rawSource = rawText ?: text
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        // Opt out of the platform's narrow default width so the card can fill most
+        // of the screen in both dimensions for a comfortable preview.
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 560.dp),
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.88f),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -109,26 +128,9 @@ fun FilePreviewDialog(
                 Spacer(Modifier.size(12.dp))
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when {
-                        showRaw || (!isHtml && !isMd) -> SelectionContainer {
-                            Text(
-                                text = rawSource,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .verticalScroll(rememberScrollState()),
-                            )
-                        }
+                        showRaw || (!isHtml && !isMd) -> RawTextView(rawSource)
                         isHtml -> AndroidView(
-                            factory = { ctx ->
-                                WebView(ctx).apply {
-                                    settings.javaScriptEnabled = false
-                                    settings.blockNetworkLoads = true
-                                    loadDataWithBaseURL(null, rawSource, "text/html", "utf-8", null)
-                                }
-                            },
+                            factory = { ctx -> buildPreviewWebView(ctx, rawSource) },
                             modifier = Modifier.fillMaxSize(),
                         )
                         else -> Column(
@@ -136,7 +138,9 @@ fun FilePreviewDialog(
                                 .fillMaxWidth()
                                 .verticalScroll(rememberScrollState()),
                         ) {
-                            MarkdownContent(text = text, primary = false)
+                            val (shown, truncated) = capForPreview(text)
+                            MarkdownContent(text = shown, primary = false)
+                            if (truncated) TruncationNote()
                         }
                     }
                 }
@@ -144,3 +148,70 @@ fun FilePreviewDialog(
         }
     }
 }
+
+/** Scrollable, selectable monospace source, capped to keep the UI thread responsive. */
+@Composable
+private fun RawTextView(source: String) {
+    val (shown, truncated) = capForPreview(source)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        SelectionContainer {
+            Text(
+                text = shown,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (truncated) TruncationNote()
+    }
+}
+
+@Composable
+private fun TruncationNote() {
+    Spacer(Modifier.size(8.dp))
+    Text(
+        text = stringResource(R.string.preview_truncated_note, "%,d".format(PREVIEW_TEXT_CAP)),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/** Cap at [PREVIEW_TEXT_CAP] chars; returns the (possibly shortened) text and whether it was cut. */
+private fun capForPreview(s: String): Pair<String, Boolean> =
+    if (s.length > PREVIEW_TEXT_CAP) s.take(PREVIEW_TEXT_CAP) to true else s to false
+
+/**
+ * An offline WebView for the HTML preview. JavaScript is enabled so real pages
+ * lay out and render (otherwise JS-driven sites show up half-empty), but it is
+ * sandboxed: no network, no file/content access, and all navigation is blocked,
+ * so nothing the page contains can reach out or leave the device.
+ * [WebSettings.useWideViewPort] + [WebSettings.loadWithOverviewMode] fit a
+ * desktop-width page to the card instead of clipping it.
+ */
+@SuppressLint("SetJavaScriptEnabled")
+private fun buildPreviewWebView(ctx: Context, html: String): WebView =
+    WebView(ctx).apply {
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        settings.blockNetworkLoads = true
+        settings.loadWithOverviewMode = true
+        settings.useWideViewPort = true
+        settings.builtInZoomControls = true
+        settings.displayZoomControls = false
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
+        webViewClient = object : WebViewClient() {
+            // Keep the preview inert: never follow links or navigate away.
+            override fun shouldOverrideUrlLoading(
+                view: WebView,
+                request: WebResourceRequest,
+            ): Boolean = true
+        }
+        loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+    }
