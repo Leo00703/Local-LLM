@@ -5,6 +5,10 @@ import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,10 +22,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
@@ -35,8 +46,8 @@ import java.io.File
 // mutex serialises every renderer access across all pages of all previews.
 private val pdfMutex = Mutex()
 
-/** Bitmaps beyond this width are wasteful for a preview and pressure memory the LLM needs. */
-private const val MAX_PAGE_WIDTH_PX = 1080
+/** Base render width. Higher gives crisper pinch-zoom; capped to spare the LLM's memory. */
+private const val MAX_PAGE_WIDTH_PX = 1440
 
 /**
  * Scrollable visual preview of a PDF: each page is rendered to a bitmap on demand
@@ -48,11 +59,48 @@ fun PdfPagesView(path: String, modifier: Modifier = Modifier) {
     val pageCount by produceState(0, path) {
         value = withContext(Dispatchers.IO) { pdfMutex.withLock { pdfPageCount(path) } }
     }
-    BoxWithConstraints(modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier.fillMaxSize().clipToBounds()) {
         val widthPx = constraints.maxWidth.coerceIn(1, MAX_PAGE_WIDTH_PX)
         when {
-            pageCount > 0 -> LazyColumn(Modifier.fillMaxSize()) {
-                items(pageCount) { index -> PdfPageImage(path, index, widthPx) }
+            pageCount > 0 -> {
+                // Pinch (2+ fingers) zooms/pans the pages; a single finger still
+                // scrolls the list. Reset the pan once back to 1x.
+                var scale by remember(path) { mutableStateOf(1f) }
+                var offset by remember(path) { mutableStateOf(Offset.Zero) }
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                var pressed = true
+                                while (pressed) {
+                                    val event = awaitPointerEvent()
+                                    if (event.changes.size >= 2) {
+                                        scale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
+                                        offset = if (scale > 1f) {
+                                            // Pan horizontally only, clamped to the page edges;
+                                            // vertical stays with the list scroll so nothing is lost.
+                                            val maxX = size.width * (scale - 1f) / 2f
+                                            Offset((offset.x + event.calculatePan().x).coerceIn(-maxX, maxX), 0f)
+                                        } else {
+                                            Offset.Zero
+                                        }
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                    pressed = event.changes.any { it.pressed }
+                                }
+                            }
+                        }
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            translationX = offset.x
+                            translationY = offset.y
+                        },
+                ) {
+                    items(pageCount) { index -> PdfPageImage(path, index, widthPx) }
+                }
             }
             pageCount < 0 -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
