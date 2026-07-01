@@ -86,9 +86,9 @@ class ConversationFragment : Fragment() {
     private val viewModel: ConversationViewModel by viewModels()
     private val storageViewModel: StorageViewModel by viewModels()
 
-    /** MIME types the document picker offers. PDF is added in the next build. */
+    /** MIME types the document picker offers. */
     private val docMimeFilter = arrayOf(
-        "text/*", "application/json", "application/xml", "application/octet-stream"
+        "text/*", "application/json", "application/xml", "application/pdf", "application/octet-stream"
     )
 
     /** System file picker for document attachments; stages each pick on the ViewModel. */

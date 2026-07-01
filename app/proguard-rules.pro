@@ -34,5 +34,14 @@
 -dontwarn org.openjsse.javax.net.ssl.SSLSocket
 -dontwarn org.openjsse.net.ssl.OpenJSSE
 
+# pdfbox-android (com.tom-roush) — the port ships consumer rules, but this app
+# uses aggressive -repackageclasses; keep its reflectively-loaded classes to be safe.
+-keep class com.tom_roush.pdfbox.** { *; }
+-keep class com.tom_roush.fontbox.** { *; }
+-dontwarn com.tom_roush.**
+-dontwarn org.apache.pdfbox.**
+-dontwarn java.awt.**
+-dontwarn javax.imageio.**
+
 # Keep Core
 -keep class com.druk.llamacpp.** { *; }

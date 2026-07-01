@@ -20,6 +20,9 @@ private data class ChangelogEntry(val version: String, val changes: List<String>
 
 // Newest first. User-facing release notes (kept short, English).
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.17", listOf(
+        "Attach PDF files — their text is extracted and sent to the model.",
+    )),
     ChangelogEntry("1.9.16", listOf(
         "HTML preview now shows the whole page, including sections that reveal on scroll.",
     )),

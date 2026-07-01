@@ -3,6 +3,10 @@ package com.druk.lmplayground.files
 import android.content.Context
 import android.net.Uri
 import com.druk.lmplayground.tools.HtmlToMarkdown
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
+import com.tom_roush.pdfbox.text.PDFTextStripper
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
@@ -29,13 +33,17 @@ sealed interface FileExtractionResult {
  * Extracts plain text from a picked file so it can be injected into the model
  * prompt. Pure Kotlin, off the main thread, never throws (errors map to a
  * [FileExtractionResult]). This build handles plain text (txt/md/code/csv/json/
- * xml/yaml…) and HTML (via the existing [HtmlToMarkdown]); PDF lands in the next
- * build. The output is capped to bound memory; the caller applies a further
+ * xml/yaml…), HTML (via the existing [HtmlToMarkdown]) and PDF (text, via pdfbox).
+ * The output is capped to bound memory; the caller applies a further
  * context-window-aware truncation at send time.
  */
 object FileTextExtractor {
 
     private const val MAX_TEXT_CHARS = 1_000_000
+
+    /** PdfBox needs a one-time resource-loader init before the first document load. */
+    @Volatile
+    private var pdfBoxReady = false
 
     suspend fun extract(
         context: Context,
@@ -47,6 +55,7 @@ object FileTextExtractor {
             val effectiveMime = mime ?: context.contentResolver.getType(uri)
             val ext = displayName.substringAfterLast('.', "").lowercase()
             when {
+                isPdf(effectiveMime, ext) -> extractPdf(context, uri, displayName)
                 isHtml(effectiveMime, ext) -> extractHtml(context, uri, displayName)
                 isPlainText(effectiveMime, ext) -> extractPlainText(context, uri, displayName)
                 else -> FileExtractionResult.Unsupported(effectiveMime, displayName)
@@ -55,6 +64,9 @@ object FileTextExtractor {
             FileExtractionResult.Failure(t.message ?: "read error")
         }
     }
+
+    private fun isPdf(mime: String?, ext: String) =
+        mime == "application/pdf" || ext == "pdf"
 
     private fun isHtml(mime: String?, ext: String) =
         mime == "text/html" || mime == "application/xhtml+xml" || ext == "html" || ext == "htm"
@@ -78,6 +90,29 @@ object FileTextExtractor {
             readCapped(input.bufferedReader(Charsets.UTF_8))
         } ?: return FileExtractionResult.Failure("cannot open file")
         return finalize(stripBom(text), truncated, name)
+    }
+
+    private fun ensurePdfBoxInit(context: Context) {
+        if (!pdfBoxReady) {
+            // Idempotent; the flag just avoids re-running the resource scan each time.
+            PDFBoxResourceLoader.init(context.applicationContext)
+            pdfBoxReady = true
+        }
+    }
+
+    private fun extractPdf(context: Context, uri: Uri, name: String): FileExtractionResult {
+        ensurePdfBoxInit(context)
+        val text = context.contentResolver.openInputStream(uri)?.use { input ->
+            try {
+                PDDocument.load(input).use { doc ->
+                    PDFTextStripper().getText(doc)
+                }
+            } catch (e: InvalidPasswordException) {
+                return FileExtractionResult.Failure("password-protected PDF")
+            }
+        } ?: return FileExtractionResult.Failure("cannot open file")
+        // finalize() maps blank text (scanned / image-only PDFs, no OCR) to Empty.
+        return finalize(text, alreadyTruncated = false, name = name)
     }
 
     private fun extractHtml(context: Context, uri: Uri, name: String): FileExtractionResult {

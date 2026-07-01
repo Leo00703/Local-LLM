@@ -290,6 +290,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.okhttp3)
     implementation(libs.jsoup)
+    implementation(libs.pdfbox.android)
     implementation("androidx.javascriptengine:javascriptengine:1.0.0-beta01")
 
     implementation(libs.androidx.room.runtime)
