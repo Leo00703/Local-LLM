@@ -317,6 +317,10 @@ class LlamaService : Service() {
             sessions[sessionId]?.nativeSession?.addMessage(message, enableThinking)
         }
 
+        override fun setImageData(sessionId: Int, data: ByteArray) {
+            sessions[sessionId]?.nativeSession?.setImageData(data)
+        }
+
         override fun beginReplayHistory(sessionId: Int) {
             sessions[sessionId]?.let {
                 it.pendingReplayUsers.clear()

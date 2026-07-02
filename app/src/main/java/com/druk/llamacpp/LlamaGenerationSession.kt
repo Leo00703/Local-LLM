@@ -24,6 +24,10 @@ class LlamaGenerationSession internal constructor(
         client.withService { it.addMessage(sessionId, message, enableThinking) }
     }
 
+    override fun setImageData(data: ByteArray) {
+        client.withService { it.setImageData(sessionId, data) }
+    }
+
     /**
      * Replay a chat history into this session.
      *

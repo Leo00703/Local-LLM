@@ -9,6 +9,7 @@
 #include "chat.h"
 #include "sampling.h"
 #include "mtmd.h"
+#include "mtmd-helper.h"   // mtmd_helper_bitmap_init_from_buf / _eval_chunks
 
 #include <atomic>
 
@@ -32,7 +33,7 @@ public:
 
     ~LlamaGenerationSession();
 
-    void init(llama_model *model, const struct common_chat_templates *chat_tmpls, const SamplerParams &params);
+    void init(llama_model *model, const struct common_chat_templates *chat_tmpls, mtmd_context *mmctx, const SamplerParams &params);
 
     void printReport();
 
@@ -40,6 +41,12 @@ public:
     int generate(const ResponseCallback& callback);
 
     int addMessage(const char *string, bool enableThinking);
+
+    // Stage an encoded image (jpg/png/… bytes) for the NEXT addMessage. That
+    // user turn is then evaluated as a multimodal turn via mtmd. A no-op in
+    // effect if the model has no projector loaded (addMessage falls back to the
+    // text path when mctx is null).
+    void setImageData(const uint8_t *data, size_t len);
 
     // Request that any in-progress decode (prompt eval or token generation)
     // abort as soon as the engine next checks the abort callback. Thread-safe:
@@ -70,6 +77,13 @@ public:
 
 private:
     void finalizeResponse();
+
+    // Multimodal turn: evaluate a rendered prompt + one staged image through
+    // mtmd (fresh KV; image encode + non-causal mask + M-RoPE handled inside
+    // mtmd_helper_eval_chunks), leaving logits on the last token so generate()
+    // samples straight away. Dispatched from addMessage. See setImageData.
+    int addImageMessage(const char *text, bool enableThinking);
+
     common_chat_params renderTemplate(bool enableThinking, bool addGenerationPrompt = true);
 
     // First-message-only: try to load a saved preamble KV state from
@@ -141,6 +155,17 @@ private:
     std::string preamble_cache_path;
     std::string preamble_cache_fingerprint;
     bool preamble_attempted = false;
+
+    // ── Vision (multimodal) ──────────────────────────────────────────────
+    // Projector context, borrowed from the owning LlamaModel (NOT owned here —
+    // the model frees it in unloadModel). Null for text-only models.
+    mtmd_context *mctx = nullptr;
+    // Encoded image bytes staged by setImageData(), consumed by the next turn.
+    std::vector<uint8_t> pending_image_data;
+    // Set by an image turn so generate() skips its own prompt decode —
+    // mtmd_helper_eval_chunks already ran llama_decode with logits on the last
+    // token. Cleared as soon as generate() honors it.
+    bool skip_first_decode = false;
 };
 
 class LlamaModel {

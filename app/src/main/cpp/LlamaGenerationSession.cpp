@@ -135,10 +135,11 @@ void LlamaGenerationSession::recreateToolSampler(const common_chat_params &rende
          render.grammar.size(), (int)render.grammar_lazy, render.grammar_triggers.size());
 }
 
-void LlamaGenerationSession::init(llama_model *model, const struct common_chat_templates *tmpls, const SamplerParams &params) {
+void LlamaGenerationSession::init(llama_model *model, const struct common_chat_templates *tmpls, mtmd_context *mmctx, const SamplerParams &params) {
 
     vocab = llama_model_get_vocab(model);
     chat_tmpls = tmpls;
+    mctx = mmctx;
 
     int n_threads = std::max(1, std::min(4, (int) sysconf(_SC_NPROCESSORS_ONLN) - 2));
     LOGi("Using %d threads", n_threads);
@@ -218,6 +219,118 @@ void LlamaGenerationSession::requestAbort() {
     abort_requested.store(true);
 }
 
+void LlamaGenerationSession::setImageData(const uint8_t *data, size_t len) {
+    if (data == nullptr || len == 0) {
+        pending_image_data.clear();
+        return;
+    }
+    pending_image_data.assign(data, data + len);
+}
+
+int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinking) {
+    if (chat_tmpls == nullptr || ctx == nullptr || mctx == nullptr) {
+        LOGe("addImageMessage called on uninitialized/text-only session");
+        pending_image_data.clear();
+        return 1;
+    }
+
+    // Images don't reuse the incremental KV cache — start this turn from a clean
+    // context and re-evaluate the full prompt through mtmd.
+    llama_memory_clear(llama_get_memory(ctx), true);
+    prev_len = 0;
+    last_full_prompt.clear();
+    last_prompt_end_pos = 0;
+
+    // Compose the user turn with exactly one media marker so the chat template
+    // renders it inside the user message; mtmd_tokenize splits the rendered
+    // prompt on this marker and substitutes the image chunk.
+    common_chat_msg user_msg;
+    user_msg.role = "user";
+    user_msg.content = std::string(mtmd_default_marker()) + "\n" + std::string(text);
+    messages.push_back(user_msg);
+
+    prev_enable_thinking = enableThinking;
+
+    common_chat_params result;
+    try {
+        result = renderTemplate(enableThinking);
+    } catch (const std::exception &e) {
+        LOGe("Failed to render chat template (image): %s", e.what());
+        messages.pop_back();
+        pending_image_data.clear();
+        return 1;
+    } catch (...) {
+        LOGe("Failed to render chat template (image): unknown error");
+        messages.pop_back();
+        pending_image_data.clear();
+        return 1;
+    }
+    std::string full_prompt = result.prompt;
+    additional_stops = result.additional_stops;
+
+    // Parser init (mirror addMessage) so finalizeResponse can extract reasoning.
+    // Tools are never active on an image turn.
+    if (!result.parser.empty()) {
+        parser_params = common_chat_parser_params(result);
+        parser_params.reasoning_format = COMMON_REASONING_FORMAT_DEEPSEEK;
+        parser_params.parse_tool_calls = false;
+        parser_params.parser.load(result.parser);
+        parser_initialized = true;
+    } else {
+        parser_initialized = false;
+    }
+    destroyToolSampler();
+
+    // Decode the staged encoded image (jpg/png/…) into an mtmd bitmap.
+    mtmd_bitmap *bmp = mtmd_helper_bitmap_init_from_buf(
+        mctx, pending_image_data.data(), pending_image_data.size());
+    pending_image_data.clear();
+    if (bmp == nullptr) {
+        LOGe("failed to decode staged image");
+        return 1;
+    }
+
+    // Tokenize the rendered prompt + image, then evaluate all chunks. The helper
+    // runs llama_decode on text chunks and mtmd_encode + llama_decode on the
+    // image chunk, advancing n_past and (logits_last=true) leaving logits on the
+    // last token — non-causal mask and M-RoPE positions are handled internally.
+    mtmd_input_text itext;
+    itext.text = full_prompt.c_str();
+    itext.add_special = true;   // fresh KV — add BOS like a first turn
+    itext.parse_special = true;
+    mtmd_input_chunks *chunks = mtmd_input_chunks_init();
+    const mtmd_bitmap *bmps[1] = { bmp };
+    int32_t tk = mtmd_tokenize(mctx, chunks, &itext, bmps, 1);
+    if (tk != 0) {
+        LOGe("mtmd_tokenize failed: %d", tk);
+        mtmd_input_chunks_free(chunks);
+        mtmd_bitmap_free(bmp);
+        return 1;
+    }
+
+    llama_pos new_n_past = 0;
+    int32_t ev = mtmd_helper_eval_chunks(mctx, ctx, chunks, /*n_past=*/0,
+                                         /*seq_id=*/0, llama_n_batch(ctx),
+                                         /*logits_last=*/true, &new_n_past);
+    mtmd_input_chunks_free(chunks);
+    mtmd_bitmap_free(bmp);
+    if (ev != 0) {
+        LOGe("mtmd_helper_eval_chunks failed: %d", ev);
+        return 1;
+    }
+
+    // State so generate() samples from the last token's logits and a following
+    // text turn can prefix-match against this rendered prompt.
+    response.clear();
+    prompt_tokens.clear();
+    last_full_prompt = full_prompt;
+    prev_rendered_prompt = full_prompt;
+    prev_len = (int) full_prompt.size();
+    last_prompt_end_pos = new_n_past;
+    skip_first_decode = true;
+    return 0;
+}
+
 int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) {
     if (chat_tmpls == nullptr || ctx == nullptr) {
         LOGe("addMessage called on uninitialized session");
@@ -225,6 +338,13 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
     }
     // Fresh turn — clear any abort left set by a previous cancel.
     abort_requested.store(false);
+
+    // Multimodal turn: if an image was staged (setImageData) and a projector is
+    // loaded, take the mtmd path (fresh KV + image encode) instead of the
+    // text-only incremental KV/prefix path.
+    if (!pending_image_data.empty() && mctx != nullptr) {
+        return addImageMessage(string, enableThinking);
+    }
 
     // Lazy preamble KV-cache: on the first addMessage of a session, try
     // to load (or just-save) the static system+tools prefix so the user
@@ -551,30 +671,41 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
 
     int n_ctx = llama_n_ctx(ctx);
     int n_ctx_used = llama_memory_seq_pos_max(llama_get_memory(ctx), 0);
-    if (n_ctx_used + batch.n_tokens > n_ctx) {
-        LOGe("context size exceeded: n_ctx_used = %d, batch.n_tokens = %d, n_ctx = %d", n_ctx_used, batch.n_tokens, n_ctx);
-        finalizeResponse();
-        return 1;
-    }
 
-    // Process prompt in chunks of n_batch to avoid exceeding the batch limit.
-    // After replayHistory or context compaction the prompt can be much larger
-    // than n_batch since the entire conversation is re-tokenized.
-    int n_batch_limit = llama_n_batch(ctx);
-    while (batch.n_tokens > n_batch_limit) {
-        llama_batch chunk = llama_batch_get_one(batch.token, n_batch_limit);
-        if (llama_decode(ctx, chunk)) {
-            LOGe("failed to decode prompt chunk");
+    if (skip_first_decode) {
+        // Image turn: mtmd_helper_eval_chunks already ran llama_decode on all
+        // text + image chunks (logits on the last token), so skip the prompt
+        // decode entirely. The prompt-token priming block below is bypassed
+        // (prompt_tokens is empty for an image turn), so reset the sampler here
+        // for a clean turn.
+        skip_first_decode = false;
+        llama_sampler_reset(smpl);
+    } else {
+        if (n_ctx_used + batch.n_tokens > n_ctx) {
+            LOGe("context size exceeded: n_ctx_used = %d, batch.n_tokens = %d, n_ctx = %d", n_ctx_used, batch.n_tokens, n_ctx);
             finalizeResponse();
             return 1;
         }
-        batch = llama_batch_get_one(batch.token + n_batch_limit, batch.n_tokens - n_batch_limit);
-    }
 
-    if (llama_decode(ctx, batch)) {
-        LOGe("failed to decode the batch");
-        finalizeResponse();
-        return 1;
+        // Process prompt in chunks of n_batch to avoid exceeding the batch limit.
+        // After replayHistory or context compaction the prompt can be much larger
+        // than n_batch since the entire conversation is re-tokenized.
+        int n_batch_limit = llama_n_batch(ctx);
+        while (batch.n_tokens > n_batch_limit) {
+            llama_batch chunk = llama_batch_get_one(batch.token, n_batch_limit);
+            if (llama_decode(ctx, chunk)) {
+                LOGe("failed to decode prompt chunk");
+                finalizeResponse();
+                return 1;
+            }
+            batch = llama_batch_get_one(batch.token + n_batch_limit, batch.n_tokens - n_batch_limit);
+        }
+
+        if (llama_decode(ctx, batch)) {
+            LOGe("failed to decode the batch");
+            finalizeResponse();
+            return 1;
+        }
     }
 
     // Reset sampler and feed prompt tokens so the reasoning budget sampler

@@ -62,7 +62,7 @@ LlamaGenerationSession* LlamaModel::createGenerationSession(const SamplerParams 
         return nullptr;
     }
     auto *session = new LlamaGenerationSession();
-    session->init(model, chat_tmpls.get(), params);
+    session->init(model, chat_tmpls.get(), mctx, params);
     return session;
 }
 

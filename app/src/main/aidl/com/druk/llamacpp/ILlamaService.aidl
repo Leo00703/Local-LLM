@@ -67,6 +67,9 @@ interface ILlamaService {
     int createSession(int modelId, in SamplerParams params);
     void addMessage(int sessionId, String message, boolean enableThinking);
 
+    /** Stage encoded image bytes (jpg/png/…) for the next addMessage on this session. */
+    void setImageData(int sessionId, in byte[] data);
+
     /**
      * Replay a conversation history into a fresh session. The full history
      * may be too large for one binder transaction (~1 MB cap, shared with

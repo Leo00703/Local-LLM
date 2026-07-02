@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.27", "Vision groundwork II", listOf(
+        Change(ChangeType.NEW, "Wired up on-device image tokenization and generation (vision) — the feature keeps coming together; UI arrives soon."),
+    )),
     ChangelogEntry("1.9.26", "Vision groundwork", listOf(
         Change(ChangeType.NEW, "Laid the on-device foundation for image input (vision) — image understanding arrives over the next few updates."),
     )),

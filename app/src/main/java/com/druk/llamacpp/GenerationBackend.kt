@@ -44,4 +44,11 @@ interface GenerationBackend {
      * decode window instead). Read once after generation completes.
      */
     fun lastStats(): GenerationStats? = null
+
+    /**
+     * Stage an encoded image (jpg/png/… bytes) for the next [addMessage] turn,
+     * for vision-capable local models. Default no-op so backends without
+     * on-device vision (e.g. remote) inherit it unchanged.
+     */
+    fun setImageData(data: ByteArray) {}
 }

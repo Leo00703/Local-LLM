@@ -327,6 +327,25 @@ Java_com_druk_llamacpp_jni_NativeLlamaSession_addMessage(JNIEnv *env,
 
 extern "C"
 JNIEXPORT void JNICALL
+Java_com_druk_llamacpp_jni_NativeLlamaSession_setImageData(JNIEnv *env,
+                                                           jobject thiz,
+                                                           jbyteArray data) {
+    jclass clazz = env->GetObjectClass(thiz);
+    jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");
+    auto *session = (LlamaGenerationSession*)env->GetLongField(thiz, fid);
+    if (session == nullptr) {
+        return;
+    }
+
+    jsize len = env->GetArrayLength(data);
+    jbyte* bytes = env->GetByteArrayElements(data, nullptr);
+    session->setImageData(reinterpret_cast<const uint8_t*>(bytes), (size_t) len);
+    // JNI_ABORT: read-only, don't copy the (possibly large) buffer back.
+    env->ReleaseByteArrayElements(data, bytes, JNI_ABORT);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
 Java_com_druk_llamacpp_jni_NativeLlamaSession_requestAbort(JNIEnv *env, jobject thiz) {
     jclass clazz = env->GetObjectClass(thiz);
     jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");

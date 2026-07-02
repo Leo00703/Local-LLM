@@ -10,6 +10,9 @@ class NativeLlamaSession {
 
     external fun addMessage(message: String, enableThinking: Boolean)
 
+    /** Stage encoded image bytes (jpg/png/…) for the next [addMessage] turn. */
+    external fun setImageData(data: ByteArray)
+
     /** Interrupt an in-progress decode (prompt eval or generation) ASAP. */
     external fun requestAbort()
 
