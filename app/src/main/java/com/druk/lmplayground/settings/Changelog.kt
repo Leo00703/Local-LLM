@@ -20,6 +20,13 @@ private data class ChangelogEntry(val version: String, val changes: List<String>
 
 // Newest first. User-facing release notes (kept short, English).
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.22", listOf(
+        "Auto-name new chats from the first reply — optional (Settings › Tools).",
+        "Preview spreadsheets (Excel/CSV) as a table, with a Table ⇄ Raw toggle.",
+        "Attach RTF, OpenDocument (ODT/ODS/ODP) and EPUB files.",
+        "Pinch to zoom the text preview; drag a zoomed PDF with one finger.",
+        "More accurate token estimates for non-Latin (CJK) text.",
+    )),
     ChangelogEntry("1.9.21", listOf(
         "PDF zoom: two-finger pan now reaches every edge of a page (including single-page docs).",
     )),

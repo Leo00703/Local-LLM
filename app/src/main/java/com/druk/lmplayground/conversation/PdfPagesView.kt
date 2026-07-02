@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +49,14 @@ private val pdfMutex = Mutex()
 
 /** Base render width. Higher gives crisper pinch-zoom; capped to spare the LLM's memory. */
 private const val MAX_PAGE_WIDTH_PX = 1440
+
+/** Clamp a pan offset to the zoomed page's edges; zero when not zoomed. */
+private fun clampPan(raw: Offset, scale: Float, size: IntSize): Offset {
+    if (scale <= 1f) return Offset.Zero
+    val maxX = size.width * (scale - 1f) / 2f
+    val maxY = size.height * (scale - 1f) / 2f
+    return Offset(raw.x.coerceIn(-maxX, maxX), raw.y.coerceIn(-maxY, maxY))
+}
 
 /**
  * Scrollable visual preview of a PDF: each page is rendered to a bitmap on demand
@@ -76,21 +85,15 @@ fun PdfPagesView(path: String, modifier: Modifier = Modifier) {
                                 var pressed = true
                                 while (pressed) {
                                     val event = awaitPointerEvent()
-                                    if (event.changes.size >= 2) {
+                                    val twoFingers = event.changes.size >= 2
+                                    if (twoFingers) {
                                         scale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
-                                        offset = if (scale > 1f) {
-                                            // Two-finger pan in BOTH axes, clamped to the zoomed
-                                            // page edges so every corner is reachable (single page too).
-                                            val pan = event.calculatePan()
-                                            val maxX = size.width * (scale - 1f) / 2f
-                                            val maxY = size.height * (scale - 1f) / 2f
-                                            Offset(
-                                                (offset.x + pan.x).coerceIn(-maxX, maxX),
-                                                (offset.y + pan.y).coerceIn(-maxY, maxY),
-                                            )
-                                        } else {
-                                            Offset.Zero
-                                        }
+                                    }
+                                    // Pinch zooms; while zoomed a SINGLE finger pans (and we consume
+                                    // it so the list doesn't scroll). At 1x a single finger is left
+                                    // alone so the LazyColumn scrolls between pages.
+                                    if (twoFingers || scale > 1f) {
+                                        offset = clampPan(offset + event.calculatePan(), scale, size)
                                         event.changes.forEach { it.consume() }
                                     }
                                     pressed = event.changes.any { it.pressed }

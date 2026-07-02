@@ -64,6 +64,9 @@ object FileTextExtractor {
                 isDocx(effectiveMime, ext) -> extractDocx(context, uri, displayName)
                 isXlsx(effectiveMime, ext) -> extractXlsx(context, uri, displayName)
                 isPptx(effectiveMime, ext) -> extractPptx(context, uri, displayName)
+                isOdt(effectiveMime, ext) -> extractOdt(context, uri, displayName)
+                isEpub(effectiveMime, ext) -> extractEpub(context, uri, displayName)
+                isRtf(effectiveMime, ext) -> extractRtf(context, uri, displayName)
                 isHtml(effectiveMime, ext) -> extractHtml(context, uri, displayName)
                 isPlainText(effectiveMime, ext) -> extractPlainText(context, uri, displayName)
                 else -> FileExtractionResult.Unsupported(effectiveMime, displayName)
@@ -90,6 +93,19 @@ object FileTextExtractor {
         mime == "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
             mime == "application/vnd.ms-powerpoint.presentation.macroEnabled.12" ||
             ext == "pptx" || ext == "pptm"
+
+    private fun isOdt(mime: String?, ext: String) =
+        mime == "application/vnd.oasis.opendocument.text" ||
+            mime == "application/vnd.oasis.opendocument.spreadsheet" ||
+            mime == "application/vnd.oasis.opendocument.presentation" ||
+            ext == "odt" || ext == "ods" || ext == "odp"
+
+    private fun isEpub(mime: String?, ext: String) =
+        mime == "application/epub+zip" || ext == "epub"
+
+    // NB: must be tested before isPlainText — text/rtf matches its text/ prefix.
+    private fun isRtf(mime: String?, ext: String) =
+        mime == "application/rtf" || mime == "text/rtf" || ext == "rtf"
 
     private fun isHtml(mime: String?, ext: String) =
         mime == "text/html" || mime == "application/xhtml+xml" || ext == "html" || ext == "htm"
@@ -265,6 +281,133 @@ object FileTextExtractor {
         }
         "inlineStr" -> c.getElementsByTag("t").joinToString("") { it.wholeText() }
         else -> c.getElementsByTag("v").firstOrNull()?.wholeText()?.trim().orEmpty()
+    }
+
+    private fun extractOdt(context: Context, uri: Uri, name: String): FileExtractionResult {
+        val bytes = readZipEntries(context, uri) { it == "content.xml" }["content.xml"]
+            ?: return FileExtractionResult.Failure("unreadable or protected OpenDocument file")
+        val doc = parseOoxml(bytes)
+        val sb = StringBuilder()
+        // Paragraphs + headings in document order; skip blocks nested in another
+        // (avoid double-counting, like DOCX's nested-w:p guard). wholeText() already
+        // includes the text:span runs.
+        for (block in doc.getAllElements()) {
+            val tag = block.tagName()
+            if (tag != "text:p" && tag != "text:h") continue
+            if (block.parents().any { it.tagName() == "text:p" || it.tagName() == "text:h" }) continue
+            sb.append(block.wholeText()).append('\n')
+            if (sb.length > MAX_TEXT_CHARS) break
+        }
+        return finalize(sb.toString(), sb.length > MAX_TEXT_CHARS, name)
+    }
+
+    private fun extractEpub(context: Context, uri: Uri, name: String): FileExtractionResult {
+        val entries = readZipEntries(context, uri) {
+            it == "META-INF/container.xml" || it.endsWith(".opf") ||
+                it.endsWith(".xhtml") || it.endsWith(".html") || it.endsWith(".htm")
+        }
+        val container = entries["META-INF/container.xml"]
+            ?: return FileExtractionResult.Failure("unreadable EPUB (no container.xml)")
+        val opfPath = parseOoxml(container).getElementsByTag("rootfile").firstOrNull()?.attr("full-path")
+            ?: return FileExtractionResult.Failure("unreadable EPUB (no OPF)")
+        val opfDir = opfPath.substringBeforeLast('/', "")
+        val opf = entries[opfPath]?.let { parseOoxml(it) }
+            ?: return FileExtractionResult.Failure("unreadable EPUB (missing OPF)")
+        val hrefById = opf.getElementsByTag("item").associate { it.attr("id") to it.attr("href") }
+        val order = opf.getElementsByTag("itemref").map { it.attr("idref") }
+        val sb = StringBuilder()
+        for (idref in order) {
+            val href = hrefById[idref] ?: continue
+            val key = (if (opfDir.isEmpty()) href else "$opfDir/$href").substringBefore('#')
+            val chapter = entries[key] ?: entries[href] ?: continue
+            val md = HtmlToMarkdown.convert(Jsoup.parse(chapter.inputStream(), null, ""))
+            if (md.isNotBlank()) sb.append(md).append("\n\n")
+            if (sb.length > MAX_TEXT_CHARS) break
+        }
+        return finalize(sb.toString(), sb.length > MAX_TEXT_CHARS, name)
+    }
+
+    private fun extractRtf(context: Context, uri: Uri, name: String): FileExtractionResult {
+        // Read as ISO-8859-1 so \'hh byte escapes survive (UTF-8 would corrupt them).
+        val raw = context.contentResolver.openInputStream(uri)?.use {
+            readCapped(it.bufferedReader(Charsets.ISO_8859_1))
+        }?.first ?: return FileExtractionResult.Failure("cannot open file")
+        return finalize(stripRtf(raw), alreadyTruncated = false, name = name)
+    }
+
+    /** Minimal RTF → text: drop control words, metadata groups, and escapes. */
+    private fun stripRtf(rtf: String): String {
+        val out = StringBuilder(rtf.length / 2)
+        val skipDest = setOf(
+            "fonttbl", "colortbl", "stylesheet", "info", "pict", "object",
+            "themedata", "colorschememapping", "datastore", "generator",
+            "listtable", "listoverridetable", "rsidtbl", "*",
+        )
+        var i = 0
+        var depth = 0
+        var skipToDepth = -1
+        while (i < rtf.length) {
+            val ch = rtf[i]
+            when {
+                ch == '{' -> { depth++; i++ }
+                ch == '}' -> {
+                    if (skipToDepth >= 0 && depth <= skipToDepth) skipToDepth = -1
+                    depth--; i++
+                }
+                ch == '\\' && i + 1 < rtf.length -> {
+                    val next = rtf[i + 1]
+                    when {
+                        next == '\'' && i + 3 < rtf.length -> {
+                            val code = rtf.substring(i + 2, i + 4).toIntOrNull(16)
+                            if (skipToDepth < 0 && code != null) out.append(cp1252(code))
+                            i += 4
+                        }
+                        next == 'u' && i + 2 < rtf.length && (rtf[i + 2].isDigit() || rtf[i + 2] == '-') -> {
+                            var j = i + 2
+                            if (rtf[j] == '-') j++
+                            while (j < rtf.length && rtf[j].isDigit()) j++
+                            val n = rtf.substring(i + 2, j).toIntOrNull()
+                            if (skipToDepth < 0 && n != null) out.append(n.toChar())
+                            if (j < rtf.length && rtf[j] != '\\' && rtf[j] != '{' && rtf[j] != '}') j++
+                            i = j
+                        }
+                        next == '\\' || next == '{' || next == '}' -> {
+                            if (skipToDepth < 0) out.append(next); i += 2
+                        }
+                        next.isLetter() || next == '*' -> {
+                            var j = i + 1
+                            if (rtf[j] == '*') j++
+                            val wordStart = j
+                            while (j < rtf.length && rtf[j].isLetter()) j++
+                            val word = rtf.substring(wordStart, j)
+                            if (j < rtf.length && (rtf[j] == '-' || rtf[j].isDigit())) {
+                                if (rtf[j] == '-') j++
+                                while (j < rtf.length && rtf[j].isDigit()) j++
+                            }
+                            if (j < rtf.length && rtf[j] == ' ') j++
+                            if (skipToDepth < 0) when (word) {
+                                "par", "line", "sect", "page" -> out.append('\n')
+                                "tab" -> out.append('\t')
+                            }
+                            if (word in skipDest && skipToDepth < 0) skipToDepth = depth
+                            i = j
+                        }
+                        else -> i += 2
+                    }
+                }
+                ch == '\r' || ch == '\n' -> i++
+                else -> { if (skipToDepth < 0) out.append(ch); i++ }
+            }
+        }
+        return out.toString()
+    }
+
+    /** Map the common Windows-1252 high bytes (smart quotes/dashes); else Latin-1. */
+    private fun cp1252(code: Int): Char = when (code) {
+        0x82 -> '‚'; 0x84 -> '„'; 0x85 -> '…'
+        0x91 -> '‘'; 0x92 -> '’'; 0x93 -> '“'; 0x94 -> '”'
+        0x95 -> '•'; 0x96 -> '–'; 0x97 -> '—'
+        else -> code.toChar()
     }
 
     private fun extractHtml(context: Context, uri: Uri, name: String): FileExtractionResult {

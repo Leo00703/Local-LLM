@@ -386,6 +386,8 @@
     <string name="system_prompt_datetime">Current date: %1$s</string>
     <string name="datetime_in_prompt_title">Current date</string>
     <string name="datetime_in_prompt_desc">Add the current date to the system prompt so the model knows what day it is.</string>
+    <string name="auto_name_chats_title">Auto-name chats</string>
+    <string name="auto_name_chats_desc">Let the loaded model give each new chat a short title after the first reply.</string>
     <string name="changelog_title">Changelog</string>
     <string name="advanced_subtitle">Power-user options</string>
     <string name="disable_repack_title">Disable weight repacking</string>
@@ -402,6 +404,8 @@
     <string name="preview_raw">Raw</string>
     <string name="preview_pages">Pages</string>
     <string name="preview_text">Text</string>
+    <string name="preview_table">Table</string>
+    <string name="preview_grid_truncated">Table preview limited to the first %1$s rows.</string>
     <string name="preview_truncated_note">Preview truncated — showing the first %1$s characters.</string>
     <string name="attachment_image_only">Image-only</string>
     <string name="pdf_preview_unavailable">Couldn\'t render this PDF.</string>

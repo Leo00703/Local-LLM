@@ -53,7 +53,7 @@ fun Message(
             msg.attachments.forEach { att ->
                 AttachmentChip(
                     filename = att.name,
-                    tokenCount = att.charCount / 4,
+                    tokenCount = estimateTokens(att.extractedText),
                     truncated = att.truncated,
                     mime = att.mime,
                     previewText = att.extractedText,

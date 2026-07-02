@@ -47,6 +47,11 @@ class StoragePreferences(context: Context) {
         get() = prefs.getBoolean("include_datetime_in_prompt", true)
         set(value) = prefs.edit { putBoolean("include_datetime_in_prompt", value) }
 
+    /** Auto-generate a short chat title from the first exchange (via the loaded model). */
+    var autoNameChats: Boolean
+        get() = prefs.getBoolean("auto_name_chats", true)
+        set(value) = prefs.edit { putBoolean("auto_name_chats", value) }
+
     /**
      * Globally load every model memory-mapped (weight repacking off). Trades
      * matmul speed for a much smaller resident set; useful on tight-RAM devices.

@@ -371,6 +371,8 @@
     <string name="system_prompt_datetime">Data corrente: %1$s</string>
     <string name="datetime_in_prompt_title">Data corrente</string>
     <string name="datetime_in_prompt_desc">Aggiunge la data corrente al system prompt, così il modello sa che giorno è.</string>
+    <string name="auto_name_chats_title">Rinomina automatica chat</string>
+    <string name="auto_name_chats_desc">Fai dare al modello caricato un titolo breve a ogni nuova chat dopo la prima risposta.</string>
     <string name="changelog_title">Changelog</string>
     <string name="advanced_subtitle">Opzioni per utenti esperti</string>
     <string name="disable_repack_title">Disabilita weight repacking</string>
@@ -387,6 +389,8 @@
     <string name="preview_raw">Grezzo</string>
     <string name="preview_pages">Pagine</string>
     <string name="preview_text">Testo</string>
+    <string name="preview_table">Tabella</string>
+    <string name="preview_grid_truncated">Anteprima tabella limitata alle prime %1$s righe.</string>
     <string name="preview_truncated_note">Anteprima troncata — mostrati i primi %1$s caratteri.</string>
     <string name="attachment_image_only">Solo immagini</string>
     <string name="pdf_preview_unavailable">Impossibile visualizzare questo PDF.</string>

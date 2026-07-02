@@ -21,6 +21,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -101,9 +109,18 @@ fun FilePreviewDialog(
     val isHtml = mime == "text/html" || ext == "html" || ext == "htm"
     val isMd = mime == "text/markdown" || ext == "md" || ext == "markdown"
     val isPdf = mime == "application/pdf" || ext == "pdf"
+    val isXlsx = mime == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        ext == "xlsx" || ext == "xlsm"
+    val isCsv = mime == "text/csv" || ext == "csv" || ext == "tsv"
+    val isGrid = isXlsx || isCsv
+    val gridUsesTab = isXlsx || ext == "tsv"
     // PDFs preview as rendered pages; the text tab appears only when there is text.
-    val hasToggle = isHtml || isMd || (isPdf && pdfPath != null && text.isNotBlank())
-    val formattedLabel = if (isPdf) R.string.preview_pages else R.string.preview_formatted
+    val hasToggle = isHtml || isMd || isGrid || (isPdf && pdfPath != null && text.isNotBlank())
+    val formattedLabel = when {
+        isPdf -> R.string.preview_pages
+        isGrid -> R.string.preview_table
+        else -> R.string.preview_formatted
+    }
     val rawLabel = if (isPdf) R.string.preview_text else R.string.preview_raw
     var showRaw by remember { mutableStateOf(false) }
     val rawSource = rawText ?: text
@@ -158,6 +175,7 @@ fun FilePreviewDialog(
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when {
                         isPdf && pdfPath != null && !showRaw -> PdfPagesView(pdfPath)
+                        isGrid && !showRaw -> FileGridView(text, gridUsesTab)
                         showRaw || (!isHtml && !isMd && !isPdf) -> RawTextView(rawSource)
                         isHtml -> AndroidView(
                             factory = { ctx -> buildPreviewWebView(ctx, rawSource) },
@@ -180,20 +198,40 @@ fun FilePreviewDialog(
     }
 }
 
-/** Scrollable, selectable monospace source, capped to keep the UI thread responsive. */
+/**
+ * Scrollable, selectable monospace source, capped to keep the UI thread responsive.
+ * Two-finger pinch scales the font (a single finger keeps scrolling normally).
+ */
 @Composable
 private fun RawTextView(source: String) {
     val (shown, truncated) = capForPreview(source)
+    var scale by remember { mutableStateOf(1f) }
+    val base = MaterialTheme.typography.bodySmall
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var pressed = true
+                    while (pressed) {
+                        val event = awaitPointerEvent()
+                        if (event.changes.size >= 2) {
+                            scale = (scale * event.calculateZoom()).coerceIn(0.6f, 4f)
+                            event.changes.forEach { it.consume() }
+                        }
+                        pressed = event.changes.any { it.pressed }
+                    }
+                }
+            }
             .verticalScroll(rememberScrollState()),
     ) {
         SelectionContainer {
             Text(
                 text = shown,
-                style = MaterialTheme.typography.bodySmall.copy(
+                style = base.copy(
                     fontFamily = FontFamily.Monospace,
+                    fontSize = base.fontSize * scale,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
                 modifier = Modifier.fillMaxWidth(),
@@ -201,6 +239,101 @@ private fun RawTextView(source: String) {
         }
         if (truncated) TruncationNote()
     }
+}
+
+/** A parsed row of the grid preview. */
+private data class GridRow(val cells: List<String>, val isSection: Boolean, val isHeader: Boolean)
+
+private const val GRID_MAX_ROWS = 400
+
+/**
+ * Renders CSV/TSV/XLSX extracted text as a scrollable table. XLSX text carries
+ * "Sheet N" section lines + tab-separated rows; CSV/TSV are delimiter-separated.
+ * The first data row of each section is styled as a header. Bounded to
+ * [GRID_MAX_ROWS] rows to keep layout responsive.
+ */
+@Composable
+private fun FileGridView(text: String, useTab: Boolean) {
+    val rows = remember(text, useTab) { parseGrid(text, useTab) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .horizontalScroll(rememberScrollState()),
+    ) {
+        for (row in rows) {
+            if (row.isSection) {
+                Text(
+                    text = row.cells.firstOrNull().orEmpty(),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                )
+            } else {
+                Row {
+                    for (cell in row.cells) {
+                        Text(
+                            text = cell,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = if (row.isHeader) FontWeight.Bold else FontWeight.Normal,
+                            ),
+                            maxLines = 4,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                                .widthIn(min = 56.dp, max = 220.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
+        if (rows.size >= GRID_MAX_ROWS) {
+            Spacer(Modifier.size(8.dp))
+            Text(
+                text = stringResource(R.string.preview_grid_truncated, GRID_MAX_ROWS.toString()),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private fun parseGrid(text: String, useTab: Boolean): List<GridRow> {
+    val out = ArrayList<GridRow>()
+    var seenDataInSection = false
+    for (line in text.split('\n')) {
+        if (out.size >= GRID_MAX_ROWS) break
+        if (line.isBlank()) continue
+        if (Regex("^Sheet \\d+$").matches(line.trim())) {
+            out.add(GridRow(listOf(line.trim()), isSection = true, isHeader = false))
+            seenDataInSection = false
+            continue
+        }
+        val cells = if (useTab) line.split('\t') else parseCsvLine(line)
+        out.add(GridRow(cells, isSection = false, isHeader = !seenDataInSection))
+        seenDataInSection = true
+    }
+    return out
+}
+
+/** Split one CSV line, honouring "quoted, fields" and "" escapes. */
+private fun parseCsvLine(line: String): List<String> {
+    val cells = ArrayList<String>()
+    val sb = StringBuilder()
+    var inQuotes = false
+    var i = 0
+    while (i < line.length) {
+        val c = line[i]
+        when {
+            inQuotes && c == '"' && i + 1 < line.length && line[i + 1] == '"' -> { sb.append('"'); i += 2 }
+            c == '"' -> { inQuotes = !inQuotes; i++ }
+            c == ',' && !inQuotes -> { cells.add(sb.toString()); sb.clear(); i++ }
+            else -> { sb.append(c); i++ }
+        }
+    }
+    cells.add(sb.toString())
+    return cells
 }
 
 @Composable

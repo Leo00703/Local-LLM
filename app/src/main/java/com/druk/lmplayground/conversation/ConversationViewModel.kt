@@ -1283,11 +1283,69 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      * when switching chats, instead of resetting it to 0 until the next turn.
      */
     private fun estimateContextTokens(messages: List<Message>): Int {
-        var chars = composeSystemPrompt(_systemPrompt.value.orEmpty()).length
+        var tokens = estimateTokens(composeSystemPrompt(_systemPrompt.value.orEmpty()))
         for (m in messages) {
-            chars += if (m.author == "User") buildModelPrompt(m).length else m.content.length
+            tokens += estimateTokens(if (m.author == "User") buildModelPrompt(m) else m.content)
         }
-        return chars / 4
+        return tokens
+    }
+
+    /**
+     * After the FIRST assistant reply, ask the loaded model for a short chat title
+     * (opt-in). Runs on a THROWAWAY session with a small context so it never
+     * disturbs the live chat's KV cache, and is destroyed on every exit path.
+     * Best-effort: any failure just keeps the placeholder title.
+     */
+    private fun maybeAutoNameChat(sessionId: String) {
+        if (!storagePreferences.autoNameChats) return
+        if (_isGenerating.value == true) return
+        val msgs = uiState.messages
+        if (msgs.count { it.author == "Assistant" } != 1) return
+        val firstUser = msgs.firstOrNull { it.author == "User" }?.content
+            ?.takeIf { it.isNotBlank() } ?: return
+        val firstAssistant = msgs.lastOrNull { it.author == "Assistant" }?.content.orEmpty()
+        val model = llamaModel ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            // Only while the title is still the placeholder (first 50 chars of the
+            // first user message) — never clobber an already auto/user-set title
+            // (e.g. on a later regenerate or edit-resend of a single-turn chat).
+            if (chatRepository?.getSession(sessionId)?.title != firstUser.take(50)) return@launch
+            var backend: GenerationBackend? = null
+            try {
+                backend = model.createSession(1024, 0.3f, 0.9f, 1.0f, 40, 0.0f, 0, 0, "")
+                    ?: return@launch
+                backend.addMessage(buildTitlePrompt(firstUser, firstAssistant), false)
+                var out = ""
+                backend.generateAll(object : LlamaGenerationCallback {
+                    override fun onFullResponse(response: String) { out = response }
+                })
+                val title = cleanTitle(out)
+                // '⚠' (U+26A0) prefixes a swallowed remote-backend error — don't title with it.
+                if (title.isNotBlank() && !out.trimStart().startsWith('⚠')) {
+                    chatRepository?.updateSessionTitle(sessionId, title)
+                }
+            } catch (_: Throwable) {
+                // keep the placeholder title
+            } finally {
+                try { backend?.destroy() } catch (_: Throwable) {}
+            }
+        }
+    }
+
+    private fun buildTitlePrompt(user: String, assistant: String): String =
+        "Generate a very short title (3-6 words, no quotes, no trailing punctuation) " +
+            "for this conversation. Reply with ONLY the title.\n\n" +
+            "User: " + user.take(500) + "\n" +
+            "Assistant: " + assistant.take(500)
+
+    /** Strip reasoning/quotes/extra lines from the model's title reply; cap length. */
+    private fun cleanTitle(raw: String): String {
+        var s = raw
+        val thinkEnd = s.indexOf("</think>")
+        if (thinkEnd >= 0) s = s.substring(thinkEnd + "</think>".length)
+        s = s.lineSequence().map { it.trim() }.firstOrNull { it.isNotBlank() }.orEmpty()
+        s = s.trim('"', '\'', '“', '”', '‘', '’', ' ', '.', '#', '*', ':')
+        return s.take(50)
     }
 
     @MainThread
@@ -1306,7 +1364,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         // Live context-ring estimate: jump up on send (prompt incl. attachment),
         // grow per output token below; the real getReport() corrects it at the end.
         val ctxBaseline = _contextUsedTokens.value ?: 0
-        val promptTokenEstimate = modelPrompt.length / 4
+        val promptTokenEstimate = estimateTokens(modelPrompt)
         val sizeBytes = modelPrompt.length * 2
         if (sizeBytes > InferenceLimits.MAX_PAYLOAD_BYTES) {
             _userError.postValue(
@@ -1672,6 +1730,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                                 )
                                 persistConversationMetadata(sessionId)
                             } catch (_: Throwable) { /* best-effort */ }
+                            maybeAutoNameChat(sessionId)
                         }
                     }
                 }

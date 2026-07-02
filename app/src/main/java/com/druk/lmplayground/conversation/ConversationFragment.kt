@@ -92,6 +92,11 @@ class ConversationFragment : Fragment() {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/rtf",
+        "application/vnd.oasis.opendocument.text",
+        "application/vnd.oasis.opendocument.spreadsheet",
+        "application/vnd.oasis.opendocument.presentation",
+        "application/epub+zip",
         "application/octet-stream",
     )
 
@@ -648,7 +653,7 @@ class ConversationFragment : Fragment() {
                                         AttachmentChip(
                                             filename = sa.filename,
                                             extracting = sa.state is StagedState.Extracting,
-                                            tokenCount = ready?.let { it.charCount / 4 },
+                                            tokenCount = ready?.let { estimateTokens(it.text) },
                                             truncated = ready?.truncated == true,
                                             errorText = (sa.state as? StagedState.Error)?.message,
                                             mime = sa.mimeType,
