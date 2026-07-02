@@ -386,6 +386,8 @@
     <string name="system_prompt_datetime">Current date: %1$s</string>
     <string name="datetime_in_prompt_title">Current date</string>
     <string name="datetime_in_prompt_desc">Add the current date to the system prompt so the model knows what day it is.</string>
+    <string name="settings_tab_prompt">Prompt</string>
+    <string name="settings_tab_params">Parameters</string>
     <string name="auto_name_chats_title">Auto-name chats</string>
     <string name="auto_name_chats_desc">Let the loaded model give each new chat a short title after the first reply.</string>
     <string name="changelog_title">Changelog</string>

@@ -371,6 +371,8 @@
     <string name="system_prompt_datetime">Data corrente: %1$s</string>
     <string name="datetime_in_prompt_title">Data corrente</string>
     <string name="datetime_in_prompt_desc">Aggiunge la data corrente al system prompt, così il modello sa che giorno è.</string>
+    <string name="settings_tab_prompt">Prompt</string>
+    <string name="settings_tab_params">Parametri</string>
     <string name="auto_name_chats_title">Rinomina automatica chat</string>
     <string name="auto_name_chats_desc">Fai dare al modello caricato un titolo breve a ogni nuova chat dopo la prima risposta.</string>
     <string name="changelog_title">Changelog</string>

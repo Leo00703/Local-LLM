@@ -40,11 +40,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import com.druk.lmplayground.tools.Tool
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -159,25 +162,50 @@ fun GenerationParamsSheet(
                 .padding(horizontal = 24.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.generation_parameters),
-                    style = MaterialTheme.typography.titleMedium
-                )
-                TextButton(onClick = {
-                    val defaults = GenerationParams()
-                    editedParams = defaults
-                }) {
-                    Text(stringResource(R.string.reset))
+            // Prompt / Tools / Parameters split into tabs (Tools tab only when the
+            // model supports tool calling). Default to the Parameters tab.
+            val hasToolsTab = supportsToolCalling && tools.isNotEmpty()
+            val tabKeys = remember(hasToolsTab) {
+                buildList { add("prompt"); if (hasToolsTab) add("tools"); add("params") }
+            }
+            var selectedTab by remember(tabKeys.size) {
+                mutableIntStateOf(tabKeys.indexOf("params").coerceAtLeast(0))
+            }
+            val tabKey = tabKeys.getOrElse(selectedTab) { "params" }
+            TabRow(selectedTabIndex = selectedTab.coerceIn(0, tabKeys.lastIndex)) {
+                tabKeys.forEachIndexed { i, key ->
+                    Tab(
+                        selected = selectedTab == i,
+                        onClick = { selectedTab = i },
+                        text = {
+                            Text(
+                                stringResource(
+                                    when (key) {
+                                        "prompt" -> R.string.settings_tab_prompt
+                                        "tools" -> R.string.tools
+                                        else -> R.string.settings_tab_params
+                                    }
+                                )
+                            )
+                        },
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (tabKey == "params") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { editedParams = GenerationParams() }) {
+                        Text(stringResource(R.string.reset))
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
+            if (tabKey == "prompt") {
             // Current System Prompt — always present; tap the card to author
             // or edit the prompt for this session. The Clear button is always
             // rendered so the header height is stable; only its visibility
@@ -224,9 +252,10 @@ fun GenerationParamsSheet(
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // Tools section (only for models that support tool calling)
-            if (supportsToolCalling && tools.isNotEmpty()) {
+            if (tabKey == "tools" && supportsToolCalling && tools.isNotEmpty()) {
                 Text(
                     text = stringResource(R.string.tools),
                     style = MaterialTheme.typography.titleSmall
@@ -267,6 +296,7 @@ fun GenerationParamsSheet(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
+            if (tabKey == "params") {
             // Context Size
             val contextWarning = editedParams.contextSize != params.contextSize
             ParamSlider(
@@ -430,6 +460,7 @@ fun GenerationParamsSheet(
 
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+            }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

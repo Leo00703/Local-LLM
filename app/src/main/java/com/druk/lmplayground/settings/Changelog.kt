@@ -20,6 +20,9 @@ private data class ChangelogEntry(val version: String, val changes: List<String>
 
 // Newest first. User-facing release notes (kept short, English).
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.23", listOf(
+        "The model settings sheet is now split into Prompt · Tools · Parameters tabs.",
+    )),
     ChangelogEntry("1.9.22", listOf(
         "Auto-name new chats from the first reply — optional (Settings › Tools).",
         "Preview spreadsheets (Excel/CSV) as a table, with a Table ⇄ Raw toggle.",
