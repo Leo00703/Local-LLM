@@ -22,12 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
@@ -198,40 +194,20 @@ fun FilePreviewDialog(
     }
 }
 
-/**
- * Scrollable, selectable monospace source, capped to keep the UI thread responsive.
- * Two-finger pinch scales the font (a single finger keeps scrolling normally).
- */
+/** Scrollable, selectable monospace source, capped to keep the UI thread responsive. */
 @Composable
 private fun RawTextView(source: String) {
     val (shown, truncated) = capForPreview(source)
-    var scale by remember { mutableStateOf(1f) }
-    val base = MaterialTheme.typography.bodySmall
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    var pressed = true
-                    while (pressed) {
-                        val event = awaitPointerEvent()
-                        if (event.changes.size >= 2) {
-                            scale = (scale * event.calculateZoom()).coerceIn(0.6f, 4f)
-                            event.changes.forEach { it.consume() }
-                        }
-                        pressed = event.changes.any { it.pressed }
-                    }
-                }
-            }
             .verticalScroll(rememberScrollState()),
     ) {
         SelectionContainer {
             Text(
                 text = shown,
-                style = base.copy(
+                style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = base.fontSize * scale,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
                 modifier = Modifier.fillMaxWidth(),

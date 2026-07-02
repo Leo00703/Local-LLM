@@ -20,6 +20,9 @@ private data class ChangelogEntry(val version: String, val changes: List<String>
 
 // Newest first. User-facing release notes (kept short, English).
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.24", listOf(
+        "Removed the text-preview zoom; tidied the Tools settings dividers.",
+    )),
     ChangelogEntry("1.9.23", listOf(
         "The model settings sheet is now split into Prompt · Tools · Parameters tabs.",
     )),
@@ -27,7 +30,7 @@ private val CHANGELOG = listOf(
         "Auto-name new chats from the first reply — optional (Settings › Tools).",
         "Preview spreadsheets (Excel/CSV) as a table, with a Table ⇄ Raw toggle.",
         "Attach RTF, OpenDocument (ODT/ODS/ODP) and EPUB files.",
-        "Pinch to zoom the text preview; drag a zoomed PDF with one finger.",
+        "Drag a zoomed PDF with one finger.",
         "More accurate token estimates for non-Latin (CJK) text.",
     )),
     ChangelogEntry("1.9.21", listOf(
