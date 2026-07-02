@@ -258,6 +258,14 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
         }
 
+    /**
+     * Full saved system-prompt library (updatedAt DESC), shown in the model
+     * settings sheet's Prompt tab so prompts can be picked / edited / deleted
+     * / created inline. Applies to both local and remote models.
+     */
+    val savedPrompts: LiveData<List<SystemPromptEntity>> =
+        systemPromptRepository?.getAll() ?: MutableLiveData(emptyList())
+
     init {
         // Surface :llama process death to the UI. When the inference engine
         // crashes, the app process keeps running — we just need to tear
@@ -2213,6 +2221,41 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             )
             repo.insert(entity)
             applySystemPrompt(entity.id, entity.text)
+        }
+    }
+
+    /**
+     * Rewrite a saved library prompt's text (from the settings sheet's Prompt
+     * tab). If that prompt is the one currently applied to this session, the
+     * session is re-created with the new text so the change takes effect now.
+     */
+    @MainThread
+    fun updateSavedPrompt(id: String, text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        val repo = systemPromptRepository ?: return
+        viewModelScope.launch {
+            val existing = repo.getById(id) ?: return@launch
+            repo.update(existing.copy(text = trimmed, updatedAt = System.currentTimeMillis()))
+            // Re-apply only if this entry backs the active session prompt.
+            if (_systemPromptId.value == id) {
+                applySystemPrompt(id, trimmed)
+            }
+        }
+    }
+
+    /**
+     * Delete a saved library prompt. If it is the one currently applied to this
+     * session, the session prompt is cleared too.
+     */
+    @MainThread
+    fun deleteSavedPrompt(id: String) {
+        val repo = systemPromptRepository ?: return
+        if (_systemPromptId.value == id) {
+            clearSystemPrompt()
+        }
+        viewModelScope.launch {
+            repo.delete(id)
         }
     }
 

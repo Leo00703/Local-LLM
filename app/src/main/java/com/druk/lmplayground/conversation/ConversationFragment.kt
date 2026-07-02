@@ -172,11 +172,11 @@ class ConversationFragment : Fragment() {
             val systemPrompt by viewModel.systemPrompt.observeAsState("")
             val systemPromptId by viewModel.systemPromptId.observeAsState()
             val recentSystemPrompts by viewModel.recentSystemPrompts.observeAsState(emptyList())
+            val savedPrompts by viewModel.savedPrompts.observeAsState(emptyList())
             val userError by viewModel.userError.observeAsState()
             val pendingRamWarning by viewModel.pendingRamWarning.observeAsState()
             val modelLoadError by viewModel.modelLoadError.observeAsState()
             var showParamsSheet by remember { mutableStateOf(false) }
-            var showDetailsCard by remember { mutableStateOf(false) }
 
             // Surface transient ViewModel errors (e.g. message-too-large)
             // as Toasts. The ViewModel can't show UI directly, so we
@@ -579,11 +579,9 @@ class ConversationFragment : Fragment() {
                             },
                             onUnloadModel = { viewModel.unloadModel() },
                             onModelParamsClick = {
-                                if (modelInfo?.filename?.startsWith("remote:") == true) {
-                                    showDetailsCard = !showDetailsCard
-                                } else {
-                                    showParamsSheet = true
-                                }
+                                // One unified tabbed sheet for both local and
+                                // remote models (Prompt · Tools · Parameters).
+                                showParamsSheet = true
                             },
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
@@ -776,30 +774,14 @@ class ConversationFragment : Fragment() {
                             )
                         }
 
-                        // Frosted model-details + params card for a loaded remote
-                        // server model, anchored just below the top bar.
-                        if (showDetailsCard && modelInfo?.filename?.startsWith("remote:") == true) {
-                            RemoteModelDetailsCard(
-                                modelName = modelInfo?.name.orEmpty(),
-                                details = serverModelDetails,
-                                maxContext = maxContextSize,
-                                params = generationParams,
-                                hazeState = hazeState,
-                                hazeStyle = hazeStyle,
-                                topPadding = topBarHeight,
-                                supportsToolCalling = supportsToolCalling,
-                                tools = viewModel.toolRegistry.getAllTools(),
-                                toolEnabledStates = toolEnabledStates,
-                                onToolEnabledChanged = { name, enabled -> viewModel.setToolEnabled(name, enabled) },
-                                onParamsChange = { viewModel.updateGenerationParams(it) },
-                                onDismiss = { showDetailsCard = false },
-                            )
-                        }
-
-                        // Frosted generation-parameters sheet for the LOCAL
-                        // model — rendered last inside the chat Box so it blurs
-                        // the conversation behind it.
+                        // Frosted, tabbed generation-settings sheet — one sheet
+                        // for BOTH local and remote models (Prompt · Tools ·
+                        // Parameters). Rendered last inside the chat Box so it
+                        // blurs the conversation behind it. For remote models
+                        // the server's metadata shows as info pills atop the
+                        // Parameters tab and the local-only controls are hidden.
                         if (showParamsSheet) {
+                            val isRemote = modelInfo?.filename?.startsWith("remote:") == true
                             GenerationParamsSheet(
                                 params = generationParams,
                                 maxContextSize = maxContextSize,
@@ -810,6 +792,13 @@ class ConversationFragment : Fragment() {
                                 onToolEnabledChanged = { name, enabled -> viewModel.setToolEnabled(name, enabled) },
                                 systemPrompt = systemPrompt,
                                 canUpdateLinkedPrompt = systemPromptId != null,
+                                isRemote = isRemote,
+                                serverDetails = if (isRemote) serverModelDetails else null,
+                                savedPrompts = savedPrompts,
+                                activePromptId = systemPromptId,
+                                onSelectSavedPrompt = { id, text -> viewModel.applySystemPrompt(id, text) },
+                                onUpdateSavedPrompt = { id, text -> viewModel.updateSavedPrompt(id, text) },
+                                onDeleteSavedPrompt = { id -> viewModel.deleteSavedPrompt(id) },
                                 onParamsChanged = { viewModel.updateGenerationParams(it) },
                                 onUpdateLinkedPrompt = { viewModel.updateLinkedSystemPrompt(it) },
                                 onSaveAsNewPrompt = { viewModel.createAndApplySystemPrompt(it) },

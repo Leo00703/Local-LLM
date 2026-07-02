@@ -12,6 +12,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -24,16 +26,25 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
@@ -44,6 +55,11 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.druk.lmplayground.data.SystemPromptEntity
+import com.druk.lmplayground.remote.ServerModelDetails
+import com.druk.lmplayground.settings.EditorBottomSheet
+import com.druk.lmplayground.settings.EditorTarget
 import com.druk.lmplayground.tools.Tool
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -82,6 +98,18 @@ fun GenerationParamsSheet(
     onToolEnabledChanged: (String, Boolean) -> Unit = { _, _ -> },
     systemPrompt: String = "",
     canUpdateLinkedPrompt: Boolean = false,
+    // Remote model: when true the context-size / thinking-budget / seed controls
+    // (which are server-owned or local-only) are hidden, and the server's
+    // metadata is shown as info pills atop the Parameters tab.
+    isRemote: Boolean = false,
+    serverDetails: ServerModelDetails? = null,
+    // Saved system-prompt library, shown in the Prompt tab so the user can
+    // pick / edit / delete / create prompts without leaving the sheet.
+    savedPrompts: List<SystemPromptEntity> = emptyList(),
+    activePromptId: String? = null,
+    onSelectSavedPrompt: (id: String, text: String) -> Unit = { _, _ -> },
+    onUpdateSavedPrompt: (id: String, text: String) -> Unit = { _, _ -> },
+    onDeleteSavedPrompt: (id: String) -> Unit = {},
     onParamsChanged: (GenerationParams) -> Unit,
     onUpdateLinkedPrompt: (String) -> Unit = {},
     onSaveAsNewPrompt: (String) -> Unit = {},
@@ -93,6 +121,8 @@ fun GenerationParamsSheet(
     var editedParams by remember(params) { mutableStateOf(params) }
     var showAdvanced by remember { mutableStateOf(false) }
     var showPromptReviser by remember { mutableStateOf(false) }
+    // Editor target for the saved-prompt library (New / Edit); null = hidden.
+    var savedEditorTarget by remember { mutableStateOf<EditorTarget?>(null) }
 
     val contextMin = 512
     val contextMax = maxContextSize.coerceAtLeast(512)
@@ -172,7 +202,13 @@ fun GenerationParamsSheet(
                 mutableIntStateOf(tabKeys.indexOf("params").coerceAtLeast(0))
             }
             val tabKey = tabKeys.getOrElse(selectedTab) { "params" }
-            TabRow(selectedTabIndex = selectedTab.coerceIn(0, tabKeys.lastIndex)) {
+            // Transparent container so the tab strip blends into the frosted
+            // sheet (just the selected-tab underline + a hairline divider),
+            // instead of painting a solid dark box over the glass.
+            TabRow(
+                selectedTabIndex = selectedTab.coerceIn(0, tabKeys.lastIndex),
+                containerColor = Color.Transparent,
+            ) {
                 tabKeys.forEachIndexed { i, key ->
                     Tab(
                         selected = selectedTab == i,
@@ -194,12 +230,28 @@ fun GenerationParamsSheet(
             Spacer(modifier = Modifier.height(12.dp))
 
             if (tabKey == "params") {
+                // Remote models: show the server's metadata (quant / arch /
+                // context / capabilities) as info pills at the top, then the
+                // adjustable sliders below.
+                if (isRemote) {
+                    ServerInfoHeader(details = serverDetails, maxContext = maxContextSize)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = { editedParams = GenerationParams() }) {
+                    TextButton(onClick = {
+                        // Reset sampling defaults, but keep the server-owned
+                        // context window for remote models (it feeds the ring
+                        // and isn't user-editable here).
+                        editedParams = if (isRemote) {
+                            GenerationParams().copy(contextSize = params.contextSize)
+                        } else {
+                            GenerationParams()
+                        }
+                    }) {
                         Text(stringResource(R.string.reset))
                     }
                 }
@@ -251,6 +303,28 @@ fun GenerationParamsSheet(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Saved prompt library — pick, edit, delete or create prompts
+            // without leaving the sheet. Tapping a card applies it to this
+            // session; the pencil opens the editor. Works for both local and
+            // remote models (the prompt is applied at the session level).
+            Text(
+                text = stringResource(R.string.system_prompts),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            NewSavedPromptCard(onClick = { savedEditorTarget = EditorTarget.New })
+            for (prompt in savedPrompts) {
+                Spacer(modifier = Modifier.height(8.dp))
+                SavedPromptRow(
+                    prompt = prompt,
+                    selected = prompt.id == activePromptId,
+                    onSelect = { onSelectSavedPrompt(prompt.id, prompt.text) },
+                    onEdit = { savedEditorTarget = EditorTarget.Edit(prompt) },
+                )
+            }
             Spacer(modifier = Modifier.height(12.dp))
             }
 
@@ -297,7 +371,9 @@ fun GenerationParamsSheet(
             }
 
             if (tabKey == "params") {
-            // Context Size
+            // Context Size — local models only. A remote server owns its own
+            // context window (shown as a pill above), so there's nothing to set.
+            if (!isRemote) {
             val contextWarning = editedParams.contextSize != params.contextSize
             ParamSlider(
                 label = stringResource(R.string.context_size),
@@ -320,9 +396,11 @@ fun GenerationParamsSheet(
                     editedParams = editedParams.copy(contextSize = newContextSize, thinkingBudget = newBudget)
                 }
             )
+            }
 
-            // Thinking Budget (only for thinking-capable models)
-            if (supportsThinking) {
+            // Thinking Budget — a local token cap; not applicable to remote
+            // models (their reasoning is server-side, toggled not budgeted).
+            if (supportsThinking && !isRemote) {
                 val budgetMin = 64
                 val budgetMax = editedParams.contextSize
                 ParamSlider(
@@ -426,7 +504,9 @@ fun GenerationParamsSheet(
                         }
                     )
 
-                    // Seed
+                    // Seed — local only (the remote OpenAI backend doesn't
+                    // forward a seed).
+                    if (!isRemote) {
                     var seedText by remember(editedParams.seed) {
                         mutableStateOf(if (editedParams.seed < 0) "" else editedParams.seed.toString())
                     }
@@ -456,6 +536,7 @@ fun GenerationParamsSheet(
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodyMedium
                         )
+                    }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -491,7 +572,173 @@ fun GenerationParamsSheet(
             onDismiss = { showPromptReviser = false }
         )
     }
+
+    // Saved-prompt library editor (New / Edit) — reuses the same bottom-sheet
+    // editor as the full System Prompts screen. onAdd creates + applies the new
+    // prompt; onUpdate / onDelete manage the existing library entry.
+    EditorBottomSheet(
+        target = savedEditorTarget,
+        onAdd = onSaveAsNewPrompt,
+        onUpdate = { id, text -> onUpdateSavedPrompt(id, text) },
+        onDelete = { id -> onDeleteSavedPrompt(id) },
+        onDismiss = { savedEditorTarget = null },
+    )
 }
+
+/**
+ * Server-metadata info pills + capability badges for a remote model, shown at
+ * the top of the Parameters tab. Mirrors what the old standalone remote-details
+ * card displayed. [details] is null until the server's native API responds.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ServerInfoHeader(details: ServerModelDetails?, maxContext: Int) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        details?.quantization?.let { Pill(it) }
+        details?.parameterSize?.let { Pill(it) }
+        details?.architecture?.let { Pill(it) }
+        details?.type?.takeIf { it.isNotBlank() }?.let { Pill(it.uppercase()) }
+        details?.format?.takeIf { it.isNotBlank() }?.let { Pill(it.uppercase()) }
+        if (maxContext > 0) Pill(stringResource(R.string.context_pill, formatTokens(maxContext)))
+        details?.publisher?.let { Pill(it) }
+    }
+
+    val capTools = stringResource(R.string.capability_tools)
+    val capVision = stringResource(R.string.capability_vision)
+    val capThinking = stringResource(R.string.capability_thinking)
+    val caps = details?.capabilities.orEmpty()
+    val capBadges = buildList {
+        if ("tools" in caps) add(Icons.Outlined.Build to capTools)
+        if ("vision" in caps) add(Icons.Outlined.Image to capVision)
+        if ("thinking" in caps) add(Icons.Outlined.AutoAwesome to capThinking)
+    }
+    if (capBadges.isNotEmpty()) {
+        FlowRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            capBadges.forEach { (icon, label) -> CapabilityBadge(icon, label) }
+        }
+    }
+}
+
+@Composable
+private fun Pill(text: String) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun CapabilityBadge(icon: ImageVector, label: String) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(text = label, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+/** "+ New" tile that opens the prompt editor in create mode. */
+@Composable
+private fun NewSavedPromptCard(onClick: () -> Unit) {
+    OutlinedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.system_prompt_new),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+/**
+ * One saved library prompt: tapping the card body applies it to the session
+ * (a primary border marks the active one); the pencil opens the editor for
+ * rename / delete.
+ */
+@Composable
+private fun SavedPromptRow(
+    prompt: SystemPromptEntity,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    onEdit: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedCard(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onSelect),
+            shape = RoundedCornerShape(12.dp),
+            border = if (selected) {
+                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            } else {
+                CardDefaults.outlinedCardBorder()
+            },
+        ) {
+            Text(
+                text = prompt.text,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                minLines = 2,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = onEdit) {
+            Icon(
+                imageVector = Icons.Outlined.Edit,
+                contentDescription = stringResource(R.string.edit),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** Compact token count, e.g. 262144 -> "262K". */
+private fun formatTokens(n: Int): String =
+    if (n >= 1000) "${n / 1000}K" else "$n"
 
 /** Grab bar at the top of the sheet; a downward drag past the threshold hides
  *  the card (see [GenerationParamsSheet]). The whole top strip is draggable so

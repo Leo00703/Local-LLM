@@ -1,145 +1,190 @@
 package com.druk.lmplayground.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.druk.lmplayground.R
 
-private data class ChangelogEntry(val version: String, val changes: List<String>)
+/**
+ * How to add a release note (keep the changelog looking maintained):
+ *  1. Prepend a [ChangelogEntry] to [CHANGELOG] (newest first).
+ *  2. Give it a short [ChangelogEntry.title] — the theme of the release.
+ *  3. List each user-facing change as a [Change] tagged with the right
+ *     [ChangeType] (New feature / Improvement / Fix / Design). The tag drives
+ *     the emoji shown to the user, so entries stay consistent build over build.
+ *  Notes are user-facing: short, plain English, no internal jargon.
+ */
+private enum class ChangeType(val emoji: String) {
+    NEW("✨"),        // brand-new capability
+    IMPROVED("⚡"),   // existing feature made better / faster / more accurate
+    FIX("🐛"),        // bug fix
+    DESIGN("🎨"),     // visual / UX polish
+}
 
-// Newest first. User-facing release notes (kept short, English).
+private data class Change(val type: ChangeType, val text: String)
+
+private data class ChangelogEntry(
+    val version: String,
+    val title: String,
+    val changes: List<Change>,
+)
+
+// Newest first.
 private val CHANGELOG = listOf(
-    ChangelogEntry("1.9.24", listOf(
-        "Removed the text-preview zoom; tidied the Tools settings dividers.",
+    ChangelogEntry("1.9.25", "Unified, tabbed model settings", listOf(
+        Change(ChangeType.NEW, "Manage your saved system prompts straight from the model settings — pick, edit, delete or create one, without leaving the chat."),
+        Change(ChangeType.IMPROVED, "Remote server models now share the same tabbed settings (Prompt · Tools · Parameters) as local models, including system prompts."),
+        Change(ChangeType.DESIGN, "The settings tabs now blend into the sheet instead of sitting on a dark bar."),
+        Change(ChangeType.DESIGN, "Redesigned this changelog, grouped by change type."),
     )),
-    ChangelogEntry("1.9.23", listOf(
-        "The model settings sheet is now split into Prompt · Tools · Parameters tabs.",
+    ChangelogEntry("1.9.24", "Preview & settings polish", listOf(
+        Change(ChangeType.DESIGN, "Removed the fiddly text-preview zoom (PDF and HTML zoom are unchanged)."),
+        Change(ChangeType.FIX, "Restored a missing divider in Settings › Tools."),
     )),
-    ChangelogEntry("1.9.22", listOf(
-        "Auto-name new chats from the first reply — optional (Settings › Tools).",
-        "Preview spreadsheets (Excel/CSV) as a table, with a Table ⇄ Raw toggle.",
-        "Attach RTF, OpenDocument (ODT/ODS/ODP) and EPUB files.",
-        "Drag a zoomed PDF with one finger.",
-        "More accurate token estimates for non-Latin (CJK) text.",
+    ChangelogEntry("1.9.23", "Tabbed model settings", listOf(
+        Change(ChangeType.NEW, "The model settings sheet is now split into Prompt · Tools · Parameters tabs."),
     )),
-    ChangelogEntry("1.9.21", listOf(
-        "PDF zoom: two-finger pan now reaches every edge of a page (including single-page docs).",
+    ChangelogEntry("1.9.22", "Smarter chats & more file types", listOf(
+        Change(ChangeType.NEW, "Auto-name new chats from the first reply — optional, in Settings › Tools."),
+        Change(ChangeType.NEW, "Preview spreadsheets (Excel/CSV) as a table, with a Table ⇄ Raw toggle."),
+        Change(ChangeType.NEW, "Attach RTF, OpenDocument (ODT/ODS/ODP) and EPUB files."),
+        Change(ChangeType.IMPROVED, "More accurate token estimates for non-Latin (CJK) text."),
+        Change(ChangeType.IMPROVED, "Drag a zoomed PDF with a single finger."),
     )),
-    ChangelogEntry("1.9.20", listOf(
-        "Attach Word (.docx), Excel (.xlsx) and PowerPoint (.pptx) files — their text is extracted and sent to the model.",
+    ChangelogEntry("1.9.21", "PDF zoom reaches every edge", listOf(
+        Change(ChangeType.FIX, "Two-finger pan on a zoomed PDF now reaches every edge, including single-page documents."),
     )),
-    ChangelogEntry("1.9.19", listOf(
-        "Pinch to zoom PDF pages in the preview.",
+    ChangelogEntry("1.9.20", "Office documents", listOf(
+        Change(ChangeType.NEW, "Attach Word (.docx), Excel (.xlsx) and PowerPoint (.pptx) files — their text is extracted and sent to the model."),
     )),
-    ChangelogEntry("1.9.18", listOf(
-        "Preview PDFs as real pages, not just text — with a Pages ⇄ Text toggle.",
-        "Scanned or image-only PDFs now preview too (pages shown even without text).",
+    ChangelogEntry("1.9.19", "Pinch to zoom PDFs", listOf(
+        Change(ChangeType.NEW, "Pinch to zoom PDF pages in the preview."),
     )),
-    ChangelogEntry("1.9.17", listOf(
-        "Attach PDF files — their text is extracted and sent to the model.",
+    ChangelogEntry("1.9.18", "Real PDF pages", listOf(
+        Change(ChangeType.NEW, "Preview PDFs as real pages, not just text, with a Pages ⇄ Text toggle."),
+        Change(ChangeType.IMPROVED, "Scanned or image-only PDFs now preview too — pages show even without extractable text."),
     )),
-    ChangelogEntry("1.9.16", listOf(
-        "HTML preview now shows the whole page, including sections that reveal on scroll.",
+    ChangelogEntry("1.9.17", "Attach PDFs", listOf(
+        Change(ChangeType.NEW, "Attach PDF files — their text is extracted and sent to the model."),
     )),
-    ChangelogEntry("1.9.15", listOf(
-        "File preview card is now much larger for easier reading.",
-        "HTML files preview correctly, and switching to the Raw view no longer freezes the app.",
+    ChangelogEntry("1.9.16", "Complete HTML previews", listOf(
+        Change(ChangeType.FIX, "HTML preview now shows the whole page, including sections that reveal on scroll."),
     )),
-    ChangelogEntry("1.9.14", listOf(
-        "The context-usage ring now reflects each chat when you switch between them.",
-        "Tap an attached file to preview it, with a Raw ⇄ Formatted toggle (rendered page for HTML).",
+    ChangelogEntry("1.9.15", "Roomier, sturdier previews", listOf(
+        Change(ChangeType.DESIGN, "The file-preview card is much larger for easier reading."),
+        Change(ChangeType.FIX, "HTML files preview correctly, and the Raw view no longer freezes the app."),
     )),
-    ChangelogEntry("1.9.13", listOf(
-        "Attach several files at once; long-press a file chip to see its full name and token cost.",
-        "Roomier message box.",
+    ChangelogEntry("1.9.14", "Per-chat context & file previews", listOf(
+        Change(ChangeType.IMPROVED, "The context-usage ring now reflects each chat as you switch between them."),
+        Change(ChangeType.NEW, "Tap an attached file to preview it, with a Raw ⇄ Formatted toggle (a rendered page for HTML)."),
     )),
-    ChangelogEntry("1.9.12", listOf(
-        "Attach text and HTML files — their contents are extracted and sent along with your message.",
+    ChangelogEntry("1.9.13", "Multi-file attachments", listOf(
+        Change(ChangeType.NEW, "Attach several files at once; long-press a file chip to see its full name and token cost."),
+        Change(ChangeType.DESIGN, "A roomier message box."),
     )),
-    ChangelogEntry("1.9.11", listOf(
-        "Settings reorganised into clearer sections.",
-        "The live reasoning tail now stays aligned and can be expanded while the model writes.",
+    ChangelogEntry("1.9.12", "Attach text & HTML", listOf(
+        Change(ChangeType.NEW, "Attach text and HTML files — their contents are extracted and sent along with your message."),
     )),
-    ChangelogEntry("1.9.10", listOf(
-        "New Advanced settings screen, plus stability and picker fixes.",
+    ChangelogEntry("1.9.11", "Clearer settings & reasoning", listOf(
+        Change(ChangeType.DESIGN, "Settings reorganised into clearer sections."),
+        Change(ChangeType.IMPROVED, "The live reasoning tail stays aligned and can be expanded while the model writes."),
     )),
-    ChangelogEntry("1.9.9", listOf(
-        "In-app changelog — tap the version number a few times to open this list.",
-        "Optional current date in the system prompt (toggle in Settings).",
+    ChangelogEntry("1.9.10", "Advanced settings", listOf(
+        Change(ChangeType.NEW, "New Advanced settings screen."),
+        Change(ChangeType.FIX, "Stability and model-picker fixes."),
     )),
-    ChangelogEntry("1.9.8", listOf(
-        "App logo on the welcome screen now follows your chosen accent colour.",
-        "A shimmer plus a live peek of the model's reasoning while it works.",
-        "Custom GGUF models with junk metadata now show a clean name from the filename.",
-        "Rose and red theme colours are now clearly distinct.",
+    ChangelogEntry("1.9.9", "In-app changelog & date", listOf(
+        Change(ChangeType.NEW, "In-app changelog — tap the version number a few times to open this list."),
+        Change(ChangeType.NEW, "Optional current date in the system prompt (toggle in Settings)."),
     )),
-    ChangelogEntry("1.9.7", listOf(
-        "Theme colour picker polish: aligned grid, gradient System swatch, added Red and Grey.",
+    ChangelogEntry("1.9.8", "Themed logo & reasoning peek", listOf(
+        Change(ChangeType.DESIGN, "The welcome-screen logo now follows your chosen accent colour."),
+        Change(ChangeType.IMPROVED, "A shimmer plus a live peek of the model's reasoning while it works."),
+        Change(ChangeType.FIX, "Custom GGUF models with junk metadata now show a clean name from the filename."),
+        Change(ChangeType.DESIGN, "Rose and red theme colours are now clearly distinct."),
     )),
-    ChangelogEntry("1.9.6", listOf(
-        "Choose the app's accent colour: System (Material You) plus several presets.",
+    ChangelogEntry("1.9.7", "Colour-picker polish", listOf(
+        Change(ChangeType.DESIGN, "Aligned swatch grid, a gradient System swatch, and added Red and Grey."),
     )),
-    ChangelogEntry("1.9.5", listOf(
-        "More provider logos and richer Ollama model details (capability badges).",
-        "Favicon cluster and a live reasoning label in the process card.",
+    ChangelogEntry("1.9.6", "Accent colours", listOf(
+        Change(ChangeType.NEW, "Choose the app's accent colour: System (Material You) plus several presets."),
     )),
-    ChangelogEntry("1.9.4", listOf(
-        "Live process card during generation, with tappable web sources.",
-        "Added Ernie (Baidu) and Ornith provider logos.",
+    ChangelogEntry("1.9.5", "Richer model info", listOf(
+        Change(ChangeType.NEW, "More provider logos and richer Ollama model details (capability badges)."),
+        Change(ChangeType.DESIGN, "A favicon cluster and a live reasoning label in the process card."),
     )),
-    ChangelogEntry("1.9.3", listOf(
-        "Multi-step agent turns collapse into one tidy, inspectable card.",
+    ChangelogEntry("1.9.4", "Live process card", listOf(
+        Change(ChangeType.IMPROVED, "A live process card during generation, with tappable web sources."),
+        Change(ChangeType.NEW, "Added Ernie (Baidu) and Ornith provider logos."),
     )),
-    ChangelogEntry("1.9.2", listOf(
-        "Fixed reasoning text showing dark code boxes.",
+    ChangelogEntry("1.9.3", "Tidy agent turns", listOf(
+        Change(ChangeType.DESIGN, "Multi-step agent turns collapse into one tidy, inspectable card."),
     )),
-    ChangelogEntry("1.9.1", listOf(
-        "Web search, web fetch and JavaScript tools now work over remote servers.",
+    ChangelogEntry("1.9.2", "Reasoning display fix", listOf(
+        Change(ChangeType.FIX, "Reasoning text no longer shows dark code boxes."),
     )),
-    ChangelogEntry("1.9.0", listOf(
-        "Rich Markdown answers: code cards, tables and math.",
-        "Provider logos and model details in the top bar; frosted UI throughout.",
+    ChangelogEntry("1.9.1", "Remote tools", listOf(
+        Change(ChangeType.NEW, "Web search, web fetch and JavaScript tools now work over remote servers."),
+    )),
+    ChangelogEntry("1.9.0", "Rich Markdown & a fresh UI", listOf(
+        Change(ChangeType.NEW, "Rich Markdown answers: code cards, tables and math."),
+        Change(ChangeType.DESIGN, "Provider logos and model details in the top bar; a frosted UI throughout."),
     )),
 )
 
-/** The version-tap easter egg: a scrollable list of every release and its changes. */
+/** The version-tap easter egg: a scrollable, categorised list of every release. */
 @Composable
 fun ChangelogDialog(onDismiss: () -> Unit) {
+    val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.72f).dp
     AlertDialog(
         onDismissRequest = onDismiss,
+        // Break out of the platform's narrow default width so the notes have
+        // room to breathe.
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth(0.94f)
+            .padding(vertical = 24.dp),
         title = { Text(stringResource(R.string.changelog_title)) },
         text = {
             Column(
                 modifier = Modifier
-                    .heightIn(max = 420.dp)
+                    .heightIn(max = maxHeight)
                     .verticalScroll(rememberScrollState())
             ) {
                 CHANGELOG.forEachIndexed { i, entry ->
-                    if (i > 0) Spacer(Modifier.height(16.dp))
-                    Text(
-                        text = "v${entry.version}",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Spacer(Modifier.height(4.dp))
+                    if (i > 0) {
+                        Spacer(Modifier.height(20.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Spacer(Modifier.height(20.dp))
+                    }
+                    EntryHeader(entry = entry, isLatest = i == 0)
+                    Spacer(Modifier.height(10.dp))
                     entry.changes.forEach { change ->
-                        Text(
-                            text = "•  $change",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(2.dp))
+                        ChangeRow(change)
+                        Spacer(Modifier.height(6.dp))
                     }
                 }
             }
@@ -148,4 +193,58 @@ fun ChangelogDialog(onDismiss: () -> Unit) {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
         },
     )
+}
+
+@Composable
+private fun EntryHeader(entry: ChangelogEntry, isLatest: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ) {
+            Text(
+                text = "v${entry.version}",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+            )
+        }
+        if (isLatest) {
+            Spacer(Modifier.width(8.dp))
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            ) {
+                Text(
+                    text = "Latest",
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(6.dp))
+    Text(
+        text = entry.title,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+}
+
+@Composable
+private fun ChangeRow(change: Change) {
+    Row(verticalAlignment = Alignment.Top) {
+        Text(
+            text = change.type.emoji,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.width(26.dp),
+        )
+        Text(
+            text = change.text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
