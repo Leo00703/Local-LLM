@@ -29,13 +29,31 @@ endif()
 # Include llama.cpp subdirectory
 add_subdirectory(llama.cpp)
 
+# --- mtmd (multimodal / vision) -----------------------------------------
+# Builds libmtmd.so (the image/CLIP encoder + tokenizer). It is NOT built by
+# default because llama.cpp only descends into tools/ when LLAMA_BUILD_TOOLS is
+# ON, which we intentionally leave off (it would build every CLI/server too).
+# Pulling in just tools/mtmd here is the narrow path.
+#
+# tools/mtmd/CMakeLists.txt sets the target VERSION to ${LLAMA_INSTALL_VERSION},
+# which is only defined inside the llama.cpp subdirectory scope; from this
+# parent scope it would be empty, and an empty VERSION property is a hard CMake
+# error. Define a fallback before pulling mtmd in. mtmd links only ggml + llama
+# + pthread (all already linked), so no new external dependency is introduced.
+set(LLAMA_INSTALL_VERSION 0.0.0)
+add_subdirectory(llama.cpp/tools/mtmd)
+
 add_library(${CMAKE_PROJECT_NAME} SHARED
         native-lib.cpp
         LlamaModel.cpp
         LlamaGenerationSession.cpp)
 
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+        llama.cpp/tools/mtmd)   # mtmd.h / mtmd-helper.h
+
 target_link_libraries(${CMAKE_PROJECT_NAME}
         llama-common
         llama
+        mtmd
         android
         log)

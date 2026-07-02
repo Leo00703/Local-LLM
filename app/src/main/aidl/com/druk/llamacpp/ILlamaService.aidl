@@ -51,6 +51,15 @@ interface ILlamaService {
     int getContextTrainSize(int modelId);
     boolean supportsThinking(int modelId);
     boolean supportsToolCalling(int modelId);
+    /** True once a vision-capable mmproj is attached via [loadMmproj]. */
+    boolean supportsVision(int modelId);
+    /**
+     * Attach a multimodal projector (mmproj) to an already-loaded model so it
+     * can accept images. [path] is a real filesystem path (the mmproj is a
+     * companion file copied next to / paired with the model). Returns true if
+     * the projector loaded and supports vision.
+     */
+    boolean loadMmproj(int modelId, String path);
     void unloadModel(int modelId);
 
     // ── Session lifecycle ────────────────────────────────────────────────

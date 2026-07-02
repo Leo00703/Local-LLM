@@ -272,6 +272,12 @@ class LlamaService : Service() {
         override fun supportsToolCalling(modelId: Int): Boolean =
             models[modelId]?.nativeModel?.supportsToolCalling() == true
 
+        override fun supportsVision(modelId: Int): Boolean =
+            models[modelId]?.nativeModel?.supportsVision() == true
+
+        override fun loadMmproj(modelId: Int, path: String): Boolean =
+            models[modelId]?.nativeModel?.loadMmproj(path) == true
+
         override fun unloadModel(modelId: Int) {
             val entry = models[modelId] ?: return
             // Mark for destroy first (DON'T remove from `models` yet).

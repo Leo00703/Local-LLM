@@ -8,6 +8,7 @@
 #include "common.h"
 #include "chat.h"
 #include "sampling.h"
+#include "mtmd.h"
 
 #include <atomic>
 
@@ -163,6 +164,15 @@ public:
 
     bool supportsToolCalling();
 
+    // Load a multimodal projector (mmproj) and attach it to this already-loaded
+    // text model, enabling image input. CPU-only (use_gpu=false). Returns true
+    // if the mtmd context initialised and supports vision. Safe to call again
+    // (replaces any previous projector). Frees on unloadModel().
+    bool loadMmproj(const std::string &mmprojPath);
+
+    // True once a vision-capable mmproj has been loaded via loadMmproj().
+    bool supportsVision();
+
     bool isLoaded() const { return model != nullptr; }
 
     void unloadModel();
@@ -170,6 +180,9 @@ public:
 private:
     llama_model *model = nullptr;
     common_chat_templates_ptr chat_tmpls;
+    // Multimodal projector context (image encoder). Null until loadMmproj()
+    // succeeds; owned here and freed in unloadModel().
+    mtmd_context *mctx = nullptr;
 };
 
 #endif //LMPLAYGROUND_LLAMACPP_H

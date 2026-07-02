@@ -96,6 +96,31 @@ bool LlamaModel::supportsToolCalling() {
     return it != caps.end() && it->second;
 }
 
+bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
+    if (model == nullptr) {
+        return false;
+    }
+    // Replace any previously loaded projector.
+    if (mctx != nullptr) {
+        mtmd_free(mctx);
+        mctx = nullptr;
+    }
+    mtmd_context_params mparams = mtmd_context_params_default();
+    mparams.use_gpu = false;         // CPU-only vision encoder (Phase 1)
+    mparams.print_timings = false;
+    mparams.warmup = false;          // no warmup encode pass at load time
+    mctx = mtmd_init_from_file(mmprojPath.c_str(), model, mparams);
+    if (mctx == nullptr) {
+        LOG_ERR("%s: failed to load mmproj '%s'\n", __func__, mmprojPath.c_str());
+        return false;
+    }
+    return mtmd_support_vision(mctx);
+}
+
+bool LlamaModel::supportsVision() {
+    return mctx != nullptr && mtmd_support_vision(mctx);
+}
+
 std::string LlamaModel::getModelReport() {
     if (model == nullptr) {
         return "";
@@ -125,6 +150,11 @@ std::string LlamaModel::getModelReport() {
 }
 
 void LlamaModel::unloadModel() {
+    // Free the projector before the text model it references.
+    if (mctx != nullptr) {
+        mtmd_free(mctx);
+        mctx = nullptr;
+    }
     chat_tmpls.reset();
     if (model != nullptr) {
         llama_model_free(model);

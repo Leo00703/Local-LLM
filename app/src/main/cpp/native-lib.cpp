@@ -45,10 +45,16 @@ protected:
 
 #define TAG "llama-android.cpp"
 static void log_callback(ggml_log_level level, const char * fmt, void * data) {
-    if (level == GGML_LOG_LEVEL_ERROR)     __android_log_print(ANDROID_LOG_ERROR, TAG, fmt, data);
-    else if (level == GGML_LOG_LEVEL_INFO) __android_log_print(ANDROID_LOG_INFO, TAG, fmt, data);
-    else if (level == GGML_LOG_LEVEL_WARN) __android_log_print(ANDROID_LOG_WARN, TAG, fmt, data);
-    else __android_log_print(ANDROID_LOG_DEFAULT, TAG, fmt, data);
+    // llama.cpp/mtmd already formatted the message; [fmt] is the final text
+    // (and may itself contain %-specifiers). Pass it as a "%s" argument, NOT
+    // as the format string — otherwise any %-token in the log is interpreted
+    // as a conversion and reads past [data] (garbage / crash). [data] is the
+    // user pointer (always NULL here) and must not be treated as a vararg.
+    (void) data;
+    if (level == GGML_LOG_LEVEL_ERROR)     __android_log_print(ANDROID_LOG_ERROR, TAG, "%s", fmt);
+    else if (level == GGML_LOG_LEVEL_INFO) __android_log_print(ANDROID_LOG_INFO, TAG, "%s", fmt);
+    else if (level == GGML_LOG_LEVEL_WARN) __android_log_print(ANDROID_LOG_WARN, TAG, "%s", fmt);
+    else __android_log_print(ANDROID_LOG_DEFAULT, TAG, "%s", fmt);
 }
 
 extern "C"
@@ -95,6 +101,9 @@ Java_com_druk_llamacpp_jni_NativeLlamaCpp_init(JNIEnv *env, jobject object, jstr
     std::cerr.rdbuf(&androidLogBuf);
 
     llama_log_set(log_callback, NULL);
+    // Route the multimodal (mtmd/clip) logs through the same sink so mmproj
+    // load diagnostics show up in logcat.
+    mtmd_log_set(log_callback, NULL);
 
     // With GGML_BACKEND_DL=ON the CPU backend lives in separate
     // libggml-cpu-*.so files alongside libllamacpp.so. dlopen them so
@@ -394,6 +403,29 @@ Java_com_druk_llamacpp_jni_NativeLlamaModel_supportsToolCalling(JNIEnv *env, job
     auto* model = (LlamaModel*) env->GetLongField(thiz, fid);
     if (model == nullptr) return JNI_FALSE;
     return model->supportsToolCalling() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_druk_llamacpp_jni_NativeLlamaModel_supportsVision(JNIEnv *env, jobject thiz) {
+    jclass clazz = env->GetObjectClass(thiz);
+    jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");
+    auto* model = (LlamaModel*) env->GetLongField(thiz, fid);
+    if (model == nullptr) return JNI_FALSE;
+    return model->supportsVision() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_druk_llamacpp_jni_NativeLlamaModel_loadMmproj(JNIEnv *env, jobject thiz, jstring mmprojPath) {
+    jclass clazz = env->GetObjectClass(thiz);
+    jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");
+    auto* model = (LlamaModel*) env->GetLongField(thiz, fid);
+    if (model == nullptr) return JNI_FALSE;
+    const char* utfPath = env->GetStringUTFChars(mmprojPath, nullptr);
+    bool ok = model->loadMmproj(utfPath);
+    env->ReleaseStringUTFChars(mmprojPath, utfPath);
+    return ok ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C"

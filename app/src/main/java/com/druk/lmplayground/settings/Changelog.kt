@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.26", "Vision groundwork", listOf(
+        Change(ChangeType.NEW, "Laid the on-device foundation for image input (vision) — image understanding arrives over the next few updates."),
+    )),
     ChangelogEntry("1.9.25", "Unified, tabbed model settings", listOf(
         Change(ChangeType.NEW, "Manage your saved system prompts straight from the model settings — pick, edit, delete or create one, without leaving the chat."),
         Change(ChangeType.IMPROVED, "Remote server models now share the same tabbed settings (Prompt · Tools · Parameters) as local models, including system prompts."),

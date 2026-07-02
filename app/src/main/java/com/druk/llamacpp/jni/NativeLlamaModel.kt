@@ -26,5 +26,15 @@ class NativeLlamaModel {
 
     external fun supportsToolCalling(): Boolean
 
+    /** True once a vision-capable mmproj has been attached via [loadMmproj]. */
+    external fun supportsVision(): Boolean
+
+    /**
+     * Attach a multimodal projector (mmproj) to this loaded text model, enabling
+     * image input. CPU-only. Returns true if the projector initialised and
+     * supports vision. [path] is a real filesystem path or an "fd:N" sentinel.
+     */
+    external fun loadMmproj(path: String): Boolean
+
     external fun unloadModel()
 }

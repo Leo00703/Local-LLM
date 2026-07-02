@@ -19,6 +19,10 @@ class LlamaModel internal constructor(
 
     override fun supportsToolCalling(): Boolean = client.requireConnected().supportsToolCalling(modelId)
 
+    override fun supportsVision(): Boolean = client.withService { it.supportsVision(modelId) }
+
+    override fun loadMmproj(path: String): Boolean = client.withService { it.loadMmproj(modelId, path) }
+
     override fun unloadModel() {
         try {
             client.withService { it.unloadModel(modelId) }
