@@ -213,6 +213,55 @@ class StorageRepository(
         }
     }
 
+    /**
+     * Resolve a paired mmproj (a SAF sibling of a model) to an app-private real
+     * filesystem PATH, copying it out of SAF on first use and caching the copy.
+     * Returns the absolute path, or null on failure.
+     *
+     * A real path is required because the CLIP projector loader reads its tensor
+     * weights with a raw `std::ifstream(fname)` (only the GGUF header goes through
+     * the fd-aware ggml_fopen), so an "fd:N" sentinel or content:// URI won't
+     * work. The copy is cached (reused when name + size match) and only the
+     * active projector is kept to bound disk use.
+     */
+    fun resolveMmprojToPath(mmprojFilename: String): String? {
+        val treeUri = prefs.modelStorageUri ?: return null
+        val documentFile = DocumentFile.fromTreeUri(context, treeUri) ?: return null
+        val src = documentFile.findFile(mmprojFilename)
+        if (src == null) {
+            Log.e(TAG, "resolveMmprojToPath - mmproj not found: $mmprojFilename")
+            return null
+        }
+        val srcLen = src.length()
+        val dir = java.io.File(context.filesDir, "mmproj")
+        val dest = java.io.File(dir, mmprojFilename)
+        if (dest.exists() && srcLen > 0 && dest.length() == srcLen) {
+            return dest.absolutePath // cached copy is current
+        }
+        if (!dir.exists()) dir.mkdirs()
+        // Keep only the active projector.
+        dir.listFiles()?.forEach { if (it.name != mmprojFilename) it.delete() }
+        return try {
+            context.contentResolver.openInputStream(src.uri)?.use { input ->
+                dest.outputStream().use { output -> input.copyTo(output, bufferSize = 1 shl 20) }
+            } ?: run {
+                Log.e(TAG, "resolveMmprojToPath - openInputStream returned null")
+                return null
+            }
+            if (srcLen <= 0 || dest.length() == srcLen) {
+                dest.absolutePath
+            } else {
+                Log.e(TAG, "resolveMmprojToPath - size mismatch after copy")
+                dest.delete()
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "resolveMmprojToPath - copy failed: ${e.message}")
+            dest.delete()
+            null
+        }
+    }
+
     fun hasValidPermission(): Boolean {
         val uri = prefs.modelStorageUri ?: return false
         return try {

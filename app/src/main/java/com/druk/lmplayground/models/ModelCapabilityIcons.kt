@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,12 +32,20 @@ fun ModelCapabilityIcons(
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     iconSize: Dp = 18.dp,
 ) {
-    if (!model.supportsTools && !model.supportsThinking) return
+    if (!model.supportsTools && !model.supportsThinking && !model.isVision) return
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (model.isVision) {
+            Icon(
+                imageVector = Icons.Outlined.Image,
+                contentDescription = stringResource(R.string.cd_supports_vision),
+                tint = tint,
+                modifier = Modifier.size(iconSize),
+            )
+        }
         if (model.supportsTools) {
             Icon(
                 imageVector = Icons.Outlined.Build,

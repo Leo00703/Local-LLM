@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.28", "Vision models recognised", listOf(
+        Change(ChangeType.NEW, "Drop a vision model together with its mmproj projector in your models folder and it's now detected automatically — shown with an image badge in the model list."),
+        Change(ChangeType.NEW, "Loading such a model attaches its projector on-device. Attaching and sending images arrives in the next update."),
+    )),
     ChangelogEntry("1.9.27", "Vision groundwork II", listOf(
         Change(ChangeType.NEW, "Wired up on-device image tokenization and generation (vision) — the feature keeps coming together; UI arrives soon."),
     )),

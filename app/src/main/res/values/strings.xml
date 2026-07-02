@@ -429,6 +429,8 @@
     <!-- Model capability badges (content descriptions) -->
     <string name="cd_supports_tools">Supports tools</string>
     <string name="cd_supports_thinking">Supports thinking</string>
+    <string name="cd_supports_vision">Supports images</string>
+    <string name="loading_vision">Loading vision…</string>
     <!-- Per-tool copy -->
     <string name="tool_run_javascript_title">Run JavaScript</string>
     <string name="tool_run_javascript_desc">Runs JavaScript in a secure sandbox for math, dates, and text processing. No internet or file access.</string>

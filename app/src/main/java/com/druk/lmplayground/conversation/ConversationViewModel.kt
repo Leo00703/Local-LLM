@@ -30,6 +30,7 @@ import com.druk.lmplayground.data.ConversationMetadata
 import com.druk.lmplayground.data.SystemPromptEntity
 import com.druk.lmplayground.data.SystemPromptRepository
 import com.druk.lmplayground.models.DeviceCapability
+import com.druk.lmplayground.models.MmprojPairing
 import com.druk.lmplayground.models.ModelInfo
 import com.druk.lmplayground.models.ModelInfoProvider
 import com.druk.lmplayground.models.ModelWithStatus
@@ -97,6 +98,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     private val _maxContextSize = MutableLiveData(4096)
     private val _sessionModelHint = MutableLiveData<Pair<String, String>?>(null) // (modelName, modelFilename)
     private val _supportsToolCalling = MutableLiveData(false)
+    // True when the loaded local model has a vision projector (mmproj) attached.
+    private val _supportsVision = MutableLiveData(false)
     private val _toolEnabledStates = MutableLiveData<Map<String, Boolean>>(emptyMap())
     val toolRegistry = ToolRegistry.createDefault(app)
     val toolEnabledStates: LiveData<Map<String, Boolean>> = _toolEnabledStates
@@ -205,6 +208,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val maxContextSize: LiveData<Int> = _maxContextSize
     val sessionModelHint: LiveData<Pair<String, String>?> = _sessionModelHint
     val supportsToolCalling: LiveData<Boolean> = _supportsToolCalling
+    val supportsVision: LiveData<Boolean> = _supportsVision
     val systemPrompt: LiveData<String> = _systemPrompt
     val systemPromptId: LiveData<String?> = _systemPromptId
     val userError: LiveData<String?> = _userError
@@ -381,13 +385,17 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             withContext(Dispatchers.IO) {
                 val modelFiles = storageRepository.getModelFiles()
                 val downloadedFilenames = modelFiles.map { it.name }.toSet()
+                // Projector (mmproj) companions aren't models — collect their
+                // names for pairing, exclude them from the selectable list.
+                val mmprojNames = modelFiles.map { it.name }.filter { MmprojPairing.isMmproj(it) }
                 val customModels = modelFiles
-                    .filter { it.name !in ModelInfoProvider.knownFilenames }
+                    .filter { it.name !in ModelInfoProvider.knownFilenames && !MmprojPairing.isMmproj(it.name) }
                     .mapNotNull { file ->
                         val cached = storagePreferences.getCustomModelMetadata(file.name)
                             ?: return@mapNotNull null
                         if (!cached.second) return@mapNotNull null
-                        ModelInfoProvider.createCustomModelInfo(file.name, cached.first, file.sizeBytes)
+                        val mmproj = MmprojPairing.findMmprojFor(file.name, mmprojNames)
+                        ModelInfoProvider.createCustomModelInfo(file.name, cached.first, file.sizeBytes, mmproj)
                     }
                 _models.postValue(
                     ModelInfoProvider.getModelsWithStatus(downloadedFilenames, customModels)
@@ -481,6 +489,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // loop drives RemoteOpenAiBackend (tools only sent when the user enables
             // them, so non-tool models are unaffected by default).
             _supportsToolCalling.postValue(true)
+            // Remote models have no on-device vision projector.
+            _supportsVision.postValue(false)
             _toolEnabledStates.postValue(emptyMap())
 
             val params = GenerationParams(contextSize = maxContext)
@@ -650,6 +660,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 _loadedModel.postValue(modelInfo)
                 _thinkingEnabled.postValue(false)
                 _supportsThinking.postValue(false)
+                _supportsVision.postValue(false)
                 _loadedModelStatus.postValue("Loading...")
 
                 val fileHandle = storageRepository.openModelFile(modelInfo.filename)
@@ -748,6 +759,22 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     _supportsThinking.postValue(thinkingSupported)
                     val toolCallingSupported = llamaModel.supportsToolCalling()
                     _supportsToolCalling.postValue(toolCallingSupported)
+                    // Vision: if this model has a paired mmproj (detected at
+                    // discovery), copy the projector out of SAF to a real path
+                    // and attach it so the model can accept images. A failure
+                    // here is non-fatal — the model stays usable as text.
+                    val mmprojName = modelInfo.mmprojFilename
+                    if (mmprojName != null) {
+                        try {
+                            _loadedModelStatus.postValue(app.getString(com.druk.lmplayground.R.string.loading_vision))
+                            val mmprojPath = storageRepository.resolveMmprojToPath(mmprojName)
+                            val visionOk = mmprojPath != null && llamaModel.loadMmproj(mmprojPath)
+                            _supportsVision.postValue(visionOk)
+                        } catch (e: Exception) {
+                            android.util.Log.e("ConversationViewModel", "mmproj load failed", e)
+                            _supportsVision.postValue(false)
+                        }
+                    }
                     // Cache the real, template-detected capabilities so the model
                     // list can show accurate badges for this model (and any custom
                     // GGUF) without having to load it again.
@@ -2349,9 +2376,25 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     @MainThread
     fun loadModelByFilename(filename: String) {
         _sessionModelHint.value = null
-        val modelInfo = ModelInfoProvider.getByFilename(filename)
-            ?: ModelInfoProvider.createCustomModelInfo(filename, filename.removeSuffix(".gguf"), 0)
-        loadModel(modelInfo)
+        val known = ModelInfoProvider.getByFilename(filename)
+        if (known != null) {
+            loadModel(known)
+            return
+        }
+        // Custom/sideloaded model: re-pair its mmproj sibling (off the main
+        // thread) so a restored vision model keeps its projector, exactly like
+        // the picker path in loadModelList().
+        viewModelScope.launch {
+            val files = withContext(Dispatchers.IO) { storageRepository.getModelFiles() }
+            val sizeBytes = files.find { it.name == filename }?.sizeBytes ?: 0L
+            val mmprojNames = files.map { it.name }.filter { MmprojPairing.isMmproj(it) }
+            val mmproj = MmprojPairing.findMmprojFor(filename, mmprojNames)
+            loadModel(
+                ModelInfoProvider.createCustomModelInfo(
+                    filename, filename.removeSuffix(".gguf"), sizeBytes, mmproj
+                )
+            )
+        }
     }
 
     fun getReport(): String? {
@@ -2404,6 +2447,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _isModelReady.postValue(false)
             _supportsThinking.postValue(false)
             _supportsToolCalling.postValue(false)
+            _supportsVision.postValue(false)
             _toolEnabledStates.postValue(emptyMap())
             _contextUsedTokens.postValue(0)
         }

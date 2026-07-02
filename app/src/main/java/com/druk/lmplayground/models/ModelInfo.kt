@@ -27,8 +27,13 @@ data class ModelInfo(
     // [resolveCapabilities].
     val supportsTools: Boolean = false,
     val supportsThinking: Boolean = false,
+    // The bare filename of a paired multimodal projector (mmproj) sitting next
+    // to this model in the storage folder, if one was found. When set, the model
+    // can accept images once loaded (the projector is attached at load time).
+    val mmprojFilename: String? = null,
 ) {
     val isCustom: Boolean get() = remoteUri == null
+    val isVision: Boolean get() = mmprojFilename != null
 }
 
 fun ModelInfo.supportsLanguage(lang: String): Boolean =

@@ -10,6 +10,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.druk.lmplayground.App
 import com.druk.lmplayground.download.DownloadRepository
+import com.druk.lmplayground.models.MmprojPairing
 import com.druk.lmplayground.models.ModelInfo
 import com.druk.lmplayground.models.ModelInfoProvider
 import com.druk.lmplayground.models.ModelWithStatus
@@ -123,7 +124,12 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
 
     private fun discoverCustomModels(modelFiles: List<ModelFile>): List<ModelInfo> {
         val llamaCpp = (getApplication<Application>() as? App)?.llamaCpp ?: return emptyList()
-        val unknownFiles = modelFiles.filter { it.name !in ModelInfoProvider.knownFilenames }
+        // mmproj (projector) files are companions, not models — never probe/list
+        // them as models, but keep their names for pairing with the real models.
+        val mmprojNames = modelFiles.map { it.name }.filter { MmprojPairing.isMmproj(it) }
+        val unknownFiles = modelFiles.filter {
+            it.name !in ModelInfoProvider.knownFilenames && !MmprojPairing.isMmproj(it.name)
+        }
         return unknownFiles.mapNotNull { file ->
             val cached = prefs.getCustomModelMetadata(file.name)
             val (name, hasChatTemplate) = if (cached != null) {
@@ -149,7 +155,8 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
             if (!hasChatTemplate) return@mapNotNull null
-            ModelInfoProvider.createCustomModelInfo(file.name, name, file.sizeBytes)
+            val mmproj = MmprojPairing.findMmprojFor(file.name, mmprojNames)
+            ModelInfoProvider.createCustomModelInfo(file.name, name, file.sizeBytes, mmproj)
         }
     }
 

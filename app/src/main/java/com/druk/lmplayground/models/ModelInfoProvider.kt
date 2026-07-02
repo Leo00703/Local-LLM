@@ -449,7 +449,12 @@ object ModelInfoProvider {
     /**
      * Create a ModelInfo for a custom (user-provided) GGUF file.
      */
-    fun createCustomModelInfo(filename: String, name: String, sizeBytes: Long): ModelInfo {
+    fun createCustomModelInfo(
+        filename: String,
+        name: String,
+        sizeBytes: Long,
+        mmprojFilename: String? = null,
+    ): ModelInfo {
         val sizeLabel = formatFileSize(sizeBytes)
         return ModelInfo(
             name = sanitizeCustomModelName(name, filename),
@@ -457,7 +462,8 @@ object ModelInfoProvider {
             remoteUri = null,
             releaseDate = null,
             description = "Custom model \u00B7 $sizeLabel",
-            logoRes = R.drawable.penrose_triangle
+            logoRes = R.drawable.penrose_triangle,
+            mmprojFilename = mmprojFilename,
         )
     }
 
