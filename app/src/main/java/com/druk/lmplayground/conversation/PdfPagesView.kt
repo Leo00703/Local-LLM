@@ -79,10 +79,15 @@ fun PdfPagesView(path: String, modifier: Modifier = Modifier) {
                                     if (event.changes.size >= 2) {
                                         scale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
                                         offset = if (scale > 1f) {
-                                            // Pan horizontally only, clamped to the page edges;
-                                            // vertical stays with the list scroll so nothing is lost.
+                                            // Two-finger pan in BOTH axes, clamped to the zoomed
+                                            // page edges so every corner is reachable (single page too).
+                                            val pan = event.calculatePan()
                                             val maxX = size.width * (scale - 1f) / 2f
-                                            Offset((offset.x + event.calculatePan().x).coerceIn(-maxX, maxX), 0f)
+                                            val maxY = size.height * (scale - 1f) / 2f
+                                            Offset(
+                                                (offset.x + pan.x).coerceIn(-maxX, maxX),
+                                                (offset.y + pan.y).coerceIn(-maxY, maxY),
+                                            )
                                         } else {
                                             Offset.Zero
                                         }

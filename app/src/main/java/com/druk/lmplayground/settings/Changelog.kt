@@ -20,6 +20,9 @@ private data class ChangelogEntry(val version: String, val changes: List<String>
 
 // Newest first. User-facing release notes (kept short, English).
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.21", listOf(
+        "PDF zoom: two-finger pan now reaches every edge of a page (including single-page docs).",
+    )),
     ChangelogEntry("1.9.20", listOf(
         "Attach Word (.docx), Excel (.xlsx) and PowerPoint (.pptx) files — their text is extracted and sent to the model.",
     )),
