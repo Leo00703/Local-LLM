@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.35", "Vision projector loads (audio encoder skipped)", listOf(
+        Change(ChangeType.FIX, "Fixed the crash when loading a vision model whose projector also bundles an audio encoder (e.g. Gemma 3n / Gemma 4 E2B): the unused audio part is now skipped, so image input can finally load."),
+    )),
     ChangelogEntry("1.9.34", "Vision load diagnostics", listOf(
         Change(ChangeType.IMPROVED, "If a vision model's image projector fails to load, the app now shows a copyable diagnostic (memory + the native crash report) so projector-compatibility issues on sideloaded models can be pinned down precisely."),
     )),
