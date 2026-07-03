@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.30", "Vision projector no longer auto-loads", listOf(
+        Change(ChangeType.FIX, "Paired vision models no longer load their image projector at startup — this was causing some sideloaded models to hang when generating. Image support will load the projector only when an image is attached."),
+    )),
     ChangelogEntry("1.9.29", "Vision loading hardened", listOf(
         Change(ChangeType.FIX, "An incompatible or oversized vision projector can no longer crash the app or block loading other models — a failed projector now just means the model loads as text."),
         Change(ChangeType.FIX, "Tightened model↔projector pairing so an unrelated model is never tagged as vision by mistake."),

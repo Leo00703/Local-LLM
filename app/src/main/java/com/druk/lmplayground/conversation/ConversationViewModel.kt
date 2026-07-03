@@ -759,21 +759,22 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     _supportsThinking.postValue(thinkingSupported)
                     val toolCallingSupported = llamaModel.supportsToolCalling()
                     _supportsToolCalling.postValue(toolCallingSupported)
-                    // Vision: if this model has a paired mmproj (detected at
-                    // discovery), copy the projector out of SAF to a real path
-                    // and attach it so the model can accept images. A failure
-                    // here is non-fatal — the model stays usable as text.
-                    val mmprojName = modelInfo.mmprojFilename
-                    if (mmprojName != null) {
-                        try {
-                            _loadedModelStatus.postValue(app.getString(com.druk.lmplayground.R.string.loading_vision))
-                            val mmprojPath = storageRepository.resolveMmprojToPath(mmprojName)
-                            val visionOk = mmprojPath != null && llamaModel.loadMmproj(mmprojPath)
-                            _supportsVision.postValue(visionOk)
-                        } catch (e: Exception) {
-                            android.util.Log.e("ConversationViewModel", "mmproj load failed", e)
-                            _supportsVision.postValue(false)
-                        }
+                    // Vision projector (mmproj) attach.
+                    // TEMPORARILY DISABLED (v1.9.30 A/B test): loading the CLIP
+                    // projector into the :llama process at model-load is the prime
+                    // suspect for the Gemma-4-QAT text-decode hang (it's the ONLY
+                    // model with a paired mmproj, hence the only one that hits this
+                    // path). If loading a model NO LONGER hangs with this off,
+                    // loadMmproj/CLIP is the culprit and vision must load the
+                    // projector lazily/isolated (only when an image is actually
+                    // sent). The picker badge (ModelInfo.isVision) is unaffected.
+                    val visionCapableUnloaded = modelInfo.mmprojFilename != null
+                    _supportsVision.postValue(false)
+                    if (visionCapableUnloaded) {
+                        android.util.Log.i(
+                            "ConversationViewModel",
+                            "vision projector auto-load DISABLED for A/B (mmproj=${modelInfo.mmprojFilename})"
+                        )
                     }
                     // Cache the real, template-detected capabilities so the model
                     // list can show accurate badges for this model (and any custom
