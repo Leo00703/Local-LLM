@@ -36,5 +36,8 @@ class NativeLlamaModel {
      */
     external fun loadMmproj(path: String): Boolean
 
+    /** Human-readable reason the last [loadMmproj] failed (empty on success). */
+    external fun getMmprojError(): String
+
     external fun unloadModel()
 }

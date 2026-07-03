@@ -26,6 +26,7 @@
 #include <csignal>
 #include <unistd.h>
 #include <android/log.h>
+#include <mutex>
 
 class AndroidLogBuf : public std::streambuf {
 protected:
@@ -44,6 +45,30 @@ protected:
 };
 
 #define TAG "llama-android.cpp"
+
+// ── Native log capture (mmproj-load diagnostics) ─────────────────────────────
+// The real reason mtmd/clip refuses a projector (n_embd mismatch, unknown
+// projector type, allocation failure, …) is only ever emitted to the log
+// callback and lost to logcat — which the user can't easily read. To surface it
+// in the UI, loadMmproj() brackets its mtmd_init_from_file call with
+// native_log_capture_begin()/_end(); while capturing, ERROR/WARN log lines are
+// also appended (bounded) to a buffer that becomes LlamaModel::mmproj_error.
+static std::mutex g_capture_mutex;
+static std::string g_capture_buf;
+static bool g_capturing = false;
+
+void native_log_capture_begin() {
+    std::lock_guard<std::mutex> lk(g_capture_mutex);
+    g_capturing = true;
+    g_capture_buf.clear();
+}
+
+std::string native_log_capture_end() {
+    std::lock_guard<std::mutex> lk(g_capture_mutex);
+    g_capturing = false;
+    return g_capture_buf;
+}
+
 static void log_callback(ggml_log_level level, const char * fmt, void * data) {
     // llama.cpp/mtmd already formatted the message; [fmt] is the final text
     // (and may itself contain %-specifiers). Pass it as a "%s" argument, NOT
@@ -55,6 +80,15 @@ static void log_callback(ggml_log_level level, const char * fmt, void * data) {
     else if (level == GGML_LOG_LEVEL_INFO) __android_log_print(ANDROID_LOG_INFO, TAG, "%s", fmt);
     else if (level == GGML_LOG_LEVEL_WARN) __android_log_print(ANDROID_LOG_WARN, TAG, "%s", fmt);
     else __android_log_print(ANDROID_LOG_DEFAULT, TAG, "%s", fmt);
+
+    if (fmt != nullptr &&
+        (level == GGML_LOG_LEVEL_ERROR || level == GGML_LOG_LEVEL_WARN)) {
+        std::lock_guard<std::mutex> lk(g_capture_mutex);
+        // Keep the buffer bounded; the last error line is what matters.
+        if (g_capturing && g_capture_buf.size() < 4000) {
+            g_capture_buf.append(fmt);
+        }
+    }
 }
 
 extern "C"
@@ -470,6 +504,16 @@ Java_com_druk_llamacpp_jni_NativeLlamaModel_loadMmproj(JNIEnv *env, jobject thiz
     bool ok = model->loadMmproj(utfPath);
     env->ReleaseStringUTFChars(mmprojPath, utfPath);
     return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_druk_llamacpp_jni_NativeLlamaModel_getMmprojError(JNIEnv *env, jobject thiz) {
+    jclass clazz = env->GetObjectClass(thiz);
+    jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");
+    auto* model = (LlamaModel*) env->GetLongField(thiz, fid);
+    if (model == nullptr) return env->NewStringUTF("");
+    return env->NewStringUTF(model->getMmprojError().c_str());
 }
 
 extern "C"

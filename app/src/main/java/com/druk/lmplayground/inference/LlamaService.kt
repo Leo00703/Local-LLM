@@ -278,6 +278,9 @@ class LlamaService : Service() {
         override fun loadMmproj(modelId: Int, path: String): Boolean =
             models[modelId]?.nativeModel?.loadMmproj(path) == true
 
+        override fun getMmprojError(modelId: Int): String =
+            models[modelId]?.nativeModel?.getMmprojError() ?: ""
+
         override fun unloadModel(modelId: Int) {
             val entry = models[modelId] ?: return
             // Mark for destroy first (DON'T remove from `models` yet).

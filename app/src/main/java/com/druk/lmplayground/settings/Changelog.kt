@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.32", "Image preview + clearer vision errors", listOf(
+        Change(ChangeType.NEW, "Tap an attached or sent image to view it full-screen — pinch to zoom, tap to close, just like the document and PDF previews."),
+        Change(ChangeType.IMPROVED, "When a vision model can't load its image projector, the message now says exactly why (e.g. an incompatible mmproj) instead of a generic error."),
+    )),
     ChangelogEntry("1.9.31", "Send images to vision models", listOf(
         Change(ChangeType.NEW, "Attach a photo from your gallery and ask about it — the attach button now offers Document / Image for vision models (those with an mmproj projector in your models folder)."),
         Change(ChangeType.NEW, "Sent images show as a thumbnail in the chat and are kept with the conversation."),

@@ -99,6 +99,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     // process (lazy — happens on the FIRST image send, never at model load;
     // eager projector load froze text decode on-device, v1.9.28→30).
     @Volatile private var projectorLoaded = false
+    // Reason the last projector load failed (native mtmd/clip message or the
+    // copy failure), surfaced to the user so a rejected projector says WHY.
+    @Volatile private var projectorError: String? = null
     private val _models = MutableLiveData<List<ModelWithStatus>>(emptyList())
     private val _supportsThinking = MutableLiveData(false)
     private val _thinkingEnabled = MutableLiveData(false)
@@ -1319,7 +1322,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         if (hasReadyImage && _supportsVision.value == true && !projectorLoaded) {
             viewModelScope.launch {
                 if (!ensureProjectorLoaded()) {
-                    _userError.postValue(app.getString(com.druk.lmplayground.R.string.vision_load_failed))
+                    _userError.postValue(visionLoadFailedMessage())
                     return@launch
                 }
                 if (_isGenerating.value != true) dispatchUserMessage(content)
@@ -1362,18 +1365,39 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         val model = llamaModel ?: return false
         val mmproj = _loadedModel.value?.mmprojFilename ?: return false
         _loadedModelStatus.postValue(app.getString(com.druk.lmplayground.R.string.loading_vision))
-        val ok = withContext(Dispatchers.IO) {
+        // null reason == success; a non-null string is the failure reason to show.
+        val reason: String? = withContext(Dispatchers.IO) {
             try {
                 val path = storageRepository.resolveMmprojToPath(mmproj)
-                path != null && model.loadMmproj(path)
+                    ?: return@withContext "couldn't read the projector file"
+                if (model.loadMmproj(path)) null
+                else model.getMmprojError().ifBlank { "projector failed to load" }
             } catch (t: Throwable) {
                 android.util.Log.e("ConversationViewModel", "projector load failed", t)
-                false
+                t.message ?: "projector load error"
             }
         }
         _loadedModelStatus.postValue(loadedModelDescription)
-        if (ok) projectorLoaded = true
-        return ok
+        projectorError = reason
+        if (reason == null) projectorLoaded = true
+        return reason == null
+    }
+
+    /**
+     * The user-facing message for a failed projector load — leads with the
+     * native mtmd/clip reason (why the projector was rejected) so it's visible
+     * in the toast, trimmed to one line.
+     */
+    private fun visionLoadFailedMessage(): String {
+        val reason = projectorError
+            ?.replace(Regex("\\s+"), " ")
+            ?.trim()
+            ?.take(180)
+        return if (!reason.isNullOrBlank()) {
+            app.getString(com.druk.lmplayground.R.string.vision_load_failed_reason, reason)
+        } else {
+            app.getString(com.druk.lmplayground.R.string.vision_load_failed)
+        }
     }
 
     /** Distribute one shared budget (~half the context window, under the binder cap) across files. */
@@ -1594,18 +1618,23 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     message.attachments.firstOrNull {
                         it.kind == AttachmentKind.IMAGE && it.localPath != null
                     }?.let { imageAtt ->
-                        val staged = ensureProjectorLoaded() &&
-                            runCatching {
+                        if (!ensureProjectorLoaded()) {
+                            // Projector rejected — surface WHY (native reason).
+                            android.util.Log.w("ConversationViewModel", "image turn: projector not loaded, text-only")
+                            _userError.postValue(visionLoadFailedMessage())
+                        } else {
+                            val staged = runCatching {
                                 llamaSession.attachProjector() &&
                                     File(imageAtt.localPath!!).readBytes()
                                         .takeIf { it.isNotEmpty() && it.size <= InferenceLimits.MAX_PAYLOAD_BYTES }
                                         ?.also { llamaSession.setImageData(it) } != null
                             }.getOrDefault(false)
-                        if (!staged) {
-                            android.util.Log.w("ConversationViewModel", "image staging failed, sending text-only")
-                            _userError.postValue(
-                                app.getString(com.druk.lmplayground.R.string.image_attach_failed)
-                            )
+                            if (!staged) {
+                                android.util.Log.w("ConversationViewModel", "image staging failed, sending text-only")
+                                _userError.postValue(
+                                    app.getString(com.druk.lmplayground.R.string.image_attach_failed)
+                                )
+                            }
                         }
                     }
                     llamaSession.addMessage(modelPrompt, enableThinking)

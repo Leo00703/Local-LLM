@@ -71,7 +71,8 @@ fun AttachmentChip(
     onRemove: (() -> Unit)? = null,
 ) {
     var showPreview by remember { mutableStateOf(false) }
-    val canPreview = (previewText != null || previewPdfPath != null) && !extracting && errorText == null
+    val canPreview = (previewText != null || previewPdfPath != null || imagePath != null) &&
+        !extracting && errorText == null
     // An image-only PDF (pages but no extractable text) shows a label, not a token count.
     val imageOnly = previewPdfPath != null && previewText.isNullOrBlank()
     val tokenText = tokenCount?.let { formatTokens(it) }
@@ -186,13 +187,17 @@ fun AttachmentChip(
         }
     }
     if (showPreview) {
-        FilePreviewDialog(
-            filename = filename,
-            mime = mime,
-            text = previewText ?: "",
-            rawText = previewRaw,
-            pdfPath = previewPdfPath,
-            onDismiss = { showPreview = false },
-        )
+        if (imagePath != null) {
+            ImagePreviewDialog(path = imagePath, onDismiss = { showPreview = false })
+        } else {
+            FilePreviewDialog(
+                filename = filename,
+                mime = mime,
+                text = previewText ?: "",
+                rawText = previewRaw,
+                pdfPath = previewPdfPath,
+                onDismiss = { showPreview = false },
+            )
+        }
     }
 }

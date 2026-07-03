@@ -12,6 +12,14 @@
 #include "mtmd-helper.h"   // mtmd_helper_bitmap_init_from_buf / _eval_chunks
 
 #include <atomic>
+#include <string>
+
+// Native log capture (defined in native-lib.cpp): while begun, ERROR/WARN log
+// lines are teed into a buffer. loadMmproj() uses this to surface the real
+// mtmd/clip rejection reason (n_embd mismatch, unknown projector, OOM, …) to
+// the UI instead of a generic failure.
+void native_log_capture_begin();
+std::string native_log_capture_end();
 
 struct SamplerParams {
     int n_ctx;
@@ -206,6 +214,11 @@ public:
     // True once a vision-capable mmproj has been loaded via loadMmproj().
     bool supportsVision();
 
+    // Human-readable reason the LAST loadMmproj() failed (empty on success or if
+    // it was never called). Captured from the mtmd/clip log so the UI can show
+    // WHY a projector was rejected instead of a generic error.
+    std::string getMmprojError() const { return mmproj_error; }
+
     // Borrow the projector context (null if none loaded). Used to attach the
     // projector to already-created sessions in the lazy vision flow.
     mtmd_context * getProjector() { return mctx; }
@@ -220,6 +233,8 @@ private:
     // Multimodal projector context (image encoder). Null until loadMmproj()
     // succeeds; owned here and freed in unloadModel().
     mtmd_context *mctx = nullptr;
+    // Reason the last loadMmproj() failed (captured mtmd/clip log), for the UI.
+    std::string mmproj_error;
 };
 
 #endif //LMPLAYGROUND_LLAMACPP_H

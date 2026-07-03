@@ -97,7 +97,9 @@ bool LlamaModel::supportsToolCalling() {
 }
 
 bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
+    mmproj_error.clear();
     if (model == nullptr) {
+        mmproj_error = "text model not loaded";
         return false;
     }
     // Replace any previously loaded projector.
@@ -118,18 +120,27 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
     // whole :llama service — taking the app down and breaking every subsequent
     // model load until restart. Catch it so a bad projector just means "no
     // vision" and the text model stays usable.
+    // mtmd_init_from_file swallows its own exceptions (logs e.what() via the log
+    // callback, returns nullptr), so the real reason only reaches the log. Tee
+    // the log around the call to recover it for the UI.
+    native_log_capture_begin();
     try {
         mctx = mtmd_init_from_file(mmprojPath.c_str(), model, mparams);
     } catch (...) {
         LOG_ERR("%s: mmproj load threw for '%s'\n", __func__, mmprojPath.c_str());
         mctx = nullptr;
-        return false;
     }
+    std::string captured = native_log_capture_end();
     if (mctx == nullptr) {
         LOG_ERR("%s: failed to load mmproj '%s'\n", __func__, mmprojPath.c_str());
+        mmproj_error = captured.empty() ? "projector failed to load" : captured;
         return false;
     }
-    return mtmd_support_vision(mctx);
+    if (!mtmd_support_vision(mctx)) {
+        mmproj_error = "this projector has no vision encoder";
+        return false;
+    }
+    return true;
 }
 
 bool LlamaModel::supportsVision() {

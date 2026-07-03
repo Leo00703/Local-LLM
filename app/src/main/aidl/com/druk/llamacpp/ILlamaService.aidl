@@ -60,6 +60,8 @@ interface ILlamaService {
      * the projector loaded and supports vision.
      */
     boolean loadMmproj(int modelId, String path);
+    /** Reason the last [loadMmproj] failed for this model (empty on success). */
+    String getMmprojError(int modelId);
     void unloadModel(int modelId);
 
     // ── Session lifecycle ────────────────────────────────────────────────

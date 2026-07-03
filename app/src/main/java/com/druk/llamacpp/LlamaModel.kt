@@ -23,6 +23,8 @@ class LlamaModel internal constructor(
 
     override fun loadMmproj(path: String): Boolean = client.withService { it.loadMmproj(modelId, path) }
 
+    override fun getMmprojError(): String = client.withService { it.getMmprojError(modelId) }
+
     override fun unloadModel() {
         try {
             client.withService { it.unloadModel(modelId) }

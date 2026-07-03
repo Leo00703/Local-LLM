@@ -21,6 +21,8 @@ interface GenerationModel {
      * no-op returning false for backends without on-device vision (remote).
      */
     fun loadMmproj(path: String): Boolean = false
+    /** Reason the last [loadMmproj] failed (empty on success / not supported). */
+    fun getMmprojError(): String = ""
     fun unloadModel()
     fun createSession(
         contextSize: Int,
