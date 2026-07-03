@@ -109,7 +109,19 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
     mparams.use_gpu = false;         // CPU-only vision encoder (Phase 1)
     mparams.print_timings = false;
     mparams.warmup = false;          // no warmup encode pass at load time
-    mctx = mtmd_init_from_file(mmprojPath.c_str(), model, mparams);
+    // Guard the projector load: an incompatible/oversized mmproj (or an OOM
+    // while loading the CLIP weights) can THROW from mtmd_init_from_file. If
+    // that propagated across the JNI boundary it would std::terminate the
+    // whole :llama service — taking the app down and breaking every subsequent
+    // model load until restart. Catch it so a bad projector just means "no
+    // vision" and the text model stays usable.
+    try {
+        mctx = mtmd_init_from_file(mmprojPath.c_str(), model, mparams);
+    } catch (...) {
+        LOG_ERR("%s: mmproj load threw for '%s'\n", __func__, mmprojPath.c_str());
+        mctx = nullptr;
+        return false;
+    }
     if (mctx == nullptr) {
         LOG_ERR("%s: failed to load mmproj '%s'\n", __func__, mmprojPath.c_str());
         return false;

@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.29", "Vision loading hardened", listOf(
+        Change(ChangeType.FIX, "An incompatible or oversized vision projector can no longer crash the app or block loading other models — a failed projector now just means the model loads as text."),
+        Change(ChangeType.FIX, "Tightened model↔projector pairing so an unrelated model is never tagged as vision by mistake."),
+    )),
     ChangelogEntry("1.9.28", "Vision models recognised", listOf(
         Change(ChangeType.NEW, "Drop a vision model together with its mmproj projector in your models folder and it's now detected automatically — shown with an image badge in the model list."),
         Change(ChangeType.NEW, "Loading such a model attaches its projector on-device. Attaching and sending images arrives in the next update."),

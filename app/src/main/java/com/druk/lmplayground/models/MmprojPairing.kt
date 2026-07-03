@@ -15,9 +15,11 @@ object MmprojPairing {
 
     /**
      * Pick the mmproj that best pairs with [modelFilename] from [mmprojFilenames]
-     * (bare names). Chooses the one sharing the most meaningful name tokens; if
-     * none overlap but there's exactly one projector in the folder, assumes it's
-     * the match. Returns null when nothing fits.
+     * (bare names): the one sharing the most meaningful name tokens. Requires at
+     * least one shared token — we deliberately do NOT fall back to "the only
+     * projector in the folder", since that would wrongly tag an unrelated model
+     * as vision (and then try to attach an incompatible projector to it).
+     * Returns null when nothing overlaps.
      */
     fun findMmprojFor(modelFilename: String, mmprojFilenames: List<String>): String? {
         if (mmprojFilenames.isEmpty()) return null
@@ -26,7 +28,6 @@ object MmprojPairing {
             .map { it to tokens(it).count { t -> t in modelTokens } }
             .maxByOrNull { it.second }
         return best?.takeIf { it.second > 0 }?.first
-            ?: mmprojFilenames.singleOrNull()
     }
 
     // Tokens that don't help distinguish a model family (quant levels, format
