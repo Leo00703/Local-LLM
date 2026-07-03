@@ -54,8 +54,8 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
-    ChangelogEntry("1.9.33", "Vision load diagnostics", listOf(
-        Change(ChangeType.IMPROVED, "If a vision model's image projector fails to load, the app now shows a copyable diagnostic (memory + native log) so projector-compatibility issues on sideloaded models can be pinned down."),
+    ChangelogEntry("1.9.34", "Vision load diagnostics", listOf(
+        Change(ChangeType.IMPROVED, "If a vision model's image projector fails to load, the app now shows a copyable diagnostic (memory + the native crash report) so projector-compatibility issues on sideloaded models can be pinned down precisely."),
     )),
     ChangelogEntry("1.9.32", "Image preview + clearer vision errors", listOf(
         Change(ChangeType.NEW, "Tap an attached or sent image to view it full-screen — pinch to zoom, tap to close, just like the document and PDF previews."),
