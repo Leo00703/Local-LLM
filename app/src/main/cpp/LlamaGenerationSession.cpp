@@ -219,6 +219,10 @@ void LlamaGenerationSession::requestAbort() {
     abort_requested.store(true);
 }
 
+void LlamaGenerationSession::setProjector(mtmd_context *mmctx) {
+    mctx = mmctx;
+}
+
 void LlamaGenerationSession::setImageData(const uint8_t *data, size_t len) {
     if (data == nullptr || len == 0) {
         pending_image_data.clear();
@@ -240,6 +244,20 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
     prev_len = 0;
     last_full_prompt.clear();
     last_prompt_end_pos = 0;
+
+    // mtmd_tokenize is handed exactly ONE bitmap, so the rendered prompt must
+    // contain exactly ONE media marker. Earlier image turns left theirs in
+    // [messages]; their embeddings are gone anyway (the KV was just cleared),
+    // so demote old markers to a plain-text placeholder before rendering.
+    {
+        const std::string marker = mtmd_default_marker();
+        for (auto &msg : messages) {
+            size_t pos;
+            while ((pos = msg.content.find(marker)) != std::string::npos) {
+                msg.content.replace(pos, marker.size(), "[image]");
+            }
+        }
+    }
 
     // Compose the user turn with exactly one media marker so the chat template
     // renders it inside the user message; mtmd_tokenize splits the rendered
@@ -287,6 +305,7 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
     pending_image_data.clear();
     if (bmp == nullptr) {
         LOGe("failed to decode staged image");
+        messages.pop_back();
         return 1;
     }
 
@@ -305,6 +324,7 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
         LOGe("mtmd_tokenize failed: %d", tk);
         mtmd_input_chunks_free(chunks);
         mtmd_bitmap_free(bmp);
+        messages.pop_back();
         return 1;
     }
 
@@ -316,6 +336,10 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
     mtmd_bitmap_free(bmp);
     if (ev != 0) {
         LOGe("mtmd_helper_eval_chunks failed: %d", ev);
+        // The KV may hold a partial eval of this turn; wipe it so the pop'd
+        // message can't leave stale tokens behind (next turn re-evals fresh).
+        llama_memory_clear(llama_get_memory(ctx), true);
+        messages.pop_back();
         return 1;
     }
 

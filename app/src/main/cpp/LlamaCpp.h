@@ -48,6 +48,14 @@ public:
     // text path when mctx is null).
     void setImageData(const uint8_t *data, size_t len);
 
+    // Attach (or replace) the projector on a LIVE session. Needed by the lazy
+    // vision flow: the projector is loaded only when the user first sends an
+    // image, which is necessarily AFTER this session was created with
+    // mmctx == null. The pointer is borrowed from the owning LlamaModel, same
+    // lifetime contract as init(). Only call between turns (never while a
+    // decode is in flight on this session).
+    void setProjector(mtmd_context *mmctx);
+
     // Request that any in-progress decode (prompt eval or token generation)
     // abort as soon as the engine next checks the abort callback. Thread-safe:
     // called from the cancel path while a worker thread is inside generate().
@@ -197,6 +205,10 @@ public:
 
     // True once a vision-capable mmproj has been loaded via loadMmproj().
     bool supportsVision();
+
+    // Borrow the projector context (null if none loaded). Used to attach the
+    // projector to already-created sessions in the lazy vision flow.
+    mtmd_context * getProjector() { return mctx; }
 
     bool isLoaded() const { return model != nullptr; }
 

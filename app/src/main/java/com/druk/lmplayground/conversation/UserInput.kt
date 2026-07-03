@@ -25,6 +25,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -45,6 +47,8 @@ import androidx.compose.ui.composed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
@@ -127,6 +131,12 @@ fun UserInput(
     resetScroll: () -> Unit = {},
     onAttachClick: () -> Unit = {},
     attachEnabled: Boolean = false,
+    /**
+     * Non-null when the loaded model can take images (vision): the attach
+     * button then opens a Document / Image menu instead of launching the file
+     * picker directly, and this callback opens the system photo picker.
+     */
+    onAttachImageClick: (() -> Unit)? = null,
 ) {
 
     var textState by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -208,6 +218,7 @@ fun UserInput(
                 onCancelClicked = onCancelClicked,
                 onAttachClick = onAttachClick,
                 attachEnabled = attachEnabled,
+                onAttachImageClick = onAttachImageClick,
                 // On tablet landscape (integrateWithSurface) reduce the row's
                 // vertical padding from 8dp → 2dp so the input dock saves ~12dp
                 // of message area — vertical space is the constrained dimension
@@ -266,6 +277,7 @@ private fun UserInputText(
     onCancelClicked: () -> Unit,
     onAttachClick: () -> Unit = {},
     attachEnabled: Boolean = false,
+    onAttachImageClick: (() -> Unit)? = null,
     compact: Boolean = false
 ) {
     val a11ylabel = stringResource(id = R.string.textfield_desc)
@@ -280,17 +292,48 @@ private fun UserInputText(
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(
-            onClick = onAttachClick,
-            enabled = attachEnabled,
-            modifier = Modifier.padding(start = 2.dp).size(40.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.AttachFile,
-                contentDescription = stringResource(R.string.attach_file),
-                modifier = if (!attachEnabled) Modifier.alpha(0.4f) else Modifier,
-                tint = LocalContentColor.current
-            )
+        // Vision models get a Document / Image menu on the attach button; the
+        // DropdownMenu anchors to the Box wrapping the IconButton. Text-only
+        // models keep the direct-to-file-picker tap.
+        Box(modifier = Modifier.padding(start = 2.dp)) {
+            var attachMenuOpen by remember { mutableStateOf(false) }
+            IconButton(
+                onClick = {
+                    if (onAttachImageClick != null) attachMenuOpen = true else onAttachClick()
+                },
+                enabled = attachEnabled,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AttachFile,
+                    contentDescription = stringResource(R.string.attach_file),
+                    modifier = if (!attachEnabled) Modifier.alpha(0.4f) else Modifier,
+                    tint = LocalContentColor.current
+                )
+            }
+            if (onAttachImageClick != null) {
+                DropdownMenu(
+                    expanded = attachMenuOpen,
+                    onDismissRequest = { attachMenuOpen = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.attach_document)) },
+                        leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null) },
+                        onClick = {
+                            attachMenuOpen = false
+                            onAttachClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.attach_image)) },
+                        leadingIcon = { Icon(Icons.Outlined.Image, contentDescription = null) },
+                        onClick = {
+                            attachMenuOpen = false
+                            onAttachImageClick()
+                        }
+                    )
+                }
+            }
         }
         if (supportsThinking) {
             val isDisabled = status == UserInputStatus.GENERATING

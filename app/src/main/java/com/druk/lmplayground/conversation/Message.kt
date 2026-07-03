@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -23,11 +25,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.druk.lmplayground.R
+import com.druk.lmplayground.files.AttachmentKind
+import java.io.File
 
 private val UserBubbleShape = RoundedCornerShape(20.dp, 20.dp, 4.dp, 20.dp)
 
@@ -51,16 +58,34 @@ fun Message(
         ) {
             // Files the user attached to this turn (their text was fed to the model).
             msg.attachments.forEach { att ->
-                AttachmentChip(
-                    filename = att.name,
-                    tokenCount = estimateTokens(att.extractedText),
-                    truncated = att.truncated,
-                    mime = att.mime,
-                    previewText = att.extractedText,
-                    previewRaw = att.rawText,
-                    previewPdfPath = att.localPath,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
+                if (att.kind == AttachmentKind.IMAGE) {
+                    // Sent image: a rounded thumbnail above the bubble. The file is
+                    // the app-private JPEG copy; if it was cleaned up (deleted chat
+                    // restored from edit history etc.) Coil just renders nothing.
+                    att.localPath?.let { path ->
+                        AsyncImage(
+                            model = File(path),
+                            contentDescription = stringResource(R.string.attached_image),
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .padding(bottom = 4.dp)
+                                .widthIn(max = 220.dp)
+                                .heightIn(max = 280.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                        )
+                    }
+                } else {
+                    AttachmentChip(
+                        filename = att.name,
+                        tokenCount = estimateTokens(att.extractedText),
+                        truncated = att.truncated,
+                        mime = att.mime,
+                        previewText = att.extractedText,
+                        previewRaw = att.rawText,
+                        previewPdfPath = att.localPath,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
             }
             Surface(
                 color = MaterialTheme.colorScheme.primary,

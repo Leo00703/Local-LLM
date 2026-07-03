@@ -39,6 +39,7 @@ import com.druk.lmplayground.files.Attachment
 import com.druk.lmplayground.files.AttachmentKind
 import com.druk.lmplayground.files.FileExtractionResult
 import com.druk.lmplayground.files.FileTextExtractor
+import com.druk.lmplayground.files.ImageTranscoder
 import com.druk.lmplayground.files.StagedAttachment
 import com.druk.lmplayground.files.StagedState
 import com.druk.lmplayground.storage.StoragePreferences
@@ -91,6 +92,13 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     // count ("<name> · <N> tokens"), so the model name is kept too.
     private var notificationModelLine: String? = null
     private var notificationModelName: String? = null
+    // Status line shown under the model name once loaded (the formatted size).
+    // Cached so transient states ("Loading vision…") can restore it after.
+    private var loadedModelDescription: String? = null
+    // True once the current model's mmproj has been loaded into the :llama
+    // process (lazy — happens on the FIRST image send, never at model load;
+    // eager projector load froze text decode on-device, v1.9.28→30).
+    @Volatile private var projectorLoaded = false
     private val _models = MutableLiveData<List<ModelWithStatus>>(emptyList())
     private val _supportsThinking = MutableLiveData(false)
     private val _thinkingEnabled = MutableLiveData(false)
@@ -759,23 +767,15 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     _supportsThinking.postValue(thinkingSupported)
                     val toolCallingSupported = llamaModel.supportsToolCalling()
                     _supportsToolCalling.postValue(toolCallingSupported)
-                    // Vision projector (mmproj) attach.
-                    // TEMPORARILY DISABLED (v1.9.30 A/B test): loading the CLIP
-                    // projector into the :llama process at model-load is the prime
-                    // suspect for the Gemma-4-QAT text-decode hang (it's the ONLY
-                    // model with a paired mmproj, hence the only one that hits this
-                    // path). If loading a model NO LONGER hangs with this off,
-                    // loadMmproj/CLIP is the culprit and vision must load the
-                    // projector lazily/isolated (only when an image is actually
-                    // sent). The picker badge (ModelInfo.isVision) is unaffected.
-                    val visionCapableUnloaded = modelInfo.mmprojFilename != null
-                    _supportsVision.postValue(false)
-                    if (visionCapableUnloaded) {
-                        android.util.Log.i(
-                            "ConversationViewModel",
-                            "vision projector auto-load DISABLED for A/B (mmproj=${modelInfo.mmprojFilename})"
-                        )
-                    }
+                    // Vision: the attach UI lights up from the mmproj pairing
+                    // alone — the CLIP projector itself loads LAZILY on the
+                    // first image send (ensureVisionReady), NEVER here. The
+                    // v1.9.28→30 on-device A/B proved that merely loading the
+                    // projector at model-load froze the subsequent text decode
+                    // (mechanism OS-level, not reproducible statically), so
+                    // text-only chat must stay structurally projector-free.
+                    projectorLoaded = false
+                    _supportsVision.postValue(modelInfo.mmprojFilename != null)
                     // Cache the real, template-detected capabilities so the model
                     // list can show accurate badges for this model (and any custom
                     // GGUF) without having to load it again.
@@ -797,6 +797,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         _toolEnabledStates.postValue(emptyMap())
                     }
                     _modelLoadingProgress.postValue(0f)
+                    loadedModelDescription = modelDescription
                     _loadedModelStatus.postValue(modelDescription)
                     _sessionModelHint.postValue(null)
                     _contextUsedTokens.postValue(0)
@@ -1176,6 +1177,51 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Pick-time: stage a gallery image for the vision pipeline. The image is
+     * transcoded off-main to a bounded JPEG (see [ImageTranscoder]) and copied
+     * into app-private storage; no text extraction. One image per message: a
+     * newly picked image replaces any image already staged.
+     */
+    @MainThread
+    fun stageImageAttachment(uri: Uri, filename: String?) {
+        // v1: a message carries at most one image (the native turn evaluates
+        // exactly one bitmap) — picking again swaps the staged image.
+        _stagedAttachments.value.orEmpty()
+            .filter { it.kind == AttachmentKind.IMAGE }
+            .forEach { removeStagedAttachment(it.id) }
+        val id = ++stagedIdCounter
+        val name = filename?.takeIf { it.isNotBlank() }
+            ?: app.getString(com.druk.lmplayground.R.string.attach_image)
+        _stagedAttachments.value = _stagedAttachments.value.orEmpty() +
+            StagedAttachment(id, uri, name, "image/jpeg", AttachmentKind.IMAGE)
+        viewModelScope.launch {
+            val localPath = withContext(Dispatchers.IO) {
+                val bytes = ImageTranscoder.transcode(app, uri) ?: return@withContext null
+                val out = File(attachmentsDir.apply { mkdirs() }, UUID.randomUUID().toString() + ".jpg")
+                try {
+                    out.writeBytes(bytes)
+                    out.absolutePath
+                } catch (t: Throwable) {
+                    out.delete()
+                    null
+                }
+            }
+            // Removed while transcoding? Discard the copy instead of leaking it.
+            if (_stagedAttachments.value.orEmpty().none { it.id == id }) {
+                deleteAttachmentFile(localPath)
+                return@launch
+            }
+            val state = if (localPath != null) {
+                StagedState.Ready("", 0, false, null, localPath)
+            } else {
+                StagedState.Error(app.getString(com.druk.lmplayground.R.string.image_attach_failed))
+            }
+            _stagedAttachments.value = _stagedAttachments.value.orEmpty()
+                .map { if (it.id == id) it.copy(state = state) else it }
+        }
+    }
+
     @MainThread
     fun removeStagedAttachment(id: Long) {
         val current = _stagedAttachments.value.orEmpty()
@@ -1264,14 +1310,70 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     @MainThread
     fun sendUserMessage(content: String) {
         if (_isGenerating.value == true) return
+        val hasReadyImage = _stagedAttachments.value.orEmpty()
+            .any { it.kind == AttachmentKind.IMAGE && it.state is StagedState.Ready }
+        // Lazy vision: the CLIP projector loads only now, at the first image
+        // send — never at model load (eager load froze text decode on-device,
+        // v1.9.28→30). On failure the chips stay staged and nothing is sent,
+        // matching the vision_load_failed copy.
+        if (hasReadyImage && _supportsVision.value == true && !projectorLoaded) {
+            viewModelScope.launch {
+                if (!ensureProjectorLoaded()) {
+                    _userError.postValue(app.getString(com.druk.lmplayground.R.string.vision_load_failed))
+                    return@launch
+                }
+                if (_isGenerating.value != true) dispatchUserMessage(content)
+            }
+            return
+        }
+        dispatchUserMessage(content)
+    }
+
+    @MainThread
+    private fun dispatchUserMessage(content: String) {
         val staged = _stagedAttachments.value.orEmpty()
         _stagedAttachments.value = emptyList()
-        val ready = staged.mapNotNull { s -> (s.state as? StagedState.Ready)?.let { s to it } }
+        var ready = staged.mapNotNull { s -> (s.state as? StagedState.Ready)?.let { s to it } }
+        // An image staged for a model that can't see (switched models after
+        // picking) can't be sent — drop it with a heads-up, keep documents.
+        if (_supportsVision.value != true &&
+            ready.any { (s, _) -> s.kind == AttachmentKind.IMAGE }
+        ) {
+            ready.filter { (s, _) -> s.kind == AttachmentKind.IMAGE }
+                .forEach { (_, r) -> deleteAttachmentFile(r.localPath) }
+            ready = ready.filter { (s, _) -> s.kind != AttachmentKind.IMAGE }
+            _userError.postValue(app.getString(com.druk.lmplayground.R.string.image_attach_failed))
+        }
         if (ready.isEmpty()) {
             addMessage(Message("User", content))
             return
         }
         addMessage(Message("User", content, attachments = buildAttachments(ready, content)))
+    }
+
+    /**
+     * Load the current model's mmproj/CLIP projector into the :llama process —
+     * once per loaded model ([projectorLoaded]). Shows the transient
+     * "Loading vision…" status while the SAF copy + native load run (can take
+     * seconds for a multi-hundred-MB projector), then restores the size line.
+     */
+    private suspend fun ensureProjectorLoaded(): Boolean {
+        if (projectorLoaded) return true
+        val model = llamaModel ?: return false
+        val mmproj = _loadedModel.value?.mmprojFilename ?: return false
+        _loadedModelStatus.postValue(app.getString(com.druk.lmplayground.R.string.loading_vision))
+        val ok = withContext(Dispatchers.IO) {
+            try {
+                val path = storageRepository.resolveMmprojToPath(mmproj)
+                path != null && model.loadMmproj(path)
+            } catch (t: Throwable) {
+                android.util.Log.e("ConversationViewModel", "projector load failed", t)
+                false
+            }
+        }
+        _loadedModelStatus.postValue(loadedModelDescription)
+        if (ok) projectorLoaded = true
+        return ok
     }
 
     /** Distribute one shared budget (~half the context window, under the binder cap) across files. */
@@ -1283,6 +1385,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         val byteCeilingChars = (InferenceLimits.MAX_PAYLOAD_BYTES / 2) - userContent.length - 512
         var remaining = minOf((contextSize * 0.5).toInt() * 4, byteCeilingChars).coerceAtLeast(0)
         return ready.map { (s, r) ->
+            if (s.kind == AttachmentKind.IMAGE) {
+                // Images carry no prompt text (the pixels go through the vision
+                // pipeline via localPath) and don't consume the text budget.
+                return@map Attachment(s.filename, s.mimeType, AttachmentKind.IMAGE, "", 0, false, null, r.localPath)
+            }
             val text = if (r.text.length > remaining) r.text.take(remaining) else r.text
             val truncated = r.truncated || text.length < r.text.length
             remaining = (remaining - text.length).coerceAtLeast(0)
@@ -1477,6 +1584,30 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     // info is unavailable. Pruning the cache directory is
                     // best-effort; failures don't block generation.
                     applyPreambleCache(llamaSession, toolsJson)
+                    // Image turn: make sure the projector is loaded (covers
+                    // regenerate/edit-resend, where sendUserMessage's gate is
+                    // bypassed) AND attached to THIS session — sessions are
+                    // recreated on param/system-prompt changes and only pick up
+                    // the projector at create time. Then stage the JPEG bytes;
+                    // the native addMessage takes the mtmd path when both are
+                    // set. On any failure the turn degrades to text-only.
+                    message.attachments.firstOrNull {
+                        it.kind == AttachmentKind.IMAGE && it.localPath != null
+                    }?.let { imageAtt ->
+                        val staged = ensureProjectorLoaded() &&
+                            runCatching {
+                                llamaSession.attachProjector() &&
+                                    File(imageAtt.localPath!!).readBytes()
+                                        .takeIf { it.isNotEmpty() && it.size <= InferenceLimits.MAX_PAYLOAD_BYTES }
+                                        ?.also { llamaSession.setImageData(it) } != null
+                            }.getOrDefault(false)
+                        if (!staged) {
+                            android.util.Log.w("ConversationViewModel", "image staging failed, sending text-only")
+                            _userError.postValue(
+                                app.getString(com.druk.lmplayground.R.string.image_attach_failed)
+                            )
+                        }
+                    }
                     llamaSession.addMessage(modelPrompt, enableThinking)
                     // Reflect the prompt (incl. any attachment) in the ring now,
                     // before the first token, so it doesn't sit at the old value.

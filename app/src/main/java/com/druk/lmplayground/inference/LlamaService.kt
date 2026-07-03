@@ -321,6 +321,12 @@ class LlamaService : Service() {
             sessions[sessionId]?.nativeSession?.setImageData(data)
         }
 
+        override fun attachProjector(sessionId: Int): Boolean {
+            val entry = sessions[sessionId] ?: return false
+            val model = models[entry.modelId] ?: return false
+            return entry.nativeSession.attachProjector(model.nativeModel)
+        }
+
         override fun beginReplayHistory(sessionId: Int) {
             sessions[sessionId]?.let {
                 it.pendingReplayUsers.clear()

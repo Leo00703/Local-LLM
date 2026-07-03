@@ -109,6 +109,9 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
     mparams.use_gpu = false;         // CPU-only vision encoder (Phase 1)
     mparams.print_timings = false;
     mparams.warmup = false;          // no warmup encode pass at load time
+    // Image-encode threads: same count the generation session uses for decode
+    // (mtmd only reads this at encode time, never during init).
+    mparams.n_threads = std::max(1, std::min(4, (int) sysconf(_SC_NPROCESSORS_ONLN) - 2));
     // Guard the projector load: an incompatible/oversized mmproj (or an OOM
     // while loading the CLIP weights) can THROW from mtmd_init_from_file. If
     // that propagated across the JNI boundary it would std::terminate the

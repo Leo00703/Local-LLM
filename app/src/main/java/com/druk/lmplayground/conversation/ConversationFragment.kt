@@ -63,8 +63,10 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.Fragment
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.viewModels
+import com.druk.lmplayground.files.AttachmentKind
 import com.druk.lmplayground.files.StagedState
 import androidx.core.os.bundleOf
 import androidx.navigation.fragment.findNavController
@@ -111,6 +113,13 @@ class ConversationFragment : Fragment() {
         }
     }
 
+    /** System photo picker (no storage permission) for the vision attach flow. */
+    private val pickImageLauncher = registerForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let { viewModel.stageImageAttachment(it, resolveDisplayName(it)) }
+    }
+
     private fun resolveDisplayName(uri: Uri): String {
         requireContext().contentResolver
             .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
@@ -149,6 +158,7 @@ class ConversationFragment : Fragment() {
             val modelStatus by viewModel.loadedModelStatus.observeAsState()
             val supportsThinking by viewModel.supportsThinking.observeAsState(false)
             val supportsToolCalling by viewModel.supportsToolCalling.observeAsState(false)
+            val supportsVision by viewModel.supportsVision.observeAsState(false)
             val showToolsSetup by viewModel.showToolsSetup.observeAsState(false)
             val showGenerationStats by viewModel.showGenerationStats.observeAsState(true)
             val contextUsed by viewModel.contextUsedTokens.observeAsState(0)
@@ -648,16 +658,20 @@ class ConversationFragment : Fragment() {
                                 ) {
                                     stagedAttachments.forEach { sa ->
                                         val ready = sa.state as? StagedState.Ready
+                                        val isImage = sa.kind == AttachmentKind.IMAGE
                                         AttachmentChip(
                                             filename = sa.filename,
                                             extracting = sa.state is StagedState.Extracting,
-                                            tokenCount = ready?.let { estimateTokens(it.text) },
+                                            tokenCount = if (isImage) null else ready?.let { estimateTokens(it.text) },
                                             truncated = ready?.truncated == true,
                                             errorText = (sa.state as? StagedState.Error)?.message,
                                             mime = sa.mimeType,
-                                            previewText = ready?.text,
+                                            previewText = if (isImage) null else ready?.text,
                                             previewRaw = ready?.rawText,
-                                            previewPdfPath = ready?.localPath,
+                                            // localPath is the PDF copy for documents but the
+                                            // JPEG for images — never feed a JPEG to the PDF preview.
+                                            previewPdfPath = if (isImage) null else ready?.localPath,
+                                            imagePath = if (isImage) ready?.localPath else null,
                                             onRemove = { viewModel.removeStagedAttachment(sa.id) },
                                         )
                                     }
@@ -702,6 +716,23 @@ class ConversationFragment : Fragment() {
                                     }
                                 },
                                 attachEnabled = isModelReady && isGenerating != true,
+                                onAttachImageClick = if (supportsVision) {
+                                    {
+                                        try {
+                                            pickImageLauncher.launch(
+                                                PickVisualMediaRequest(
+                                                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                                                )
+                                            )
+                                        } catch (_: android.content.ActivityNotFoundException) {
+                                            android.widget.Toast.makeText(
+                                                requireContext(),
+                                                R.string.folder_picker_unavailable,
+                                                android.widget.Toast.LENGTH_LONG,
+                                            ).show()
+                                        }
+                                    }
+                                } else null,
                                 onCancelClicked = {
                                     viewModel.cancelGeneration()
                                 },

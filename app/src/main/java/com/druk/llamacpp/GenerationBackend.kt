@@ -51,4 +51,12 @@ interface GenerationBackend {
      * on-device vision (e.g. remote) inherit it unchanged.
      */
     fun setImageData(data: ByteArray) {}
+
+    /**
+     * Attach the model's already-loaded vision projector to this LIVE session
+     * (the lazy vision flow loads the projector only at the first image send,
+     * after sessions exist). Returns true when a vision-capable projector is
+     * attached. Default false so non-vision backends inherit it unchanged.
+     */
+    fun attachProjector(): Boolean = false
 }

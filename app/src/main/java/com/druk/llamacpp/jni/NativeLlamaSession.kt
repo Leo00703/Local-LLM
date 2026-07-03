@@ -13,6 +13,14 @@ class NativeLlamaSession {
     /** Stage encoded image bytes (jpg/png/…) for the next [addMessage] turn. */
     external fun setImageData(data: ByteArray)
 
+    /**
+     * Attach [model]'s already-loaded projector (mmproj) to this LIVE session —
+     * the lazy vision flow loads the projector after sessions exist. Returns
+     * true if a vision-capable projector is now attached. Call only between
+     * turns, never while this session is generating.
+     */
+    external fun attachProjector(model: NativeLlamaModel): Boolean
+
     /** Interrupt an in-progress decode (prompt eval or generation) ASAP. */
     external fun requestAbort()
 

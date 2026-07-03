@@ -54,6 +54,12 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.31", "Send images to vision models", listOf(
+        Change(ChangeType.NEW, "Attach a photo from your gallery and ask about it — the attach button now offers Document / Image for vision models (those with an mmproj projector in your models folder)."),
+        Change(ChangeType.NEW, "Sent images show as a thumbnail in the chat and are kept with the conversation."),
+        Change(ChangeType.IMPROVED, "The vision projector loads only at your first image, so text chats stay as fast as ever; the model line shows \"Loading vision…\" while it loads."),
+        Change(ChangeType.IMPROVED, "Photos are downscaled on-device before reaching the model — HEIC from the camera works, and portrait shots stay upright."),
+    )),
     ChangelogEntry("1.9.30", "Vision projector no longer auto-loads", listOf(
         Change(ChangeType.FIX, "Paired vision models no longer load their image projector at startup — this was causing some sideloaded models to hang when generating. Image support will load the projector only when an image is attached."),
     )),

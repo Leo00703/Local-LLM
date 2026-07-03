@@ -96,8 +96,11 @@ extern "C" JNIEXPORT int
 JNICALL
 Java_com_druk_llamacpp_jni_NativeLlamaCpp_init(JNIEnv *env, jobject object, jstring nativeLibDir) {
 
-    // Redirect std::cerr to logcat
-    AndroidLogBuf androidLogBuf;
+    // Redirect std::cerr to logcat. Must be static: std::cerr keeps the
+    // streambuf pointer forever, so a stack-allocated buffer here would
+    // dangle the moment init() returns (use-after-return on any later
+    // std::cerr write from native code).
+    static AndroidLogBuf androidLogBuf;
     std::cerr.rdbuf(&androidLogBuf);
 
     llama_log_set(log_callback, NULL);
@@ -342,6 +345,28 @@ Java_com_druk_llamacpp_jni_NativeLlamaSession_setImageData(JNIEnv *env,
     session->setImageData(reinterpret_cast<const uint8_t*>(bytes), (size_t) len);
     // JNI_ABORT: read-only, don't copy the (possibly large) buffer back.
     env->ReleaseByteArrayElements(data, bytes, JNI_ABORT);
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_druk_llamacpp_jni_NativeLlamaSession_attachProjector(JNIEnv *env,
+                                                              jobject thiz,
+                                                              jobject jmodel) {
+    jclass sessionClazz = env->GetObjectClass(thiz);
+    jfieldID sessionFid = env->GetFieldID(sessionClazz, "nativeHandle", "J");
+    auto *session = (LlamaGenerationSession*)env->GetLongField(thiz, sessionFid);
+    if (session == nullptr || jmodel == nullptr) {
+        return JNI_FALSE;
+    }
+    jclass modelClazz = env->GetObjectClass(jmodel);
+    jfieldID modelFid = env->GetFieldID(modelClazz, "nativeHandle", "J");
+    auto *model = (LlamaModel*)env->GetLongField(jmodel, modelFid);
+    if (model == nullptr) {
+        return JNI_FALSE;
+    }
+    mtmd_context *proj = model->getProjector();
+    session->setProjector(proj);
+    return (proj != nullptr && model->supportsVision()) ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C"

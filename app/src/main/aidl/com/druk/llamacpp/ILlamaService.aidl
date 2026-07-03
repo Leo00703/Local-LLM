@@ -71,6 +71,15 @@ interface ILlamaService {
     void setImageData(int sessionId, in byte[] data);
 
     /**
+     * Attach the parent model's already-loaded projector (see [loadMmproj]) to
+     * this LIVE session. The lazy vision flow loads the projector only when the
+     * user first sends an image — after the session was created — so the
+     * session's projector pointer must be set here before [setImageData] +
+     * [addMessage]. Returns true if a vision-capable projector is now attached.
+     */
+    boolean attachProjector(int sessionId);
+
+    /**
      * Replay a conversation history into a fresh session. The full history
      * may be too large for one binder transaction (~1 MB cap, shared with
      * other framework traffic). Each AIDL call here carries **one** string

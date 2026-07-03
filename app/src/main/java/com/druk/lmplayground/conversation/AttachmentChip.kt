@@ -34,10 +34,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.druk.lmplayground.R
+import java.io.File
 
 /** "1234" -> "1.2k" for a compact token count; small numbers stay as-is. */
 private fun formatTokens(n: Int): String =
@@ -48,7 +52,8 @@ private fun formatTokens(n: Int): String =
  * while extracting, or an error). Long-press shows a tooltip above it with the
  * full filename and token count (the chip itself ellipsizes). Used as the
  * removable staged chip above the composer ([onRemove] set) and read-only on a
- * sent user message.
+ * sent user message. For a staged IMAGE attachment, [imagePath] swaps the
+ * document icon for a small thumbnail of the picked photo.
  */
 @Composable
 fun AttachmentChip(
@@ -62,6 +67,7 @@ fun AttachmentChip(
     previewText: String? = null,
     previewRaw: String? = null,
     previewPdfPath: String? = null,
+    imagePath: String? = null,
     onRemove: (() -> Unit)? = null,
 ) {
     var showPreview by remember { mutableStateOf(false) }
@@ -114,6 +120,14 @@ fun AttachmentChip(
                         modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.error,
                     )
+                    imagePath != null -> AsyncImage(
+                        model = File(imagePath),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(6.dp)),
+                    )
                     else -> Icon(
                         imageVector = Icons.Outlined.Description,
                         contentDescription = null,
@@ -132,6 +146,7 @@ fun AttachmentChip(
                     val subtitle = when {
                         extracting -> stringResource(R.string.attachment_reading)
                         errorText != null -> errorText
+                        imagePath != null -> stringResource(R.string.attach_image)
                         imageOnly -> stringResource(R.string.attachment_image_only)
                         tokenText != null -> {
                             val tokens = stringResource(R.string.attachment_token_count, tokenText)
