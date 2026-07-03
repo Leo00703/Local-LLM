@@ -31,6 +31,9 @@ class LlamaGenerationSession internal constructor(
     override fun attachProjector(): Boolean =
         client.withService { it.attachProjector(sessionId) }
 
+    override fun getLastImageTokens(): Int =
+        client.withService { it.getLastImageTokens(sessionId) }
+
     /**
      * Replay a chat history into this session.
      *

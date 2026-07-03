@@ -404,6 +404,16 @@ Java_com_druk_llamacpp_jni_NativeLlamaSession_attachProjector(JNIEnv *env,
 }
 
 extern "C"
+JNIEXPORT jint JNICALL
+Java_com_druk_llamacpp_jni_NativeLlamaSession_getLastImageTokens(JNIEnv *env, jobject thiz) {
+    jclass clazz = env->GetObjectClass(thiz);
+    jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");
+    auto *session = (LlamaGenerationSession*)env->GetLongField(thiz, fid);
+    if (session == nullptr) return 0;
+    return (jint) session->getLastImageTokens();
+}
+
+extern "C"
 JNIEXPORT void JNICALL
 Java_com_druk_llamacpp_jni_NativeLlamaSession_requestAbort(JNIEnv *env, jobject thiz) {
     jclass clazz = env->GetObjectClass(thiz);
@@ -514,6 +524,16 @@ Java_com_druk_llamacpp_jni_NativeLlamaModel_getMmprojError(JNIEnv *env, jobject 
     auto* model = (LlamaModel*) env->GetLongField(thiz, fid);
     if (model == nullptr) return env->NewStringUTF("");
     return env->NewStringUTF(model->getMmprojError().c_str());
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_druk_llamacpp_jni_NativeLlamaModel_setImageMaxTokens(JNIEnv *env, jobject thiz, jint n) {
+    jclass clazz = env->GetObjectClass(thiz);
+    jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");
+    auto* model = (LlamaModel*) env->GetLongField(thiz, fid);
+    if (model == nullptr) return;
+    model->setImageMaxTokens((int) n);
 }
 
 extern "C"

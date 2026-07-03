@@ -59,4 +59,10 @@ interface GenerationBackend {
      * attached. Default false so non-vision backends inherit it unchanged.
      */
     fun attachProjector(): Boolean = false
+
+    /**
+     * Token count of the last image evaluated on this session (0 if none / not
+     * a vision backend). Lets the UI show how much context an image consumed.
+     */
+    fun getLastImageTokens(): Int = 0
 }

@@ -23,6 +23,8 @@ interface GenerationModel {
     fun loadMmproj(path: String): Boolean = false
     /** Reason the last [loadMmproj] failed (empty on success / not supported). */
     fun getMmprojError(): String = ""
+    /** Preferred max image tokens (0 = model default). No-op for non-vision backends. */
+    fun setImageMaxTokens(n: Int) {}
     fun unloadModel()
     fun createSession(
         contextSize: Int,

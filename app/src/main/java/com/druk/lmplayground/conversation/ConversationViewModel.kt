@@ -102,6 +102,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     // Reason the last projector load failed (native mtmd/clip message or the
     // copy failure), surfaced to the user so a rejected projector says WHY.
     @Volatile private var projectorError: String? = null
+    // Token weight of sent images, keyed by the image's app-private localPath.
+    // Filled after the native image turn (getLastImageTokens); the sent bubble
+    // shows "🖼 N token" so the user sees how much context the image used.
+    private val _imageTokenCounts = MutableLiveData<Map<String, Int>>(emptyMap())
     private val _models = MutableLiveData<List<ModelWithStatus>>(emptyList())
     private val _supportsThinking = MutableLiveData(false)
     private val _thinkingEnabled = MutableLiveData(false)
@@ -229,6 +233,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val systemPrompt: LiveData<String> = _systemPrompt
     val systemPromptId: LiveData<String?> = _systemPromptId
     val userError: LiveData<String?> = _userError
+    val imageTokenCounts: LiveData<Map<String, Int>> = _imageTokenCounts
     val projectorDiagnostic: LiveData<String?> = _projectorDiagnostic
     val pendingRamWarning: LiveData<RamWarning?> = _pendingRamWarning
     val modelLoadError: LiveData<String?> = _modelLoadError
@@ -1084,6 +1089,13 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             storagePreferences.setModelGenerationParams(modelFilename, params.toMap())
         }
 
+        // The image-detail (max tokens) preference is baked into the projector at
+        // load time (mtmd image_max_tokens), so a change needs a projector reload.
+        // Force it on the next image send; ensureProjectorLoaded re-reads the value.
+        if (oldParams.imageMaxTokens != params.imageMaxTokens) {
+            projectorLoaded = false
+        }
+
         // Persist to Room if we have an active session
         val sessionId = _currentSessionId.value
         if (sessionId != null) {
@@ -1377,6 +1389,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         val mmproj = _loadedModel.value?.mmprojFilename ?: return false
         _loadedModelStatus.postValue(app.getString(com.druk.lmplayground.R.string.loading_vision))
         // null reason == success; a non-null string is the failure reason to show.
+        // Apply the user's "image detail" preference before the projector loads
+        // (mtmd reads image_max_tokens at init). Higher = more image resolution.
+        model.setImageMaxTokens(_generationParams.value?.imageMaxTokens ?: 256)
         val reason: String? = withContext(Dispatchers.IO) {
             try {
                 val path = storageRepository.resolveMmprojToPath(mmproj)
@@ -1640,6 +1655,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     // the projector at create time. Then stage the JPEG bytes;
                     // the native addMessage takes the mtmd path when both are
                     // set. On any failure the turn degrades to text-only.
+                    // Set to the image's localPath only when the image was
+                    // actually evaluated (mtmd path taken), so we read its token
+                    // weight after addMessage and never show a stale count.
+                    var evaluatedImagePath: String? = null
                     message.attachments.firstOrNull {
                         it.kind == AttachmentKind.IMAGE && it.localPath != null
                     }?.let { imageAtt ->
@@ -1659,10 +1678,23 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                                 _userError.postValue(
                                     app.getString(com.druk.lmplayground.R.string.image_attach_failed)
                                 )
+                            } else {
+                                evaluatedImagePath = imageAtt.localPath
                             }
                         }
                     }
                     llamaSession.addMessage(modelPrompt, enableThinking)
+                    // Image token weight: how much context the image consumed
+                    // (set natively in the image turn). Keyed by localPath so the
+                    // sent bubble can show "🖼 N token".
+                    evaluatedImagePath?.let { path ->
+                        val n = runCatching { llamaSession.getLastImageTokens() }.getOrDefault(0)
+                        if (n > 0) {
+                            _imageTokenCounts.postValue(
+                                (_imageTokenCounts.value ?: emptyMap()) + (path to n)
+                            )
+                        }
+                    }
                     // Reflect the prompt (incl. any attachment) in the ring now,
                     // before the first token, so it doesn't sit at the old value.
                     _contextUsedTokens.postValue(ctxBaseline + promptTokenEstimate)

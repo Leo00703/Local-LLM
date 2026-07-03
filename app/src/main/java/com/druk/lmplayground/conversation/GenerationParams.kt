@@ -8,7 +8,11 @@ data class GenerationParams(
     val topK: Int = 40,
     val minP: Float = 0.05f,
     val seed: Int = -1,
-    val thinkingBudget: Int = contextSize / 4
+    val thinkingBudget: Int = contextSize / 4,
+    // Vision only: max tokens an attached image may use (higher = more image
+    // resolution/detail, more context). Applied to the projector via
+    // mtmd_context_params.image_max_tokens. Ignored by text-only models.
+    val imageMaxTokens: Int = 256
 ) {
     fun toMap(): Map<String, Float> = mapOf(
         "contextSize" to contextSize.toFloat(),
@@ -18,7 +22,8 @@ data class GenerationParams(
         "topK" to topK.toFloat(),
         "minP" to minP,
         "seed" to seed.toFloat(),
-        "thinkingBudget" to thinkingBudget.toFloat()
+        "thinkingBudget" to thinkingBudget.toFloat(),
+        "imageMaxTokens" to imageMaxTokens.toFloat()
     )
 
     companion object {
@@ -32,7 +37,8 @@ data class GenerationParams(
                 topK = map["topK"]?.toInt() ?: 40,
                 minP = map["minP"] ?: 0.05f,
                 seed = map["seed"]?.toInt() ?: -1,
-                thinkingBudget = map["thinkingBudget"]?.toInt() ?: (contextSize / 4)
+                thinkingBudget = map["thinkingBudget"]?.toInt() ?: (contextSize / 4),
+                imageMaxTokens = map["imageMaxTokens"]?.toInt() ?: 256
             )
         }
     }

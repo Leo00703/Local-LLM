@@ -62,6 +62,8 @@ interface ILlamaService {
     boolean loadMmproj(int modelId, String path);
     /** Reason the last [loadMmproj] failed for this model (empty on success). */
     String getMmprojError(int modelId);
+    /** Set the preferred max image tokens (0 = model default); applied at next loadMmproj. */
+    void setImageMaxTokens(int modelId, int n);
     void unloadModel(int modelId);
 
     // ── Session lifecycle ────────────────────────────────────────────────
@@ -71,6 +73,9 @@ interface ILlamaService {
 
     /** Stage encoded image bytes (jpg/png/…) for the next addMessage on this session. */
     void setImageData(int sessionId, in byte[] data);
+
+    /** Token count of the last image evaluated on this session (0 if none). */
+    int getLastImageTokens(int sessionId);
 
     /**
      * Attach the parent model's already-loaded projector (see [loadMmproj]) to

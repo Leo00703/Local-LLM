@@ -281,6 +281,10 @@ class LlamaService : Service() {
         override fun getMmprojError(modelId: Int): String =
             models[modelId]?.nativeModel?.getMmprojError() ?: ""
 
+        override fun setImageMaxTokens(modelId: Int, n: Int) {
+            models[modelId]?.nativeModel?.setImageMaxTokens(n)
+        }
+
         override fun unloadModel(modelId: Int) {
             val entry = models[modelId] ?: return
             // Mark for destroy first (DON'T remove from `models` yet).
@@ -329,6 +333,9 @@ class LlamaService : Service() {
             val model = models[entry.modelId] ?: return false
             return entry.nativeSession.attachProjector(model.nativeModel)
         }
+
+        override fun getLastImageTokens(sessionId: Int): Int =
+            sessions[sessionId]?.nativeSession?.getLastImageTokens() ?: 0
 
         override fun beginReplayHistory(sessionId: Int) {
             sessions[sessionId]?.let {

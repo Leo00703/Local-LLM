@@ -328,6 +328,16 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
         return 1;
     }
 
+    // Image token weight (sum over image chunks) for the UI. Reflects the
+    // resolution the projector chose for this image (see image_max_tokens).
+    last_image_tokens = 0;
+    for (size_t i = 0; i < mtmd_input_chunks_size(chunks); ++i) {
+        const mtmd_input_chunk *chunk = mtmd_input_chunks_get(chunks, i);
+        if (mtmd_input_chunk_get_type(chunk) == MTMD_INPUT_CHUNK_TYPE_IMAGE) {
+            last_image_tokens += (int) mtmd_input_chunk_get_n_tokens(chunk);
+        }
+    }
+
     llama_pos new_n_past = 0;
     int32_t ev = mtmd_helper_eval_chunks(mctx, ctx, chunks, /*n_past=*/0,
                                          /*seq_id=*/0, llama_n_batch(ctx),

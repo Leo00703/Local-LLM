@@ -114,6 +114,11 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
     // Image-encode threads: same count the generation session uses for decode
     // (mtmd only reads this at encode time, never during init).
     mparams.n_threads = std::max(1, std::min(4, (int) sysconf(_SC_NPROCESSORS_ONLN) - 2));
+    // User "image detail" slider: cap the tokens an image may use (higher =
+    // more resolution). 0 leaves the model's metadata default untouched.
+    if (image_max_tokens_pref > 0) {
+        mparams.image_max_tokens = image_max_tokens_pref;
+    }
     // Guard the projector load: an incompatible/oversized mmproj (or an OOM
     // while loading the CLIP weights) can THROW from mtmd_init_from_file. If
     // that propagated across the JNI boundary it would std::terminate the

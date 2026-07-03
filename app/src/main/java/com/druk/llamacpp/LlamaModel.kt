@@ -25,6 +25,8 @@ class LlamaModel internal constructor(
 
     override fun getMmprojError(): String = client.withService { it.getMmprojError(modelId) }
 
+    override fun setImageMaxTokens(n: Int) { client.withService { it.setImageMaxTokens(modelId, n) } }
+
     override fun unloadModel() {
         try {
             client.withService { it.unloadModel(modelId) }

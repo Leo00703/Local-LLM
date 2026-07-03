@@ -39,5 +39,12 @@ class NativeLlamaModel {
     /** Human-readable reason the last [loadMmproj] failed (empty on success). */
     external fun getMmprojError(): String
 
+    /**
+     * Preferred max tokens an image may use (0 = model default). Higher = more
+     * image resolution/detail. Read at the next [loadMmproj]; changing it after
+     * the projector is loaded requires a reload to take effect.
+     */
+    external fun setImageMaxTokens(n: Int)
+
     external fun unloadModel()
 }

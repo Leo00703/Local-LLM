@@ -52,7 +52,9 @@ fun Message(
     canRegenerate: Boolean = false,
     onRegenerate: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
-    onTokenCountClicked: (() -> Unit)? = null
+    onTokenCountClicked: (() -> Unit)? = null,
+    // Token weight of sent images, keyed by localPath (shown under the thumbnail).
+    imageTokens: Map<String, Int> = emptyMap()
 ) {
     if (isUserMe) {
         // Tap a sent image to open it full-screen (like the doc/PDF preview).
@@ -70,17 +72,27 @@ fun Message(
                     // the app-private JPEG copy; if it was cleaned up (deleted chat
                     // restored from edit history etc.) Coil just renders nothing.
                     att.localPath?.let { path ->
-                        AsyncImage(
-                            model = File(path),
-                            contentDescription = stringResource(R.string.attached_image),
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .padding(bottom = 4.dp)
-                                .widthIn(max = 220.dp)
-                                .heightIn(max = 280.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { previewImagePath = path }
-                        )
+                        Column(horizontalAlignment = Alignment.End) {
+                            AsyncImage(
+                                model = File(path),
+                                contentDescription = stringResource(R.string.attached_image),
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .widthIn(max = 220.dp)
+                                    .heightIn(max = 280.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable { previewImagePath = path }
+                            )
+                            // How much context this image consumed (vision token weight).
+                            imageTokens[path]?.let { n ->
+                                Text(
+                                    text = stringResource(R.string.image_token_count, n),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp, end = 4.dp)
+                                )
+                            }
+                        }
                     }
                 } else {
                     AttachmentChip(

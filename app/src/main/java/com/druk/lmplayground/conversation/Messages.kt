@@ -64,7 +64,9 @@ fun Messages(
     // Edit & resend a user message; receives the tapped message.
     onEditUserMessage: ((Message) -> Unit)? = null,
     // Whether to show the per-message generation-stats line (Settings toggle).
-    showStats: Boolean = true
+    showStats: Boolean = true,
+    // Token weight of sent images, keyed by the image's localPath (vision).
+    imageTokens: Map<String, Int> = emptyMap()
 ) {
     val scope = rememberCoroutineScope()
 
@@ -101,7 +103,8 @@ fun Messages(
                     onEdit = if (isUser && !isGenerating && onEditUserMessage != null) {
                         { onEditUserMessage.invoke(content) }
                     } else null,
-                    onTokenCountClicked = onTokenCountClicked
+                    onTokenCountClicked = onTokenCountClicked,
+                    imageTokens = imageTokens
                 )
             }
             item {

@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.36", "Image token count + detail slider", listOf(
+        Change(ChangeType.NEW, "Sent images now show how many tokens they used (🖼 N), so you can see how much of the context a photo consumes."),
+        Change(ChangeType.NEW, "New \"Image detail\" slider in a vision model's settings — trade image resolution/detail against tokens and speed. Higher = sharper, lower = faster & lighter on context."),
+    )),
     ChangelogEntry("1.9.35", "Vision projector loads (audio encoder skipped)", listOf(
         Change(ChangeType.FIX, "Fixed the crash when loading a vision model whose projector also bundles an audio encoder (e.g. Gemma 3n / Gemma 4 E2B): the unused audio part is now skipped, so image input can finally load."),
     )),

@@ -21,6 +21,9 @@ class NativeLlamaSession {
      */
     external fun attachProjector(model: NativeLlamaModel): Boolean
 
+    /** Token count of the last image evaluated on this session (0 if none). */
+    external fun getLastImageTokens(): Int
+
     /** Interrupt an in-progress decode (prompt eval or generation) ASAP. */
     external fun requestAbort()
 

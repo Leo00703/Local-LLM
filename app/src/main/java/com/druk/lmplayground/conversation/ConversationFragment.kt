@@ -189,6 +189,7 @@ class ConversationFragment : Fragment() {
             val recentSystemPrompts by viewModel.recentSystemPrompts.observeAsState(emptyList())
             val savedPrompts by viewModel.savedPrompts.observeAsState(emptyList())
             val userError by viewModel.userError.observeAsState()
+            val imageTokenCounts by viewModel.imageTokenCounts.observeAsState(emptyMap())
             val projectorDiagnostic by viewModel.projectorDiagnostic.observeAsState()
             val pendingRamWarning by viewModel.pendingRamWarning.observeAsState()
             val modelLoadError by viewModel.modelLoadError.observeAsState()
@@ -606,7 +607,8 @@ class ConversationFragment : Fragment() {
                                 onEditUserMessage = { msg ->
                                     editingMessage = msg
                                 },
-                                showStats = showGenerationStats
+                                showStats = showGenerationStats,
+                                imageTokens = imageTokenCounts
                             )
                         }
 
@@ -857,6 +859,7 @@ class ConversationFragment : Fragment() {
                                 maxContextSize = maxContextSize,
                                 supportsThinking = supportsThinking,
                                 supportsToolCalling = supportsToolCalling,
+                                supportsVision = supportsVision,
                                 tools = viewModel.toolRegistry.getAllTools(),
                                 toolEnabledStates = toolEnabledStates,
                                 onToolEnabledChanged = { name, enabled -> viewModel.setToolEnabled(name, enabled) },

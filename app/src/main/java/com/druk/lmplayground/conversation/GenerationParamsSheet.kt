@@ -93,6 +93,8 @@ fun GenerationParamsSheet(
     maxContextSize: Int,
     supportsThinking: Boolean = false,
     supportsToolCalling: Boolean = false,
+    // Vision model: shows the "Image detail" (max image tokens) slider.
+    supportsVision: Boolean = false,
     tools: List<Tool> = emptyList(),
     toolEnabledStates: Map<String, Boolean> = emptyMap(),
     onToolEnabledChanged: (String, Boolean) -> Unit = { _, _ -> },
@@ -413,6 +415,29 @@ fun GenerationParamsSheet(
                         val snapped = (it / 64).roundToInt() * 64
                         editedParams = editedParams.copy(
                             thinkingBudget = snapped.coerceIn(budgetMin, budgetMax)
+                        )
+                    }
+                )
+            }
+
+            // Image detail (vision only): caps how many tokens an attached image
+            // may use. Higher = more resolution/detail, more context, slower.
+            // Applied to the projector (mtmd image_max_tokens) on the next image.
+            if (supportsVision && !isRemote) {
+                val imgMin = 64
+                val imgMax = 320
+                val imgStep = 32
+                ParamSlider(
+                    label = stringResource(R.string.image_detail_label),
+                    value = editedParams.imageMaxTokens.coerceIn(imgMin, imgMax).toFloat(),
+                    valueRange = imgMin.toFloat()..imgMax.toFloat(),
+                    steps = ((imgMax - imgMin) / imgStep) - 1,
+                    valueDisplay = stringResource(R.string.tokens_value, editedParams.imageMaxTokens),
+                    subtitle = stringResource(R.string.image_detail_subtitle),
+                    onValueChange = {
+                        val snapped = (it / imgStep).roundToInt() * imgStep
+                        editedParams = editedParams.copy(
+                            imageMaxTokens = snapped.coerceIn(imgMin, imgMax)
                         )
                     }
                 )

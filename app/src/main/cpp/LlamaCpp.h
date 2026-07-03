@@ -56,6 +56,11 @@ public:
     // text path when mctx is null).
     void setImageData(const uint8_t *data, size_t len);
 
+    // Token count of the LAST image evaluated on this session (0 if none yet).
+    // Set in addImageMessage after mtmd_tokenize; lets the UI show how many
+    // context tokens the attached image consumed.
+    int getLastImageTokens() const { return last_image_tokens; }
+
     // Attach (or replace) the projector on a LIVE session. Needed by the lazy
     // vision flow: the projector is loaded only when the user first sends an
     // image, which is necessarily AFTER this session was created with
@@ -182,6 +187,8 @@ private:
     // mtmd_helper_eval_chunks already ran llama_decode with logits on the last
     // token. Cleared as soon as generate() honors it.
     bool skip_first_decode = false;
+    // Token count of the last image evaluated (image chunks only). See getter.
+    int last_image_tokens = 0;
 };
 
 class LlamaModel {
@@ -219,6 +226,12 @@ public:
     // WHY a projector was rejected instead of a generic error.
     std::string getMmprojError() const { return mmproj_error; }
 
+    // User "image detail" preference: the max number of tokens an image may use
+    // (higher = more resolution/quality, more context). 0 = use the model's
+    // metadata default. Applied at the next loadMmproj() via
+    // mtmd_context_params.image_max_tokens. Changing it needs a projector reload.
+    void setImageMaxTokens(int n) { image_max_tokens_pref = n; }
+
     // Borrow the projector context (null if none loaded). Used to attach the
     // projector to already-created sessions in the lazy vision flow.
     mtmd_context * getProjector() { return mctx; }
@@ -235,6 +248,8 @@ private:
     mtmd_context *mctx = nullptr;
     // Reason the last loadMmproj() failed (captured mtmd/clip log), for the UI.
     std::string mmproj_error;
+    // User max-image-tokens preference (0 = model default); see setImageMaxTokens.
+    int image_max_tokens_pref = 0;
 };
 
 #endif //LMPLAYGROUND_LLAMACPP_H
