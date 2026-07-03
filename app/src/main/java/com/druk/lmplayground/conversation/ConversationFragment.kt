@@ -11,6 +11,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -184,6 +189,7 @@ class ConversationFragment : Fragment() {
             val recentSystemPrompts by viewModel.recentSystemPrompts.observeAsState(emptyList())
             val savedPrompts by viewModel.savedPrompts.observeAsState(emptyList())
             val userError by viewModel.userError.observeAsState()
+            val projectorDiagnostic by viewModel.projectorDiagnostic.observeAsState()
             val pendingRamWarning by viewModel.pendingRamWarning.observeAsState()
             val modelLoadError by viewModel.modelLoadError.observeAsState()
             var showParamsSheet by remember { mutableStateOf(false) }
@@ -196,6 +202,39 @@ class ConversationFragment : Fragment() {
                 val msg = userError ?: return@LaunchedEffect
                 Toast.makeText(toastContext, msg, Toast.LENGTH_LONG).show()
                 viewModel.consumeUserError()
+            }
+
+            // Projector-crash diagnostic: memory + native logcat tail captured
+            // when a vision projector load kills the :llama service. Shown in a
+            // scrollable, copyable dialog so the on-device crash reason is
+            // visible without adb.
+            projectorDiagnostic?.let { diag ->
+                val clipboard = LocalClipboardManager.current
+                AlertDialog(
+                    onDismissRequest = { viewModel.consumeProjectorDiagnostic() },
+                    title = { Text(stringResource(R.string.vision_diagnostic_title)) },
+                    text = {
+                        Text(
+                            text = diag,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            modifier = Modifier
+                                .heightIn(max = 420.dp)
+                                .verticalScroll(rememberScrollState()),
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            clipboard.setText(AnnotatedString(diag))
+                            viewModel.consumeProjectorDiagnostic()
+                        }) { Text(stringResource(R.string.copy)) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.consumeProjectorDiagnostic() }) {
+                            Text(stringResource(R.string.close))
+                        }
+                    },
+                )
             }
 
             // Storage configuration state

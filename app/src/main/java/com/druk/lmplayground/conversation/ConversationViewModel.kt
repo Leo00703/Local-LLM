@@ -128,6 +128,12 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      */
     private val _userError = MutableLiveData<String?>(null)
     /**
+     * One-shot native diagnostic (memory + logcat tail) captured when a
+     * projector load fails/crashes the :llama service. The UI shows it in a
+     * copyable dialog so the on-device crash reason is visible without adb.
+     */
+    private val _projectorDiagnostic = MutableLiveData<String?>(null)
+    /**
      * Set when [loadModel] hits the RAM-fit gate. The UI surfaces a
      * confirmation dialog so the user can override and load anyway.
      * Carries the (modelInfo, neededRam, totalRam) tuple so the dialog
@@ -223,12 +229,17 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val systemPrompt: LiveData<String> = _systemPrompt
     val systemPromptId: LiveData<String?> = _systemPromptId
     val userError: LiveData<String?> = _userError
+    val projectorDiagnostic: LiveData<String?> = _projectorDiagnostic
     val pendingRamWarning: LiveData<RamWarning?> = _pendingRamWarning
     val modelLoadError: LiveData<String?> = _modelLoadError
 
     /** Called by the UI after surfacing the error (e.g. as a Toast). */
     @MainThread
     fun consumeUserError() { _userError.value = null }
+
+    /** Called by the UI after showing the projector-crash diagnostic dialog. */
+    @MainThread
+    fun consumeProjectorDiagnostic() { _projectorDiagnostic.value = null }
 
     @MainThread
     fun consumeModelLoadError() { _modelLoadError.value = null }
@@ -1379,7 +1390,21 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         }
         _loadedModelStatus.postValue(loadedModelDescription)
         projectorError = reason
-        if (reason == null) projectorLoaded = true
+        if (reason == null) {
+            projectorLoaded = true
+        } else {
+            // The load failed (often the :llama service crashed/was OOM-killed,
+            // so getMmprojError() couldn't be read). Capture memory + the native
+            // logcat tail so the real cause is visible without adb. Off-main.
+            viewModelScope.launch(Dispatchers.IO) {
+                val diag = buildString {
+                    append("Reason: ").append(reason).append("\n")
+                    append(com.druk.lmplayground.files.NativeDiagnostics.memorySnapshot(app)).append("\n\n")
+                    append(com.druk.lmplayground.files.NativeDiagnostics.captureRecentLog())
+                }
+                _projectorDiagnostic.postValue(diag)
+            }
+        }
         return reason == null
     }
 

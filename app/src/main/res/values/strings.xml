@@ -437,6 +437,7 @@
     <string name="image_attach_failed">Couldn\'t read that image</string>
     <string name="vision_load_failed">Couldn\'t load the vision projector — the message wasn\'t sent. Try again, or remove the image to send text only.</string>
     <string name="vision_load_failed_reason">Vision couldn\'t load: %1$s</string>
+    <string name="vision_diagnostic_title">Vision load diagnostic</string>
     <!-- Per-tool copy -->
     <string name="tool_run_javascript_title">Run JavaScript</string>
     <string name="tool_run_javascript_desc">Runs JavaScript in a secure sandbox for math, dates, and text processing. No internet or file access.</string>

@@ -333,6 +333,7 @@
     <string name="image_attach_failed">Impossibile leggere l\'immagine</string>
     <string name="vision_load_failed">Impossibile caricare il proiettore vision — il messaggio non è stato inviato. Riprova, oppure rimuovi l\'immagine per inviare solo il testo.</string>
     <string name="vision_load_failed_reason">Vision non caricata: %1$s</string>
+    <string name="vision_diagnostic_title">Diagnostica caricamento vision</string>
     <string name="tool_web_search_title">Ricerca web</string>
     <string name="tool_web_search_desc">Cerca sul web e restituisce titoli dei risultati, link e frammenti affinché il modello possa trovare informazioni aggiornate.</string>
     <string name="tool_web_search_example">\"Trova recensioni recenti dell\'ultimo telefono Pixel.\"</string>
