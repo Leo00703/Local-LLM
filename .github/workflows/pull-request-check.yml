@@ -12,6 +12,23 @@ jobs:
       uses: actions/checkout@v3
       with:
         submodules: recursive
+    # ── Fork patch (applied at build time; llama.cpp is a PINNED submodule, so a
+    # committed working-tree edit would be reset by the recursive checkout above) ──
+    # The pinned mtmd (b9496) hits GGML_ABORT("Unknown projector type") in
+    # clip_n_mmproj_embd when loading a COMBINED vision+audio projector (e.g. the
+    # Gemma 3n / Gemma 4 E2B mmproj): clip builds the audio context, whose audio
+    # projector type this version's switch doesn't handle, and aborts the whole
+    # :llama process. This app is vision-only, so skip the audio encoder whenever a
+    # vision encoder is present. Verified: the step fails if the target line isn't
+    # found or the edit doesn't take, so we never ship an unpatched (crashing) build.
+    - name: Patch mtmd — skip audio encoder (vision-only)
+      run: |
+        set -euo pipefail
+        f=app/src/main/cpp/llama.cpp/tools/mtmd/clip.cpp
+        grep -q 'skip_audio = ctx_vision->model.proj_type == PROJECTOR_TYPE_GEMMA3NV;' "$f"
+        sed -i 's|skip_audio = ctx_vision->model.proj_type == PROJECTOR_TYPE_GEMMA3NV;|skip_audio = true; // fork: vision-only app — skip the unused/unsupported audio encoder|' "$f"
+        grep -q 'skip_audio = true;' "$f"
+        echo "mtmd patched: $(grep -n 'skip_audio = true;' "$f" | head -1)"
     - name: Enable KVM group perms
       run: |
         echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
