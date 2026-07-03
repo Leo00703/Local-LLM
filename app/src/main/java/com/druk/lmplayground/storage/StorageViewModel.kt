@@ -113,9 +113,10 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
                 val modelFiles = repository.getModelFiles()
                 _downloadedModels.postValue(modelFiles)
                 val downloadedFilenames = modelFiles.map { it.name }.toSet()
+                val mmprojNames = modelFiles.map { it.name }.filter { MmprojPairing.isMmproj(it) }
                 val customModels = discoverCustomModels(modelFiles)
                 _allModels.postValue(
-                    ModelInfoProvider.getModelsWithStatus(downloadedFilenames, customModels)
+                    ModelInfoProvider.getModelsWithStatus(downloadedFilenames, customModels, mmprojNames)
                         .map { it.copy(model = it.model.resolveCapabilities(prefs)) }
                 )
             }

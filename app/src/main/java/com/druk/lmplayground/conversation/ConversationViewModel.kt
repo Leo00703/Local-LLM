@@ -102,10 +102,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     // Reason the last projector load failed (native mtmd/clip message or the
     // copy failure), surfaced to the user so a rejected projector says WHY.
     @Volatile private var projectorError: String? = null
-    // Token weight of sent images, keyed by the image's app-private localPath.
-    // Filled after the native image turn (getLastImageTokens); the sent bubble
-    // shows "🖼 N token" so the user sees how much context the image used.
-    private val _imageTokenCounts = MutableLiveData<Map<String, Int>>(emptyMap())
+    // Vision info of sent images, keyed by the image's app-private localPath:
+    // token weight (from the native image turn) + a downscaled "model view" copy
+    // at the resolution the model actually received. The sent bubble shows the
+    // token count and swaps in the model-view image.
+    private val _imageTokenCounts = MutableLiveData<Map<String, SentImageInfo>>(emptyMap())
     private val _models = MutableLiveData<List<ModelWithStatus>>(emptyList())
     private val _supportsThinking = MutableLiveData(false)
     private val _thinkingEnabled = MutableLiveData(false)
@@ -233,7 +234,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val systemPrompt: LiveData<String> = _systemPrompt
     val systemPromptId: LiveData<String?> = _systemPromptId
     val userError: LiveData<String?> = _userError
-    val imageTokenCounts: LiveData<Map<String, Int>> = _imageTokenCounts
+    val imageTokenCounts: LiveData<Map<String, SentImageInfo>> = _imageTokenCounts
     val projectorDiagnostic: LiveData<String?> = _projectorDiagnostic
     val pendingRamWarning: LiveData<RamWarning?> = _pendingRamWarning
     val modelLoadError: LiveData<String?> = _modelLoadError
@@ -425,7 +426,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         ModelInfoProvider.createCustomModelInfo(file.name, cached.first, file.sizeBytes, mmproj)
                     }
                 _models.postValue(
-                    ModelInfoProvider.getModelsWithStatus(downloadedFilenames, customModels)
+                    ModelInfoProvider.getModelsWithStatus(downloadedFilenames, customModels, mmprojNames)
                         .map { it.copy(model = it.model.resolveCapabilities(storagePreferences)) }
                 )
                 val remoteUrl = storagePreferences.remoteServerUrl
@@ -1691,8 +1692,18 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         val n = runCatching { llamaSession.getLastImageTokens() }.getOrDefault(0)
                         if (n > 0) {
                             _imageTokenCounts.postValue(
-                                (_imageTokenCounts.value ?: emptyMap()) + (path to n)
+                                (_imageTokenCounts.value ?: emptyMap()) + (path to SentImageInfo(n))
                             )
+                            // Render a copy at the resolution the model actually
+                            // received, then swap it into the bubble so the user
+                            // sees the true (lower-res) image the model "saw".
+                            viewModelScope.launch(Dispatchers.IO) {
+                                val mv = ImageTranscoder.renderModelView(path, n)
+                                if (mv != null) {
+                                    val cur = _imageTokenCounts.value ?: emptyMap()
+                                    _imageTokenCounts.postValue(cur + (path to SentImageInfo(n, mv)))
+                                }
+                            }
                         }
                     }
                     // Reflect the prompt (incl. any attachment) in the ring now,
@@ -2594,24 +2605,23 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     @MainThread
     fun loadModelByFilename(filename: String) {
         _sessionModelHint.value = null
-        val known = ModelInfoProvider.getByFilename(filename)
-        if (known != null) {
-            loadModel(known)
-            return
-        }
-        // Custom/sideloaded model: re-pair its mmproj sibling (off the main
-        // thread) so a restored vision model keeps its projector, exactly like
-        // the picker path in loadModelList().
+        // Re-pair the model's mmproj sibling (off the main thread) so a restored
+        // vision model keeps its projector — for BOTH catalog and custom models,
+        // exactly like the picker path in loadModelList().
         viewModelScope.launch {
             val files = withContext(Dispatchers.IO) { storageRepository.getModelFiles() }
-            val sizeBytes = files.find { it.name == filename }?.sizeBytes ?: 0L
             val mmprojNames = files.map { it.name }.filter { MmprojPairing.isMmproj(it) }
             val mmproj = MmprojPairing.findMmprojFor(filename, mmprojNames)
-            loadModel(
+            val known = ModelInfoProvider.getByFilename(filename)
+            val info = if (known != null) {
+                if (known.mmprojFilename == null && mmproj != null) known.copy(mmprojFilename = mmproj) else known
+            } else {
+                val sizeBytes = files.find { it.name == filename }?.sizeBytes ?: 0L
                 ModelInfoProvider.createCustomModelInfo(
                     filename, filename.removeSuffix(".gguf"), sizeBytes, mmproj
                 )
-            )
+            }
+            loadModel(info)
         }
     }
 

@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.37", "True model-view + wider vision detection", listOf(
+        Change(ChangeType.NEW, "A sent image now displays at the exact resolution the model actually received it — so you see the real image the model \"saw\". Move the Image detail slider and watch it change."),
+        Change(ChangeType.IMPROVED, "Any downloaded model paired with a matching projector (mmproj) file in your models folder is now recognized as a vision model — not just sideloaded ones — so its image badge shows in the picker."),
+    )),
     ChangelogEntry("1.9.36", "Image token count + detail slider", listOf(
         Change(ChangeType.NEW, "Sent images now show how many tokens they used (🖼 N), so you can see how much of the context a photo consumes."),
         Change(ChangeType.NEW, "New \"Image detail\" slider in a vision model's settings — trade image resolution/detail against tokens and speed. Higher = sharper, lower = faster & lighter on context."),

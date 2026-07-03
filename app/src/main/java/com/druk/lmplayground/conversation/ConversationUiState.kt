@@ -174,6 +174,14 @@ data class ToolCallInfo(
     val precedingThinkingTokens: Int = 0
 )
 
+/**
+ * Per-sent-image vision info, keyed by the image's localPath: how many tokens
+ * it used, and (once rendered) a path to a copy downscaled to the resolution the
+ * model actually received, so the chat can show the true image the model "saw".
+ */
+@Immutable
+data class SentImageInfo(val tokens: Int, val modelViewPath: String? = null)
+
 @Immutable
 data class Message(
     val author: String,

@@ -65,8 +65,8 @@ fun Messages(
     onEditUserMessage: ((Message) -> Unit)? = null,
     // Whether to show the per-message generation-stats line (Settings toggle).
     showStats: Boolean = true,
-    // Token weight of sent images, keyed by the image's localPath (vision).
-    imageTokens: Map<String, Int> = emptyMap()
+    // Vision info of sent images, keyed by the image's localPath.
+    imageTokens: Map<String, SentImageInfo> = emptyMap()
 ) {
     val scope = rememberCoroutineScope()
 

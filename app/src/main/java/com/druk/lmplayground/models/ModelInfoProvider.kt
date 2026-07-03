@@ -647,14 +647,24 @@ object ModelInfoProvider {
      */
     fun getModelsWithStatus(
         downloadedFilenames: Set<String>,
-        customModels: List<ModelInfo> = emptyList()
+        customModels: List<ModelInfo> = emptyList(),
+        // Projector (mmproj) filenames present in the models folder, so a
+        // DOWNLOADED catalog model can also be paired with a sideloaded
+        // projector next to it (custom models are paired by the caller).
+        mmprojNames: List<String> = emptyList()
     ): List<ModelWithStatus> {
         val knownModels = allModels
             .sortedByDescending { it.releaseDate }
             .map { model ->
+                val downloaded = model.filename in downloadedFilenames
+                // Only pair once the model file exists (it must load), and only
+                // if the catalog entry didn't already declare a projector.
+                val paired = if (downloaded && model.mmprojFilename == null) {
+                    MmprojPairing.findMmprojFor(model.filename, mmprojNames)
+                } else null
                 ModelWithStatus(
-                    model = model,
-                    isDownloaded = model.filename in downloadedFilenames,
+                    model = if (paired != null) model.copy(mmprojFilename = paired) else model,
+                    isDownloaded = downloaded,
                 )
             }
         val customWithStatus = customModels.map { model ->
