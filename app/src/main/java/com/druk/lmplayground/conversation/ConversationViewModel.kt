@@ -746,6 +746,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         // Disable repack if the model is over budget (auto, to
                         // avoid an OOM-kill) OR the user turned it off globally.
                         disableRepack = exceedsRam || userDisableRepack,
+                        // Experimental GPU acceleration (opt-in, default off):
+                        // offload all LLM layers to Vulkan + run vision on GPU.
+                        // 0 = CPU (safe default, LLM pinned to CPU devices).
+                        gpuLayers = if (storagePreferences.gpuAccelerationEnabled) 999 else 0,
                     )
                     val modelSize = llamaModel.getModelSize()
                     val modelDescription = Formatter.formatFileSize(app, modelSize)

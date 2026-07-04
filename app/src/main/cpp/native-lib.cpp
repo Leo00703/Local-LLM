@@ -315,7 +315,8 @@ Java_com_druk_llamacpp_jni_NativeLlamaCpp_loadModel(JNIEnv *env,
                    jobject activity,
                    jstring modelPath,
                    jobject progressCallback,
-                   jboolean disableRepack) {
+                   jboolean disableRepack,
+                   jint gpuLayers) {
 
     struct CallbackContext {
         JNIEnv *env;
@@ -326,7 +327,7 @@ Java_com_druk_llamacpp_jni_NativeLlamaCpp_loadModel(JNIEnv *env,
     CallbackContext ctx = {env, progressCallback};
     const char* utfModelPath = env->GetStringUTFChars(modelPath, nullptr);
     model->loadModel(utfModelPath,
-                     -1,
+                     gpuLayers,
                      [](float progress, void *ctx) -> bool {
                             auto* context = static_cast<CallbackContext*>(ctx);
                             jclass clazz = context->env->GetObjectClass(context->progressCallback);

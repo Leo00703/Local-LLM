@@ -44,7 +44,8 @@ interface ILlamaService {
     int loadModel(in @nullable String path,
                   in @nullable ParcelFileDescriptor pfd,
                   ILlamaProgressCallback progress,
-                  boolean disableRepack);
+                  boolean disableRepack,
+                  int gpuLayers);
 
     long getModelSize(int modelId);
     String getModelReport(int modelId);

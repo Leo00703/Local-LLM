@@ -93,6 +93,10 @@ fun AdvancedContent(
             checked = disableRepack,
             onCheckedChange = onDisableRepackChanged,
         )
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        // Self-contained (reads/writes StoragePreferences directly), so it needs
+        // no AdvancedViewModel wiring. Experimental GPU (Vulkan) offload.
+        GpuAccelerationRow()
     }
 }
 

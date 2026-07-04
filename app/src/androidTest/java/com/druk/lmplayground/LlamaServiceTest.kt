@@ -132,7 +132,7 @@ class LlamaServiceTest {
         val progress = object : ILlamaProgressCallback.Stub() {
             override fun onProgress(p: Float) {}
         }
-        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false)
+        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false, 0)
         assertNotEquals("loadModel should return non-zero id", 0, modelId)
         try {
             assertTrue("getModelSize should be > 0", service!!.getModelSize(modelId) > 0)
@@ -154,7 +154,7 @@ class LlamaServiceTest {
             override fun onProgress(p: Float) {}
         }
         val bogus = "/data/local/tmp/this-file-does-not-exist-${System.nanoTime()}.gguf"
-        val modelId = service!!.loadModel(bogus, null, progress, false)
+        val modelId = service!!.loadModel(bogus, null, progress, false, 0)
         assertEquals("Bogus path should return 0", 0, modelId)
     }
 
@@ -170,7 +170,7 @@ class LlamaServiceTest {
         // PFD is dup'd into the service across the binder; the service
         // builds its own fd:N string from the dup. The local pfd is closed
         // by the service's PFD entry on unloadModel.
-        val modelId = service!!.loadModel(null, pfd, progress, false)
+        val modelId = service!!.loadModel(null, pfd, progress, false, 0)
         assertNotEquals("loadModel(pfd) should return non-zero id", 0, modelId)
         try {
             assertTrue("getModelSize should be > 0", service!!.getModelSize(modelId) > 0)
@@ -187,7 +187,7 @@ class LlamaServiceTest {
         val progress = object : ILlamaProgressCallback.Stub() {
             override fun onProgress(p: Float) {}
         }
-        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false)
+        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false, 0)
         assertNotEquals("loadModel should return non-zero id", 0, modelId)
 
         try {
@@ -281,7 +281,7 @@ class LlamaServiceTest {
         val progress = object : ILlamaProgressCallback.Stub() {
             override fun onProgress(p: Float) {}
         }
-        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false)
+        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false, 0)
         val sessionId = service!!.createSession(modelId, DEFAULT_PARAMS)
 
         // Long prompt → at least some prompt-eval time before the first
@@ -318,7 +318,7 @@ class LlamaServiceTest {
         val progress = object : ILlamaProgressCallback.Stub() {
             override fun onProgress(p: Float) {}
         }
-        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false)
+        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false, 0)
         val sessionId = service!!.createSession(modelId, DEFAULT_PARAMS)
 
         // Long prompt → at least some processing time before the first token,
@@ -366,7 +366,7 @@ class LlamaServiceTest {
         val progress = object : ILlamaProgressCallback.Stub() {
             override fun onProgress(p: Float) {}
         }
-        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false)
+        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false, 0)
         val sessionId = service!!.createSession(modelId, DEFAULT_PARAMS)
 
         try {
@@ -423,7 +423,7 @@ class LlamaServiceTest {
         val progress = object : ILlamaProgressCallback.Stub() {
             override fun onProgress(p: Float) {}
         }
-        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false)
+        val modelId = service!!.loadModel(modelFile!!.absolutePath, null, progress, false, 0)
         val sessionId = service!!.createSession(modelId, DEFAULT_PARAMS)
 
         try {

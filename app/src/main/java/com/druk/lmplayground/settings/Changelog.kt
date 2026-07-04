@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.41", "GPU acceleration is now an opt-in toggle", listOf(
+        Change(ChangeType.FIX, "Vision on the GPU crashed the inference engine on some devices (e.g. Adreno). GPU use is now OFF by default, so vision and text both run reliably on the CPU again — no more crashes out of the box."),
+        Change(ChangeType.NEW, "New \"GPU acceleration (experimental)\" switch in Settings → Advanced. Turn it on to offload the whole model — LLM and image encoding — to the GPU (Vulkan). Faster prompt processing and image encoding when your GPU supports it; if you get wrong output or a crash, turn it back off. Applies on the next model load."),
+    )),
     ChangelogEntry("1.9.40", "GPU-accelerated image vision", listOf(
         Change(ChangeType.NEW, "Image processing for vision models now runs on your phone's GPU (Vulkan) instead of the CPU — noticeably faster image encoding, especially for larger/higher-detail images. Text generation still runs on the CPU (that's by design — the GPU isn't faster there on mobile)."),
         Change(ChangeType.IMPROVED, "Safety net: if a device's GPU driver can't handle the vision encoder, the app automatically falls back to CPU vision — a known-bad GPU is skipped up front, and a GPU that crashes once is disabled for good afterwards, so vision keeps working."),

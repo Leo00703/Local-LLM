@@ -228,6 +228,7 @@ class LlamaService : Service() {
             pfd: ParcelFileDescriptor?,
             progress: ILlamaProgressCallback,
             disableRepack: Boolean,
+            gpuLayers: Int,
         ): Int {
             val resolved = resolvePath(path, pfd) ?: return 0
             val nativeProgress = object : LlamaProgressCallback {
@@ -236,7 +237,7 @@ class LlamaService : Service() {
                 }
             }
             return try {
-                val nativeModel = nativeLlamaCpp.loadModel(resolved, nativeProgress, disableRepack)
+                val nativeModel = nativeLlamaCpp.loadModel(resolved, nativeProgress, disableRepack, gpuLayers)
                 if (nativeModel == null) {
                     Log.e(
                         TAG,

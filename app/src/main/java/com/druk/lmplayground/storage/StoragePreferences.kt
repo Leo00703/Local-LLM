@@ -61,6 +61,16 @@ class StoragePreferences(context: Context) {
         get() = prefs.getBoolean("disable_repack", false)
         set(value) = prefs.edit { putBoolean("disable_repack", value) }
 
+    /**
+     * Experimental: offload the model to the GPU (Vulkan) — all LLM layers AND
+     * the vision/CLIP encoder. Off by default: on some devices the GPU driver
+     * mishandles the compute graph (wrong output or a crash), so this is opt-in
+     * and takes effect on the next model load. When off, everything runs on CPU.
+     */
+    var gpuAccelerationEnabled: Boolean
+        get() = prefs.getBoolean("gpu_acceleration_enabled", false)
+        set(value) = prefs.edit { putBoolean("gpu_acceleration_enabled", value) }
+
     // --- Remote (OpenAI-compatible) server ---
 
     /** User-given display name for the remote server (shown in the model picker). */

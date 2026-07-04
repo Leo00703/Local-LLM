@@ -34,7 +34,8 @@ class NativeLlamaCpp {
     external fun loadModel(
         path: String,
         progressCallback: LlamaProgressCallback,
-        disableRepack: Boolean
+        disableRepack: Boolean,
+        gpuLayers: Int = 0
     ): NativeLlamaModel?
 
     external fun probeModelMetadata(path: String): Array<String>?

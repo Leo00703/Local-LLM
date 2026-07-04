@@ -264,6 +264,10 @@ private:
     std::string mmproj_error;
     // User max-image-tokens preference (0 = model default); see setImageMaxTokens.
     int image_max_tokens_pref = 0;
+    // GPU acceleration (experimental, opt-in): set from loadModel's n_gpu_layers.
+    // Gates both LLM layer offload AND the CLIP vision encoder (loadMmproj). When
+    // false the LLM is pinned CPU-only and vision runs on CPU.
+    bool gpu_enabled = false;
 };
 
 #endif //LMPLAYGROUND_LLAMACPP_H

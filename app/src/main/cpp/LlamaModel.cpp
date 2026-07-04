@@ -42,19 +42,21 @@ void LlamaModel::loadModel(const std::string &modelPath,
 
     // initialize the model
     llama_model_params model_params = llama_model_default_params();
-    // Keep the LLM entirely on CPU; the GPU (Vulkan, when compiled in) is
-    // reserved exclusively for the mtmd/CLIP vision encoder. n_gpu_layers=0
-    // alone is NOT enough: with a Vulkan backend loaded (GGML_BACKEND_DL) the
-    // scheduler still reserves a Vulkan compute buffer and routes part of the
-    // decode graph to it, which corrupts image-conditioned decode for M-RoPE
-    // vision models. Pinning the model to a CPU-only device list removes the
-    // GPU from the text graph entirely. (n_gpu_layers is intentionally ignored.)
-    (void) n_gpu_layers;
-    model_params.n_gpu_layers = 0;
-    static ggml_backend_dev_t cpu_only_devices[2] = { nullptr, nullptr };
-    cpu_only_devices[0] = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
-    if (cpu_only_devices[0] != nullptr) {
-        model_params.devices = cpu_only_devices;
+    // GPU offload is opt-in (the experimental "GPU acceleration" setting →
+    // n_gpu_layers>0). When ON, offload the LLM layers to Vulkan. When OFF, keep
+    // the LLM entirely on CPU AND pin it to a CPU-only device list: n_gpu_layers=0
+    // alone is NOT enough, because with a Vulkan backend loaded (GGML_BACKEND_DL)
+    // the scheduler still reserves a Vulkan compute buffer and routes part of the
+    // decode graph to it, corrupting image-conditioned decode for M-RoPE vision
+    // models. gpu_enabled also gates the CLIP vision encoder (see loadMmproj).
+    gpu_enabled = (n_gpu_layers > 0);
+    model_params.n_gpu_layers = gpu_enabled ? n_gpu_layers : 0;
+    if (!gpu_enabled) {
+        static ggml_backend_dev_t cpu_only_devices[2] = { nullptr, nullptr };
+        cpu_only_devices[0] = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
+        if (cpu_only_devices[0] != nullptr) {
+            model_params.devices = cpu_only_devices;
+        }
     }
     model_params.progress_callback = progress_callback;
     model_params.progress_callback_user_data = progress_callback_user_data;
@@ -123,16 +125,17 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
         mctx = nullptr;
     }
     mtmd_context_params mparams = mtmd_context_params_default();
-    // GPU vision encoder. The ACTUAL device is chosen by the MTMD_BACKEND_DEVICE
-    // env var (set in native init from the GPU denylist + the crash sentinel),
-    // which resolves to "CPU" whenever the GPU is unknown-bad or previously
-    // crashed — so use_gpu=true is safe: a bad/blocked GPU still runs on CPU.
-    mparams.use_gpu = true;
+    // GPU vision encoder — only when the experimental GPU-acceleration setting is
+    // on (gpu_enabled, from loadModel). When on, the ACTUAL device is still chosen
+    // by MTMD_BACKEND_DEVICE (set in native init from the GPU denylist + crash
+    // sentinel), which resolves to "CPU" for unknown-bad/previously-crashed GPUs.
+    // When off, CPU vision (the safe default) — no Vulkan CLIP.
+    mparams.use_gpu = gpu_enabled;
     mparams.print_timings = false;
-    // Is the CLIP encoder going to run on Vulkan? Native init decides via
-    // MTMD_BACKEND_DEVICE (the GPU device name, or "CPU" when denylisted/blocked).
+    // Is the CLIP encoder going to run on Vulkan? Only if GPU is enabled AND init
+    // picked a GPU device (MTMD_BACKEND_DEVICE != "CPU").
     const char *clip_backend = std::getenv("MTMD_BACKEND_DEVICE");
-    bool clip_on_vulkan = (clip_backend != nullptr && strcmp(clip_backend, "CPU") != 0);
+    bool clip_on_vulkan = gpu_enabled && (clip_backend != nullptr && strcmp(clip_backend, "CPU") != 0);
     // On Vulkan, warm up at load so the GPU compute-buffer allocation + first
     // encode happen at load time — INSIDE the crash-sentinel bracket below. A
     // driver that survives weight-load but faults during compute then crashes
