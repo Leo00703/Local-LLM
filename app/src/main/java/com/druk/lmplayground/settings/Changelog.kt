@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.46", "Reach the phone's OpenCL driver", listOf(
+        Change(ChangeType.FIX, "With GPU acceleration on, the Compute backend showed \"no OpenCL device\" because the app couldn't reach the phone's own GPU driver. The app now declares access to the device OpenCL library and uses it directly, so an Adreno GPU can be detected. Still opt-in; if your device does not expose OpenCL, it falls back to the CPU as before."),
+    )),
     ChangelogEntry("1.9.45", "Cleaner wording", listOf(
         Change(ChangeType.IMPROVED, "Polished the wording across settings, menus and these release notes for a cleaner, more natural style."),
     )),

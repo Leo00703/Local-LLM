@@ -69,10 +69,11 @@ jobs:
     # OpenCL (GGML_OPENCL=ON, arm64) needs host build-time deps the NDK doesn't
     # ship: the OpenCL headers to compile against and a libOpenCL.so to link
     # against. Install the Khronos OpenCL-Headers into the NDK sysroot and build
-    # the Khronos ICD loader (libOpenCL.so) for arm64 — staged into the sysroot
-    # for the link step and into jniLibs for runtime (on-device it dispatches to
-    # the Adreno driver). Kernels embed via Python3 (already on the runner). This
-    # replaces the earlier Vulkan path, which crashed on Adreno 830.
+    # the Khronos ICD loader (libOpenCL.so) for arm64, staged into the sysroot
+    # for the LINK step only. It is NOT bundled in the APK: at runtime the app
+    # loads the device's own vendor OpenCL driver (uses-native-library in the
+    # manifest). Kernels embed via Python3 (already on the runner). This replaces
+    # the earlier Vulkan path, which crashed on Adreno 830.
     - name: Set up OpenCL toolchain for the native build
       run: |
         set -eu
@@ -96,13 +97,12 @@ jobs:
         cmake --build OpenCL-ICD-Loader/build
         LIB="$WORK/OpenCL-ICD-Loader/build/libOpenCL.so"
         test -f "$LIB"
-        # For find_package(OpenCL) at link time:
+        # Link-only: staged into the NDK sysroot for find_package(OpenCL). We do
+        # NOT bundle it in jniLibs — the app loads the device's own vendor OpenCL
+        # driver at runtime (uses-native-library in the manifest), and a bundled
+        # libOpenCL.so would shadow it with a loader that finds no GPU on Android.
         cp "$LIB" "$SYSROOT/usr/lib/aarch64-linux-android/"
-        # For runtime (bundled in the APK; dispatches to the vendor Adreno ICD):
-        JNILIBS="$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a"
-        mkdir -p "$JNILIBS"
-        cp "$LIB" "$JNILIBS/"
-        echo "OpenCL toolchain ready: $(ls -la "$JNILIBS/libOpenCL.so")"
+        echo "OpenCL toolchain ready (link-only; runtime uses the device driver)."
 
     - name: Build debug APK
       run: |

@@ -29,6 +29,16 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.App.NoActionBar">
 
+        <!-- Grant access to the device's Qualcomm/Adreno OpenCL driver
+             (/vendor/lib64/libOpenCL.so) for the experimental GPU backend.
+             Required on Android 12+ (targetSdk 31+) to load a vendor native
+             library. required="false" so the app still installs and runs on
+             devices without OpenCL (it falls back to CPU). We deliberately do
+             NOT bundle our own libOpenCL.so, so the dynamic linker resolves it
+             to the device's real driver instead of a stub that finds no GPU. -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL_adreno.so" android:required="false" />
+
         <activity
             android:name="com.druk.lmplayground.MainActivity"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density"

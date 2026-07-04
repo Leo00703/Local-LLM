@@ -66,10 +66,9 @@ jobs:
         cmake --build OpenCL-ICD-Loader/build
         LIB="$WORK/OpenCL-ICD-Loader/build/libOpenCL.so"
         test -f "$LIB"
+        # Link-only (see build-debug-apk.yml): staged into the sysroot for the
+        # link step, NOT bundled — the app uses the device's vendor OpenCL driver.
         cp "$LIB" "$SYSROOT/usr/lib/aarch64-linux-android/"
-        JNILIBS="$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a"
-        mkdir -p "$JNILIBS"
-        cp "$LIB" "$JNILIBS/"
-        echo "OpenCL toolchain ready: $(ls -la "$JNILIBS/libOpenCL.so")"
+        echo "OpenCL toolchain ready (link-only; runtime uses the device driver)."
     - name: Run connected android tests
       run: ./gradlew app:mvdApi35Check
