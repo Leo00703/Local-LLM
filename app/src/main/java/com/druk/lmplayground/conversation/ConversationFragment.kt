@@ -183,6 +183,7 @@ class ConversationFragment : Fragment() {
             val generationParams by viewModel.generationParams.observeAsState(GenerationParams())
             val maxContextSize by viewModel.maxContextSize.observeAsState(4096)
             val serverModelDetails by viewModel.serverModelDetails.observeAsState()
+            val computeBackend by viewModel.computeBackend.observeAsState()
             val sessionModelHint by viewModel.sessionModelHint.observeAsState()
             val systemPrompt by viewModel.systemPrompt.observeAsState("")
             val systemPromptId by viewModel.systemPromptId.observeAsState()
@@ -867,6 +868,7 @@ class ConversationFragment : Fragment() {
                                 canUpdateLinkedPrompt = systemPromptId != null,
                                 isRemote = isRemote,
                                 serverDetails = if (isRemote) serverModelDetails else null,
+                                computeBackend = if (!isRemote) computeBackend else null,
                                 savedPrompts = savedPrompts,
                                 activePromptId = systemPromptId,
                                 onSelectSavedPrompt = { id, text -> viewModel.applySystemPrompt(id, text) },

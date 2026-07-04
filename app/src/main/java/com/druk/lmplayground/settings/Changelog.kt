@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.43", "See which backend a model runs on", listOf(
+        Change(ChangeType.NEW, "The model settings sheet (tune icon → Parameters) now shows a \"Compute backend\" line for local models: \"GPU (OpenCL) — <your GPU> — N/N layers\" when the GPU is actually in use, or \"CPU\" otherwise. This lets you verify the experimental GPU toggle really took effect — if it says CPU while the toggle is on, the GPU couldn't be used and it safely ran on the CPU."),
+    )),
     ChangelogEntry("1.9.42", "GPU backend switched to OpenCL", listOf(
         Change(ChangeType.IMPROVED, "The experimental GPU path now uses OpenCL (Qualcomm's Adreno-native GPU API) instead of Vulkan. Vulkan crashed on Adreno GPUs; OpenCL is the path Google's own on-device AI and llama.cpp both use on Qualcomm chips, so it has a real chance of running the model on the GPU reliably. Still opt-in (Settings → Advanced → GPU acceleration); if it doesn't help or misbehaves on your device, leave it off — everything runs on the CPU by default."),
     )),

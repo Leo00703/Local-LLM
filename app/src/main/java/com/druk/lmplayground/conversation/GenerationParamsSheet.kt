@@ -106,6 +106,9 @@ fun GenerationParamsSheet(
     // metadata is shown as info pills atop the Parameters tab.
     isRemote: Boolean = false,
     serverDetails: ServerModelDetails? = null,
+    // Active compute backend of a loaded local model ("GPU (OpenCL) — … " or
+    // "CPU"); shown atop the Parameters tab so the user can verify GPU use.
+    computeBackend: String? = null,
     // Saved system-prompt library, shown in the Prompt tab so the user can
     // pick / edit / delete / create prompts without leaving the sheet.
     savedPrompts: List<SystemPromptEntity> = emptyList(),
@@ -374,6 +377,31 @@ fun GenerationParamsSheet(
             }
 
             if (tabKey == "params") {
+            // Compute backend of the loaded local model — lets the user verify
+            // whether the GPU toggle really took effect (GPU value highlighted).
+            if (!isRemote && computeBackend != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.compute_backend_label),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = computeBackend,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (computeBackend.startsWith("GPU")) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             // Context Size — local models only. A remote server owns its own
             // context window (shown as a pill above), so there's nothing to set.
             if (!isRemote) {

@@ -83,6 +83,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     private val _modelLoadingProgress = MutableLiveData(0f)
     private val _loadedModel = MutableLiveData<ModelInfo?>(null)
     private val _loadedModelStatus = MutableLiveData<String?>(null)
+    // The active compute backend of the loaded local model — e.g.
+    // "GPU (OpenCL) — QUALCOMM Adreno(TM) 830 — 29/29 layers" or "CPU". Lets the
+    // user verify whether the experimental GPU toggle actually runs on the GPU.
+    // Null for remote models. Read from the native model report at load time.
+    private val _computeBackend = MutableLiveData<String?>(null)
 
     // Captured at load time and reused as the foreground-notification
     // description across load -> generating -> ready transitions, so the
@@ -208,6 +213,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val modelLoadingProgress: LiveData<Float> = _modelLoadingProgress
     val loadedModel: LiveData<ModelInfo?> = _loadedModel
     val loadedModelStatus: LiveData<String?> = _loadedModelStatus
+    val computeBackend: LiveData<String?> = _computeBackend
 
     // Remote (OpenAI-compatible) server, surfaced in the model picker.
     private val _remoteServerAvailable = MutableLiveData(false)
@@ -519,6 +525,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _supportsToolCalling.postValue(true)
             // Remote models have no on-device vision projector.
             _supportsVision.postValue(false)
+            // Compute backend is a local (on-device) concept; the server owns its own.
+            _computeBackend.postValue(null)
             _toolEnabledStates.postValue(emptyMap())
 
             val params = GenerationParams(contextSize = maxContext)
@@ -689,6 +697,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 _thinkingEnabled.postValue(false)
                 _supportsThinking.postValue(false)
                 _supportsVision.postValue(false)
+                _computeBackend.postValue(null)
                 _loadedModelStatus.postValue("Loading...")
 
                 val fileHandle = storageRepository.openModelFile(modelInfo.filename)
@@ -766,6 +775,17 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     )
                     val nCtxTrain = llamaModel.getContextTrainSize()
                     _maxContextSize.postValue(minOf(nCtxTrain, 16384))
+                    // Surface the active compute backend (GPU-OpenCL vs CPU) so
+                    // the user can verify the GPU toggle really took effect.
+                    _computeBackend.postValue(
+                        try {
+                            llamaModel.getModelReport()
+                                .lineSequence()
+                                .firstOrNull { it.startsWith("Compute:") }
+                                ?.substringAfter("Compute:")
+                                ?.trim()
+                        } catch (_: Throwable) { null }
+                    )
                     // Load saved per-model params, or use defaults
                     val savedMap = storagePreferences.getModelGenerationParams(modelInfo.filename)
                     val params = if (savedMap != null) {

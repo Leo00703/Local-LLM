@@ -451,6 +451,7 @@
     <string name="kv_cache_desc_fp16">Full precision — most memory</string>
     <string name="kv_cache_desc_q8">Standard — ~half the memory, ~no quality loss</string>
     <string name="kv_cache_desc_q4">Compact — least memory, small quality cost</string>
+    <string name="compute_backend_label">Compute backend</string>
     <!-- Per-tool copy -->
     <string name="tool_run_javascript_title">Run JavaScript</string>
     <string name="tool_run_javascript_desc">Runs JavaScript in a secure sandbox for math, dates, and text processing. No internet or file access.</string>

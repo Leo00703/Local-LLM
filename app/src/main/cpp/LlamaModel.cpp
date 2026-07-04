@@ -217,6 +217,35 @@ std::string LlamaModel::getModelReport() {
 
     report << "  Training context: " << n_ctx_train << "\n";
 
+    // Compute backend — lets the user VERIFY whether the model is really running
+    // on the GPU (OpenCL) or on the CPU. If GPU was requested and the OpenCL
+    // backend registered a GPU device, ggml enumerates it here (with its real
+    // OpenCL device name, e.g. "QUALCOMM Adreno(TM) 830"); if OpenCL failed to
+    // load/init on this device, no GPU device is present → it silently ran on
+    // CPU, which this line makes visible.
+    report << "Compute: ";
+    if (gpu_enabled) {
+        const char *gpu_desc = nullptr;
+        size_t nd = ggml_backend_dev_count();
+        for (size_t i = 0; i < nd; i++) {
+            ggml_backend_dev_t d = ggml_backend_dev_get(i);
+            if (d == nullptr) continue;
+            ggml_backend_dev_type t = ggml_backend_dev_type(d);
+            if (t == GGML_BACKEND_DEVICE_TYPE_GPU || t == GGML_BACKEND_DEVICE_TYPE_IGPU) {
+                gpu_desc = ggml_backend_dev_description(d);
+            }
+        }
+        if (gpu_desc != nullptr) {
+            int n_layer = llama_model_n_layer(model);
+            report << "GPU (OpenCL) — " << gpu_desc
+                   << " — " << n_layer << "/" << n_layer << " layers\n";
+        } else {
+            report << "CPU (GPU requested, but no OpenCL device is available)\n";
+        }
+    } else {
+        report << "CPU\n";
+    }
+
     return report.str();
 }
 
