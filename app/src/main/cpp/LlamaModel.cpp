@@ -230,7 +230,7 @@ std::string LlamaModel::getModelReport() {
         for (size_t i = 0; i < nd; i++) {
             ggml_backend_dev_t d = ggml_backend_dev_get(i);
             if (d == nullptr) continue;
-            ggml_backend_dev_type t = ggml_backend_dev_type(d);
+            enum ggml_backend_dev_type t = ggml_backend_dev_type(d);
             if (t == GGML_BACKEND_DEVICE_TYPE_GPU || t == GGML_BACKEND_DEVICE_TYPE_IGPU) {
                 gpu_desc = ggml_backend_dev_description(d);
             }
