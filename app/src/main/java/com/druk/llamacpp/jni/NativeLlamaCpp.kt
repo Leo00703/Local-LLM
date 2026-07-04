@@ -16,7 +16,12 @@ class NativeLlamaCpp {
         }
     }
 
-    external fun init(nativeLibDir: String): Int
+    /**
+     * @param stateDir a persistent app-private dir for the Vulkan-CLIP crash
+     *   sentinel's marker files (survives :llama restarts). Empty disables the
+     *   sentinel (used by tests).
+     */
+    external fun init(nativeLibDir: String, stateDir: String = ""): Int
 
     external fun systemInfo(): String
 

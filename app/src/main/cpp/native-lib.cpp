@@ -24,9 +24,11 @@
 #include <vector>
 #include <iostream>
 #include <exception>
+#include <cstdlib>
 #include <csignal>
 #include <unistd.h>
 #include <android/log.h>
+#include <sys/system_properties.h>
 #include <mutex>
 
 class AndroidLogBuf : public std::streambuf {
@@ -127,9 +129,97 @@ Java_com_druk_llamacpp_jni_NativeLlamaCpp_probeModelMetadata(JNIEnv *env, jobjec
     return result;
 }
 
+// GPUs whose Vulkan driver mishandles the CLIP vision graph. The encoder runs
+// on Vulkan by default (much faster than CPU); these specific parts fall back
+// to CPU. Matched as a substring of the ggml device description (the Vulkan
+// deviceName). Denylist, not allowlist: an untested bad GPU still crashes, but
+// only into the survivable :llama-restart recovery path (the crash sentinel).
+static bool clipVulkanIsKnownBad(const char *gpuDescription) {
+    if (gpuDescription == nullptr) return false;
+    static const char *kDeny[] = {
+        "PowerVR",         // Tensor G5 (Pixel 10): CLIP encode slow AND numerically wrong
+        "Mali-G52",        // Galaxy A32 (Helio G80) etc.: SIGSEGV in ggml_vk_create_buffer
+        "Adreno (TM) 610", // SD 680/685: SIGSEGV in ggml_vk_init/ggml_vk_create_buffer
+    };
+    for (const char *needle : kDeny) {
+        if (strstr(gpuDescription, needle) != nullptr) return true;
+    }
+    return false;
+}
+
+// --- Vulkan CLIP crash sentinel ---------------------------------------------
+// Catches GPUs not on the static denylist after a single crash. The inflight
+// marker brackets the Vulkan vision-encoder init (the SIGSEGV happens inside
+// the GPU driver and can't be caught); if it's still present at the next
+// process start, that attempt crashed -> promote to a permanent block so CLIP
+// runs on CPU from then on. An empty stateDir disables the sentinel (tests).
+static std::string g_clipStateDir;
+static std::string clipInflightPath() { return g_clipStateDir + "/vulkan_clip.inflight"; }
+static std::string clipBlockedPath()  { return g_clipStateDir + "/vulkan_clip.blocked"; }
+static std::string clipStrikePath()   { return g_clipStateDir + "/vulkan_clip.strike"; }
+
+static bool clipFileExists(const std::string &path) {
+    FILE *f = fopen(path.c_str(), "r");
+    if (f != nullptr) { fclose(f); return true; }
+    return false;
+}
+static void clipTouchFile(const std::string &path) {
+    FILE *f = fopen(path.c_str(), "w");
+    if (f != nullptr) fclose(f);
+}
+
+void clipSentinelInit(const std::string &stateDir) {
+    g_clipStateDir = stateDir;
+    if (g_clipStateDir.empty()) return;
+    if (clipFileExists(clipInflightPath())) {
+        // The last Vulkan vision attempt didn't clear its marker → the :llama
+        // process died mid-init/encode. That's USUALLY a GPU driver crash, but
+        // could also be unrelated (Android low-memory kill, force-stop/swipe-away,
+        // or an abort on a concurrent generation thread). Require TWO such strikes
+        // before permanently disabling Vulkan vision, so one spurious process
+        // death doesn't silently downgrade a working GPU to CPU forever.
+        remove(clipInflightPath().c_str());
+        if (clipFileExists(clipStrikePath())) {
+            clipTouchFile(clipBlockedPath());
+            remove(clipStrikePath().c_str());
+            __android_log_print(ANDROID_LOG_WARN, TAG,
+                "Vulkan CLIP failed twice; disabling Vulkan vision (using CPU)");
+        } else {
+            clipTouchFile(clipStrikePath());
+            __android_log_print(ANDROID_LOG_WARN, TAG,
+                "Vulkan CLIP attempt did not complete (strike 1 of 2)");
+        }
+    } else {
+        // Previous attempt completed (or there was none): clear a stale single
+        // strike so the two strikes must be roughly consecutive, not a lifetime
+        // tally — an intermittent one-off doesn't accumulate toward a block.
+        remove(clipStrikePath().c_str());
+    }
+}
+bool clipSentinelVulkanBlocked() {
+    return !g_clipStateDir.empty() && clipFileExists(clipBlockedPath());
+}
+void clipSentinelBeginVulkanAttempt() {
+    if (!g_clipStateDir.empty()) clipTouchFile(clipInflightPath());
+}
+void clipSentinelEndVulkanAttempt() {
+    if (!g_clipStateDir.empty()) remove(clipInflightPath().c_str());
+}
+
 extern "C" JNIEXPORT int
 JNICALL
-Java_com_druk_llamacpp_jni_NativeLlamaCpp_init(JNIEnv *env, jobject object, jstring nativeLibDir) {
+Java_com_druk_llamacpp_jni_NativeLlamaCpp_init(JNIEnv *env, jobject object, jstring nativeLibDir, jstring stateDir) {
+
+    // The Vulkan-CLIP crash sentinel persists a marker across :llama restarts
+    // in this app-private dir; a marker that survived a restart means the last
+    // Vulkan vision attempt crashed the process -> block Vulkan vision.
+    if (stateDir != nullptr) {
+        const char *sd = env->GetStringUTFChars(stateDir, nullptr);
+        if (sd != nullptr) {
+            clipSentinelInit(sd);
+            env->ReleaseStringUTFChars(stateDir, sd);
+        }
+    }
 
     // Redirect std::cerr to logcat. Must be static: std::cerr keeps the
     // streambuf pointer forever, so a stack-allocated buffer here would
@@ -171,6 +261,43 @@ Java_com_druk_llamacpp_jni_NativeLlamaCpp_init(JNIEnv *env, jobject object, jstr
         __android_log_print(ANDROID_LOG_ERROR, "Llama",
                             "backend load threw a non-std exception — continuing on CPU");
     }
+
+    // Pick the CLIP vision-encoder backend now that the Vulkan backend (if any)
+    // is loaded and its devices are enumerable. clip.cpp selects by device name
+    // via the MTMD_BACKEND_DEVICE env var (e.g. "Vulkan0"). Default to the GPU
+    // (much faster than CPU vision) and fall back to "CPU" for denylisted or
+    // sentinel-blocked GPUs. Mobile GPUs register as IGPU (not GPU), so
+    // enumerate rather than dev_by_type(GPU). Reading device name/description is
+    // safe (no buffer allocation — that's where the driver crash happens).
+    // Dev override: `setprop debug.lmp.mtmd_backend <name>`.
+    const char *mtmd_backend = "CPU";
+    const char *gpu_name = nullptr;
+    const char *gpu_desc = nullptr;
+    size_t dev_count = ggml_backend_dev_count();
+    for (size_t i = 0; i < dev_count; i++) {
+        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
+        if (dev == nullptr) continue;
+        enum ggml_backend_dev_type type = ggml_backend_dev_type(dev);
+        const char *name = ggml_backend_dev_name(dev);
+        const char *desc = ggml_backend_dev_description(dev);
+        __android_log_print(ANDROID_LOG_INFO, TAG, "ggml device %zu: name=%s type=%d desc=%s",
+                            i, name ? name : "?", (int) type, desc ? desc : "?");
+        if (type == GGML_BACKEND_DEVICE_TYPE_GPU || type == GGML_BACKEND_DEVICE_TYPE_IGPU) {
+            gpu_name = name;
+            gpu_desc = desc;
+        }
+    }
+    if (gpu_name != nullptr && !clipVulkanIsKnownBad(gpu_desc)
+            && !clipSentinelVulkanBlocked()) {
+        mtmd_backend = gpu_name;
+    }
+    char backend_override[PROP_VALUE_MAX] = {0};
+    if (__system_property_get("debug.lmp.mtmd_backend", backend_override) > 0) {
+        mtmd_backend = backend_override;
+    }
+    setenv("MTMD_BACKEND_DEVICE", mtmd_backend, 1);
+    __android_log_print(ANDROID_LOG_INFO, TAG, "vision backend: %s (gpu=%s)",
+                        mtmd_backend, gpu_desc ? gpu_desc : "none");
 
     llama_backend_init();
     return 0;

@@ -21,6 +21,17 @@
 void native_log_capture_begin();
 std::string native_log_capture_end();
 
+// Vulkan CLIP crash sentinel (implemented in native-lib.cpp). A marker file is
+// written right before the crash-prone Vulkan vision-encoder init and removed
+// right after. If the marker is still present at the next process start, that
+// attempt took the :llama process down, so Vulkan vision is disabled for this
+// install and CLIP runs on CPU. clipSentinelInit() promotes a surviving marker
+// to a permanent block. An empty stateDir disables the sentinel (tests).
+void clipSentinelInit(const std::string &stateDir);
+bool clipSentinelVulkanBlocked();
+void clipSentinelBeginVulkanAttempt();
+void clipSentinelEndVulkanAttempt();
+
 struct SamplerParams {
     int n_ctx;
     float temperature;

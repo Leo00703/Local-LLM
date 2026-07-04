@@ -17,6 +17,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <fstream>
@@ -122,9 +123,22 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
         mctx = nullptr;
     }
     mtmd_context_params mparams = mtmd_context_params_default();
-    mparams.use_gpu = false;         // CPU-only vision encoder (Phase 1)
+    // GPU vision encoder. The ACTUAL device is chosen by the MTMD_BACKEND_DEVICE
+    // env var (set in native init from the GPU denylist + the crash sentinel),
+    // which resolves to "CPU" whenever the GPU is unknown-bad or previously
+    // crashed — so use_gpu=true is safe: a bad/blocked GPU still runs on CPU.
+    mparams.use_gpu = true;
     mparams.print_timings = false;
-    mparams.warmup = false;          // no warmup encode pass at load time
+    // Is the CLIP encoder going to run on Vulkan? Native init decides via
+    // MTMD_BACKEND_DEVICE (the GPU device name, or "CPU" when denylisted/blocked).
+    const char *clip_backend = std::getenv("MTMD_BACKEND_DEVICE");
+    bool clip_on_vulkan = (clip_backend != nullptr && strcmp(clip_backend, "CPU") != 0);
+    // On Vulkan, warm up at load so the GPU compute-buffer allocation + first
+    // encode happen at load time — INSIDE the crash-sentinel bracket below. A
+    // driver that survives weight-load but faults during compute then crashes
+    // HERE (caught → CPU next launch) instead of later on the first image
+    // (unguarded). CPU vision skips warmup for a faster load.
+    mparams.warmup = clip_on_vulkan;
     // Image-encode threads: same count the generation session uses for decode
     // (mtmd only reads this at encode time, never during init).
     mparams.n_threads = std::max(1, std::min(4, (int) sysconf(_SC_NPROCESSORS_ONLN) - 2));
@@ -142,6 +156,12 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
     // mtmd_init_from_file swallows its own exceptions (logs e.what() via the log
     // callback, returns nullptr), so the real reason only reaches the log. Tee
     // the log around the call to recover it for the UI.
+    // The Vulkan CLIP init (incl. the warmup encode enabled above) can SIGSEGV
+    // inside the GPU driver on some devices — an uncatchable crash, not a C++
+    // exception the try/catch below can trap. Bracket it with the sentinel so a
+    // crash here is detected on the NEXT launch and Vulkan vision is disabled
+    // (CLIP falls back to CPU). CPU encodes never hit this, so only mark Vulkan.
+    if (clip_on_vulkan) clipSentinelBeginVulkanAttempt();
     native_log_capture_begin();
     try {
         mctx = mtmd_init_from_file(mmprojPath.c_str(), model, mparams);
@@ -150,6 +170,9 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
         mctx = nullptr;
     }
     std::string captured = native_log_capture_end();
+    // Reached only if mtmd_init returned (success or caught failure) without
+    // crashing — clear the marker so this load isn't counted as a crash.
+    if (clip_on_vulkan) clipSentinelEndVulkanAttempt();
     if (mctx == nullptr) {
         LOG_ERR("%s: failed to load mmproj '%s'\n", __func__, mmprojPath.c_str());
         mmproj_error = captured.empty() ? "projector failed to load" : captured;

@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.40", "GPU-accelerated image vision", listOf(
+        Change(ChangeType.NEW, "Image processing for vision models now runs on your phone's GPU (Vulkan) instead of the CPU — noticeably faster image encoding, especially for larger/higher-detail images. Text generation still runs on the CPU (that's by design — the GPU isn't faster there on mobile)."),
+        Change(ChangeType.IMPROVED, "Safety net: if a device's GPU driver can't handle the vision encoder, the app automatically falls back to CPU vision — a known-bad GPU is skipped up front, and a GPU that crashes once is disabled for good afterwards, so vision keeps working."),
+    )),
     ChangelogEntry("1.9.39", "GPU groundwork (Vulkan)", listOf(
         Change(ChangeType.IMPROVED, "Under the hood: the Vulkan GPU backend is now compiled into the app, groundwork for upcoming GPU-accelerated image processing. No behaviour change yet — text generation and image input still run on the CPU exactly as before; this build just verifies the GPU support builds and installs cleanly on your device."),
     )),
