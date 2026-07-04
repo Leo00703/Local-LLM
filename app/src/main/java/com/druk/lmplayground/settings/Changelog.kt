@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.44", "Corrected the GPU setting label", listOf(
+        Change(ChangeType.FIX, "The GPU acceleration setting still said \"Vulkan\" — it now correctly says \"OpenCL\", the GPU backend the app actually switched to."),
+    )),
     ChangelogEntry("1.9.43", "See which backend a model runs on", listOf(
         Change(ChangeType.NEW, "The model settings sheet (tune icon → Parameters) now shows a \"Compute backend\" line for local models: \"GPU (OpenCL) — <your GPU> — N/N layers\" when the GPU is actually in use, or \"CPU\" otherwise. This lets you verify the experimental GPU toggle really took effect — if it says CPU while the toggle is on, the GPU couldn't be used and it safely ran on the CPU."),
     )),

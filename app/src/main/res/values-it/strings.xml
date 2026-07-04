@@ -401,7 +401,7 @@
     <string name="disable_repack_title">Disabilita weight repacking</string>
     <string name="disable_repack_desc">Carica i modelli in memory-mapping per usare molta meno RAM, al costo di una generazione più lenta. Utile sui dispositivi con poca memoria.</string>
     <string name="gpu_acceleration_title">Accelerazione GPU (sperimentale)</string>
-    <string name="gpu_acceleration_desc">Esegue il modello sulla GPU (Vulkan) invece che sulla CPU — elaborazione dei prompt e delle immagini più veloce. Sperimentale: alcune GPU danno risultati errati o crashano; se succede, disattivalo. Si applica al prossimo caricamento del modello.</string>
+    <string name="gpu_acceleration_desc">Esegue il modello sulla GPU (OpenCL) invece che sulla CPU — elaborazione dei prompt e delle immagini più veloce. Sperimentale: alcune GPU danno risultati errati o crashano; se succede, disattivalo. Si applica al prossimo caricamento del modello.</string>
     <string name="attach_file">Allega file</string>
     <string name="remove_attachment">Rimuovi allegato</string>
     <string name="attachment_truncated_label">Troncato per rientrare</string>
