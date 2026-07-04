@@ -26,6 +26,16 @@ if(DEFINED ANDROID_ABI)
     endif()
 endif()
 
+# ggml-vulkan.cpp includes <spirv/unified1/spirv.hpp>, but the upstream
+# ggml-vulkan target wires SPIRV-Headers only to the host shader generator (the
+# glslc build), not to the ggml-vulkan library itself. When SPIRV-Headers come
+# from a separate prefix (e.g. apt's spirv-headers staged for CI), inject the
+# include dir globally before adding llama.cpp so ggml-vulkan can compile.
+# Passed from build.gradle.kts (spirvIncludeDir) / the Vulkan CI step.
+if(DEFINED SPIRV_HEADERS_INCLUDE_DIR)
+    include_directories(${SPIRV_HEADERS_INCLUDE_DIR})
+endif()
+
 # Include llama.cpp subdirectory
 add_subdirectory(llama.cpp)
 

@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.39", "GPU groundwork (Vulkan)", listOf(
+        Change(ChangeType.IMPROVED, "Under the hood: the Vulkan GPU backend is now compiled into the app, groundwork for upcoming GPU-accelerated image processing. No behaviour change yet — text generation and image input still run on the CPU exactly as before; this build just verifies the GPU support builds and installs cleanly on your device."),
+    )),
     ChangelogEntry("1.9.38", "KV-cache quantization", listOf(
         Change(ChangeType.NEW, "New \"KV cache\" picker in a local model's settings (Parameters tab): FP16, Q8_0 (standard), or Q4_0. Q8_0 is now the default — it roughly halves the memory the conversation cache uses, at near-zero quality loss, and can speed up longer chats."),
         Change(ChangeType.IMPROVED, "Quantized cache automatically enables Flash Attention, and safely falls back to full-precision FP16 if your device can't run that combination — so a model always loads."),

@@ -10,6 +10,7 @@
 #include "chat.h"
 
 #include "console.h"
+#include "ggml-backend.h"
 #include "log.h"
 
 #include <cassert>
@@ -40,7 +41,20 @@ void LlamaModel::loadModel(const std::string &modelPath,
 
     // initialize the model
     llama_model_params model_params = llama_model_default_params();
-    // model_params.n_gpu_layers = n_gpu_layers;
+    // Keep the LLM entirely on CPU; the GPU (Vulkan, when compiled in) is
+    // reserved exclusively for the mtmd/CLIP vision encoder. n_gpu_layers=0
+    // alone is NOT enough: with a Vulkan backend loaded (GGML_BACKEND_DL) the
+    // scheduler still reserves a Vulkan compute buffer and routes part of the
+    // decode graph to it, which corrupts image-conditioned decode for M-RoPE
+    // vision models. Pinning the model to a CPU-only device list removes the
+    // GPU from the text graph entirely. (n_gpu_layers is intentionally ignored.)
+    (void) n_gpu_layers;
+    model_params.n_gpu_layers = 0;
+    static ggml_backend_dev_t cpu_only_devices[2] = { nullptr, nullptr };
+    cpu_only_devices[0] = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
+    if (cpu_only_devices[0] != nullptr) {
+        model_params.devices = cpu_only_devices;
+    }
     model_params.progress_callback = progress_callback;
     model_params.progress_callback_user_data = progress_callback_user_data;
     // Weight repacking (the CPU "extra" buffer types) copies quantized

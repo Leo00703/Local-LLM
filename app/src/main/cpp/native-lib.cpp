@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <exception>
 #include <csignal>
 #include <unistd.h>
 #include <android/log.h>
@@ -145,12 +146,30 @@ Java_com_druk_llamacpp_jni_NativeLlamaCpp_init(JNIEnv *env, jobject object, jstr
     // With GGML_BACKEND_DL=ON the CPU backend lives in separate
     // libggml-cpu-*.so files alongside libllamacpp.so. dlopen them so
     // llama_model_load_from_file has a backend to bind tensors to.
-    if (nativeLibDir != nullptr) {
-        const char *path = env->GetStringUTFChars(nativeLibDir, nullptr);
-        ggml_backend_load_all_from_path(path);
-        env->ReleaseStringUTFChars(nativeLibDir, path);
-    } else {
-        ggml_backend_load_all();
+    //
+    // libggml-vulkan.so is dlopened here too; its backend registration
+    // enumerates the GPU's physical-device properties, and those Vulkan-Hpp
+    // calls THROW on a non-conformant driver — a throw ggml does not guard.
+    // Catch it here (rather than let it cross the JNI boundary and
+    // std::terminate the :llama service) and fall back to whatever backends
+    // did load; the CPU backend registers first, so the LLM still works.
+    try {
+        if (nativeLibDir != nullptr) {
+            const char *path = env->GetStringUTFChars(nativeLibDir, nullptr);
+            std::string dir = (path != nullptr) ? std::string(path) : std::string();
+            if (path != nullptr) {
+                env->ReleaseStringUTFChars(nativeLibDir, path);
+            }
+            ggml_backend_load_all_from_path(dir.c_str());
+        } else {
+            ggml_backend_load_all();
+        }
+    } catch (const std::exception &e) {
+        __android_log_print(ANDROID_LOG_ERROR, "Llama",
+                            "backend load threw (GPU driver?): %s — continuing on CPU", e.what());
+    } catch (...) {
+        __android_log_print(ANDROID_LOG_ERROR, "Llama",
+                            "backend load threw a non-std exception — continuing on CPU");
     }
 
     llama_backend_init();
