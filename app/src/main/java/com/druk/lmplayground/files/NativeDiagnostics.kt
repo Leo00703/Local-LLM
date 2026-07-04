@@ -61,7 +61,7 @@ object NativeDiagnostics {
         if (tomb.isNotEmpty()) {
             sb.append("── crash (native) ──\n").append(tomb)
         } else if (progress.isEmpty()) {
-            sb.append("(no tombstone / native log captured — logcat may be restricted on this build)")
+            sb.append("(no tombstone / native log captured; logcat may be restricted on this build)")
         }
         return sb.toString().ifBlank { "(no native log captured)" }
     }

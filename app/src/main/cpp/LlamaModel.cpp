@@ -237,8 +237,8 @@ std::string LlamaModel::getModelReport() {
         }
         if (gpu_desc != nullptr) {
             int n_layer = llama_model_n_layer(model);
-            report << "GPU (OpenCL) — " << gpu_desc
-                   << " — " << n_layer << "/" << n_layer << " layers\n";
+            report << "GPU (OpenCL): " << gpu_desc
+                   << " (" << n_layer << "/" << n_layer << " layers)\n";
         } else {
             report << "CPU (GPU requested, but no OpenCL device is available)\n";
         }

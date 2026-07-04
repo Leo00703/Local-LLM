@@ -106,7 +106,7 @@ fun GenerationParamsSheet(
     // metadata is shown as info pills atop the Parameters tab.
     isRemote: Boolean = false,
     serverDetails: ServerModelDetails? = null,
-    // Active compute backend of a loaded local model ("GPU (OpenCL) — … " or
+    // Active compute backend of a loaded local model ("GPU (OpenCL): … " or
     // "CPU"); shown atop the Parameters tab so the user can verify GPU use.
     computeBackend: String? = null,
     // Saved system-prompt library, shown in the Prompt tab so the user can

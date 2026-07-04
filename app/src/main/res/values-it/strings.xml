@@ -286,7 +286,7 @@
     <string name="inference_notification_channel_name">Motore di inferenza</string>
     <string name="inference_notification_channel_description">Mantiene il modello di IA caricato e pronto a rispondere.</string>
     <string name="inference_notification_title">Local LLM</string>
-    <string name="inference_notification_text">Modello caricato — pronto a chattare.</string>
+    <string name="inference_notification_text">Modello caricato, pronto a chattare.</string>
     <string name="inference_notification_loaded_title">Modello caricato</string>
     <string name="inference_engine_crashed">Ops, qualcosa è andato storto.\nRicarica il modello.</string>
     <string name="message_too_large">Il messaggio è di %1$d KB e supera il limite di %2$d KB. Prova a inviare un messaggio più breve.</string>
@@ -331,7 +331,7 @@
     <string name="attach_document">Documento</string>
     <string name="attach_image">Immagine</string>
     <string name="image_attach_failed">Impossibile leggere l\'immagine</string>
-    <string name="vision_load_failed">Impossibile caricare il proiettore vision — il messaggio non è stato inviato. Riprova, oppure rimuovi l\'immagine per inviare solo il testo.</string>
+    <string name="vision_load_failed">Impossibile caricare il proiettore vision. Il messaggio non è stato inviato. Riprova, oppure rimuovi l\'immagine per inviare solo il testo.</string>
     <string name="vision_load_failed_reason">Vision non caricata: %1$s</string>
     <string name="vision_diagnostic_title">Diagnostica caricamento vision</string>
     <string name="image_token_count">🖼 %1$d token</string>
@@ -342,9 +342,9 @@
     <string name="kv_cache_fp16">FP16</string>
     <string name="kv_cache_q8">Q8_0</string>
     <string name="kv_cache_q4">Q4_0</string>
-    <string name="kv_cache_desc_fp16">Precisione piena — più memoria</string>
-    <string name="kv_cache_desc_q8">Standard — ~metà memoria, qualità pressoché intatta</string>
-    <string name="kv_cache_desc_q4">Compatta — meno memoria, lieve calo di qualità</string>
+    <string name="kv_cache_desc_fp16">Precisione piena: più memoria</string>
+    <string name="kv_cache_desc_q8">Standard: ~metà memoria, qualità pressoché intatta</string>
+    <string name="kv_cache_desc_q4">Compatta: meno memoria, lieve calo di qualità</string>
     <string name="compute_backend_label">Backend di calcolo</string>
     <string name="tool_web_search_title">Ricerca web</string>
     <string name="tool_web_search_desc">Cerca sul web e restituisce titoli dei risultati, link e frammenti affinché il modello possa trovare informazioni aggiornate.</string>
@@ -401,7 +401,7 @@
     <string name="disable_repack_title">Disabilita weight repacking</string>
     <string name="disable_repack_desc">Carica i modelli in memory-mapping per usare molta meno RAM, al costo di una generazione più lenta. Utile sui dispositivi con poca memoria.</string>
     <string name="gpu_acceleration_title">Accelerazione GPU (sperimentale)</string>
-    <string name="gpu_acceleration_desc">Esegue il modello sulla GPU (OpenCL) invece che sulla CPU — elaborazione dei prompt e delle immagini più veloce. Sperimentale: alcune GPU danno risultati errati o crashano; se succede, disattivalo. Si applica al prossimo caricamento del modello.</string>
+    <string name="gpu_acceleration_desc">Esegue il modello sulla GPU (OpenCL) invece che sulla CPU, per un\'elaborazione di prompt e immagini più veloce. Sperimentale: alcune GPU danno risultati errati o crashano; se succede, disattivalo. Si applica al prossimo caricamento del modello.</string>
     <string name="attach_file">Allega file</string>
     <string name="remove_attachment">Rimuovi allegato</string>
     <string name="attachment_truncated_label">Troncato per rientrare</string>
@@ -416,7 +416,7 @@
     <string name="preview_text">Testo</string>
     <string name="preview_table">Tabella</string>
     <string name="preview_grid_truncated">Anteprima tabella limitata alle prime %1$s righe.</string>
-    <string name="preview_truncated_note">Anteprima troncata — mostrati i primi %1$s caratteri.</string>
+    <string name="preview_truncated_note">Anteprima troncata. Mostrati i primi %1$s caratteri.</string>
     <string name="attachment_image_only">Solo immagini</string>
     <string name="pdf_preview_unavailable">Impossibile visualizzare questo PDF.</string>
     <string name="process_sources">Fonti</string>

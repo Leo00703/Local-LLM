@@ -84,7 +84,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     private val _loadedModel = MutableLiveData<ModelInfo?>(null)
     private val _loadedModelStatus = MutableLiveData<String?>(null)
     // The active compute backend of the loaded local model — e.g.
-    // "GPU (OpenCL) — QUALCOMM Adreno(TM) 830 — 29/29 layers" or "CPU". Lets the
+    // "GPU (OpenCL): QUALCOMM Adreno(TM) 830 (29/29 layers)" or "CPU". Lets the
     // user verify whether the experimental GPU toggle actually runs on the GPU.
     // Null for remote models. Read from the native model report at load time.
     private val _computeBackend = MutableLiveData<String?>(null)

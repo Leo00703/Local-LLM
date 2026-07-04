@@ -73,15 +73,15 @@
     <string name="models_subtitle">Download and manage models</string>
     <string name="privacy_policy">Privacy Policy</string>
     <string name="privacy_policy_effective_date">Effective Date: June 2, 2026</string>
-    <string name="privacy_policy_intro">Welcome to LM Playground! I am committed to maintaining the trust and confidence of everyone who uses my app. This Privacy Policy explains what the app does and does not collect, how your conversations stay on your device, and the few cases — such as the optional web tools — where information leaves your device, so you always know what to expect.</string>
+    <string name="privacy_policy_intro">Welcome to LM Playground! I am committed to maintaining the trust and confidence of everyone who uses my app. This Privacy Policy explains what the app does and does not collect, how your conversations stay on your device, and the few cases (such as the optional web tools) where information leaves your device, so you always know what to expect.</string>
     <string name="privacy_policy_s1_title">1. No Personal Information Collection</string>
     <string name="privacy_policy_s1_body">I, Andriy Druk, the developer of LM Playground, do not collect, store, use, or share any personal information from the users of my app. There are no accounts, no advertising, and no usage analytics or tracking. The app is designed with your privacy as a priority, so you can use it without compromising your personal data.</string>
     <string name="privacy_policy_s2_title">2. On-Device Processing</string>
     <string name="privacy_policy_s2_body">Your conversations, system prompts, and the model\'s responses are processed locally on your device by the on-device model. This content is never sent to me or to any server for inference. It stays on your device unless you choose to use a feature that reaches the internet, as described below.</string>
     <string name="privacy_policy_s3_title">3. Internet Access</string>
-    <string name="privacy_policy_s3_body">LM Playground requests Internet permission for two purposes: to download the model files you choose, and — only if you turn them on — to power the optional web tools. The app contains no advertising, telemetry, or usage analytics, and it does not report your activity back to me.</string>
+    <string name="privacy_policy_s3_body">LM Playground requests Internet permission for two purposes: to download the model files you choose, and (only if you turn them on) to power the optional web tools. The app contains no advertising, telemetry, or usage analytics, and it does not report your activity back to me.</string>
     <string name="privacy_policy_s4_title">4. Tools and Web Access</string>
-    <string name="privacy_policy_s4_body">Capable models can use optional tools, which are turned off by default. When you enable the web tools, some information leaves your device: the Web search tool sends the model\'s search query to DuckDuckGo, and the Fetch web page tool downloads the pages the model decides to open from those websites. Those requests are handled by the third-party sites under their own privacy policies — I neither receive nor store them. The Run JavaScript tool runs entirely on your device in a sandbox with no internet access. To keep everything offline, simply leave the tools off.</string>
+    <string name="privacy_policy_s4_body">Capable models can use optional tools, which are turned off by default. When you enable the web tools, some information leaves your device: the Web search tool sends the model\'s search query to DuckDuckGo, and the Fetch web page tool downloads the pages the model decides to open from those websites. Those requests are handled by the third-party sites under their own privacy policies. I neither receive nor store them. The Run JavaScript tool runs entirely on your device in a sandbox with no internet access. To keep everything offline, simply leave the tools off.</string>
     <string name="privacy_policy_s5_title">5. Privacy Policy Updates</string>
     <string name="privacy_policy_s5_body">As the developer of LM Playground, I reserve the right to update this Privacy Policy at any time. Any changes will be effective immediately upon posting the updated policy. Users are encouraged to review this page periodically and stay informed about how their privacy is protected.</string>
     <string name="privacy_policy_s6_title">6. Acceptance of This Policy</string>
@@ -101,7 +101,7 @@
     <string name="faq_q3">How much storage space do I need?</string>
     <string name="faq_a3">Model sizes vary from about 500 MB (small models like Qwen 3 0.6B) to several GB (larger models like DeepSeek R1 7B). Make sure you have enough free space before downloading.</string>
     <string name="faq_q4">Does the app require an internet connection?</string>
-    <string name="faq_a4">Internet is needed to download models, and — if you turn them on — for the optional web tools (web search and fetch page). Apart from that, once a model is downloaded it runs completely offline on your device.</string>
+    <string name="faq_a4">Internet is needed to download models, and (if you turn them on) for the optional web tools (web search and fetch page). Apart from that, once a model is downloaded it runs completely offline on your device.</string>
     <string name="faq_q5">Is my data private?</string>
     <string name="faq_a5">Your conversations are processed locally on your device and are never sent to a server by the app. The one exception is the optional web tools: if you enable web search or fetch page, the model\'s search queries and the pages it opens are sent to those websites (search uses DuckDuckGo). Tools are off by default, so nothing leaves your device unless you turn them on. See the Privacy Policy for details.</string>
     <string name="faq_q6">Why is model loading slow?</string>
@@ -175,7 +175,7 @@
     <string name="system_prompt_edit">Edit system prompt</string>
     <string name="system_prompt_hint">e.g. You are a concise assistant. Always answer in French.</string>
     <string name="system_prompt_current">Current system prompt</string>
-    <string name="system_prompt_current_empty">No system prompt — tap to add</string>
+    <string name="system_prompt_current_empty">No system prompt, tap to add</string>
     <string name="system_prompt_update">Update</string>
     <string name="save">Save</string>
     <string name="add">Add</string>
@@ -324,7 +324,7 @@
 
     <!-- What\'s New -->
     <string name="whats_new">What\'s New</string>
-    <string name="whats_new_item_1">Tools — capable models can now use:</string>
+    <string name="whats_new_item_1">Tools capable models can now use:</string>
     <string name="whats_new_tools">Web search, fetch page, and run JavaScript</string>
     <string name="whats_new_cache">Faster replies with cached prompts &amp; tools</string>
     <string name="whats_new_item_2">Now available in 28 languages</string>
@@ -344,7 +344,7 @@
     <!-- Tools -->
     <string name="tools">Tools</string>
     <string name="tools_subtitle">Let capable models take actions</string>
-    <string name="tools_section_intro">Tools let capable models take actions during a reply, like searching the web or running a calculation. Each tool is off by default — turn on only the ones you want. Tools work only with models that support them (look for the hammer badge).</string>
+    <string name="tools_section_intro">Tools let capable models take actions during a reply, like searching the web or running a calculation. Each tool is off by default. Turn on only the ones you want. Tools work only with models that support them (look for the hammer badge).</string>
     <string name="tools_example_label">Example: %1$s</string>
     <string name="tools_params_sheet_subtitle">The model can call these during a reply</string>
     <!-- Tool-call detail in the chat bubble -->
@@ -395,7 +395,7 @@
     <string name="disable_repack_title">Disable weight repacking</string>
     <string name="disable_repack_desc">Load models memory-mapped to use far less RAM, at the cost of slower generation. Useful on low-memory devices.</string>
     <string name="gpu_acceleration_title">GPU acceleration (experimental)</string>
-    <string name="gpu_acceleration_desc">Run the model on the GPU (OpenCL) instead of the CPU — faster prompt processing and image encoding. Experimental: some GPUs produce wrong output or crash; if that happens, turn this back off. Applies on the next model load.</string>
+    <string name="gpu_acceleration_desc">Run the model on the GPU (OpenCL) instead of the CPU, for faster prompt processing and image encoding. Experimental: some GPUs produce wrong output or crash; if that happens, turn this back off. Applies on the next model load.</string>
     <string name="attach_file">Attach file</string>
     <string name="remove_attachment">Remove attachment</string>
     <string name="attachment_truncated_label">Truncated to fit</string>
@@ -410,7 +410,7 @@
     <string name="preview_text">Text</string>
     <string name="preview_table">Table</string>
     <string name="preview_grid_truncated">Table preview limited to the first %1$s rows.</string>
-    <string name="preview_truncated_note">Preview truncated — showing the first %1$s characters.</string>
+    <string name="preview_truncated_note">Preview truncated. Showing the first %1$s characters.</string>
     <string name="attachment_image_only">Image-only</string>
     <string name="pdf_preview_unavailable">Couldn\'t render this PDF.</string>
     <string name="process_sources">Sources</string>
@@ -437,7 +437,7 @@
     <string name="attach_document">Document</string>
     <string name="attach_image">Image</string>
     <string name="image_attach_failed">Couldn\'t read that image</string>
-    <string name="vision_load_failed">Couldn\'t load the vision projector — the message wasn\'t sent. Try again, or remove the image to send text only.</string>
+    <string name="vision_load_failed">Couldn\'t load the vision projector. The message wasn\'t sent. Try again, or remove the image to send text only.</string>
     <string name="vision_load_failed_reason">Vision couldn\'t load: %1$s</string>
     <string name="vision_diagnostic_title">Vision load diagnostic</string>
     <string name="image_token_count">🖼 %1$d tokens</string>
@@ -448,9 +448,9 @@
     <string name="kv_cache_fp16">FP16</string>
     <string name="kv_cache_q8">Q8_0</string>
     <string name="kv_cache_q4">Q4_0</string>
-    <string name="kv_cache_desc_fp16">Full precision — most memory</string>
-    <string name="kv_cache_desc_q8">Standard — ~half the memory, ~no quality loss</string>
-    <string name="kv_cache_desc_q4">Compact — least memory, small quality cost</string>
+    <string name="kv_cache_desc_fp16">Full precision: most memory</string>
+    <string name="kv_cache_desc_q8">Standard: ~half the memory, ~no quality loss</string>
+    <string name="kv_cache_desc_q4">Compact: least memory, small quality cost</string>
     <string name="compute_backend_label">Compute backend</string>
     <!-- Per-tool copy -->
     <string name="tool_run_javascript_title">Run JavaScript</string>
@@ -468,7 +468,7 @@
     <string name="inference_notification_channel_name">Inference engine</string>
     <string name="inference_notification_channel_description">Keeps the AI model loaded and ready to respond.</string>
     <string name="inference_notification_title">Local LLM</string>
-    <string name="inference_notification_text">Model loaded — ready to chat.</string>
+    <string name="inference_notification_text">Model loaded, ready to chat.</string>
     <!-- Title shown on the FGS notification while a model is loaded. The
          description below is built from the user-facing model name and
          the formatted RAM footprint, e.g. "Gemma 4 E2B - 3.41 GB". -->
@@ -486,7 +486,7 @@
         <item quantity="other">%d tokens</item>
     </plurals>
     <string name="response_copied">Copied to clipboard</string>
-    <string name="inference_engine_crashed">Whoops — something went wrong.\nPlease reload the model.</string>
+    <string name="inference_engine_crashed">Whoops, something went wrong.\nPlease reload the model.</string>
     <string name="message_too_large">Message is %1$d KB, exceeds the %2$d KB limit. Try sending a shorter message.</string>
     <string name="replay_history_too_large">Conversation history is too large to reload into this model. Start a new chat to continue.</string>
     <string name="system_prompt_too_large">System prompt is %1$d KB, exceeds the %2$d KB limit. Try a shorter prompt.</string>
@@ -497,11 +497,11 @@
     <string name="model_load_failed_message">Couldn\'t load %1$s. The file may be corrupt, or it uses an architecture this version of the app doesn\'t support yet. Try a different model, or update the app.</string>
     <string name="model_load_failed_dismiss">OK</string>
 
-    <!-- Debug-only crash injection (only shown in debug builds — do not
+    <!-- Debug-only crash injection (only shown in debug builds, do not
          translate, English only). -->
     <string name="debug_crash_engine_title" translatable="false">Crash inference engine (debug)</string>
     <string name="debug_crash_engine_subtitle" translatable="false">Kills the :llama process to verify crash isolation.</string>
     <string name="debug_crash_engine_not_connected" translatable="false">Inference engine isn\'t connected.</string>
-    <string name="debug_crash_engine_done" translatable="false">Crash injected — check the chat for the recovery message.</string>
+    <string name="debug_crash_engine_done" translatable="false">Crash injected. Check the chat for the recovery message.</string>
 
 </resources>

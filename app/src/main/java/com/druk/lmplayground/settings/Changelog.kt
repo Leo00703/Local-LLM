@@ -31,7 +31,7 @@ import com.druk.lmplayground.R
 /**
  * How to add a release note (keep the changelog looking maintained):
  *  1. Prepend a [ChangelogEntry] to [CHANGELOG] (newest first).
- *  2. Give it a short [ChangelogEntry.title] — the theme of the release.
+ *  2. Give it a short [ChangelogEntry.title], the theme of the release.
  *  3. List each user-facing change as a [Change] tagged with the right
  *     [ChangeType] (New feature / Improvement / Fix / Design). The tag drives
  *     the emoji shown to the user, so entries stay consistent build over build.
@@ -54,37 +54,40 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.45", "Cleaner wording", listOf(
+        Change(ChangeType.IMPROVED, "Polished the wording across settings, menus and these release notes for a cleaner, more natural style."),
+    )),
     ChangelogEntry("1.9.44", "Corrected the GPU setting label", listOf(
-        Change(ChangeType.FIX, "The GPU acceleration setting still said \"Vulkan\" — it now correctly says \"OpenCL\", the GPU backend the app actually switched to."),
+        Change(ChangeType.FIX, "The GPU acceleration setting still said \"Vulkan\". It now correctly says \"OpenCL\", the GPU backend the app actually switched to."),
     )),
     ChangelogEntry("1.9.43", "See which backend a model runs on", listOf(
-        Change(ChangeType.NEW, "The model settings sheet (tune icon → Parameters) now shows a \"Compute backend\" line for local models: \"GPU (OpenCL) — <your GPU> — N/N layers\" when the GPU is actually in use, or \"CPU\" otherwise. This lets you verify the experimental GPU toggle really took effect — if it says CPU while the toggle is on, the GPU couldn't be used and it safely ran on the CPU."),
+        Change(ChangeType.NEW, "The model settings sheet (tune icon → Parameters) now shows a \"Compute backend\" line for local models: \"GPU (OpenCL): <your GPU> (N/N layers)\" when the GPU is actually in use, or \"CPU\" otherwise. This lets you verify the experimental GPU toggle really took effect. If it says CPU while the toggle is on, the GPU couldn't be used and it safely ran on the CPU."),
     )),
     ChangelogEntry("1.9.42", "GPU backend switched to OpenCL", listOf(
-        Change(ChangeType.IMPROVED, "The experimental GPU path now uses OpenCL (Qualcomm's Adreno-native GPU API) instead of Vulkan. Vulkan crashed on Adreno GPUs; OpenCL is the path Google's own on-device AI and llama.cpp both use on Qualcomm chips, so it has a real chance of running the model on the GPU reliably. Still opt-in (Settings → Advanced → GPU acceleration); if it doesn't help or misbehaves on your device, leave it off — everything runs on the CPU by default."),
+        Change(ChangeType.IMPROVED, "The experimental GPU path now uses OpenCL (Qualcomm's Adreno-native GPU API) instead of Vulkan. Vulkan crashed on Adreno GPUs; OpenCL is the path Google's own on-device AI and llama.cpp both use on Qualcomm chips, so it has a real chance of running the model on the GPU reliably. Still opt-in (Settings → Advanced → GPU acceleration); if it doesn't help or misbehaves on your device, leave it off. Everything runs on the CPU by default."),
     )),
     ChangelogEntry("1.9.41", "GPU acceleration is now an opt-in toggle", listOf(
-        Change(ChangeType.FIX, "Vision on the GPU crashed the inference engine on some devices (e.g. Adreno). GPU use is now OFF by default, so vision and text both run reliably on the CPU again — no more crashes out of the box."),
-        Change(ChangeType.NEW, "New \"GPU acceleration (experimental)\" switch in Settings → Advanced. Turn it on to offload the whole model — LLM and image encoding — to the GPU (Vulkan). Faster prompt processing and image encoding when your GPU supports it; if you get wrong output or a crash, turn it back off. Applies on the next model load."),
+        Change(ChangeType.FIX, "Vision on the GPU crashed the inference engine on some devices (e.g. Adreno). GPU use is now OFF by default, so vision and text both run reliably on the CPU again, with no more crashes out of the box."),
+        Change(ChangeType.NEW, "New \"GPU acceleration (experimental)\" switch in Settings → Advanced. Turn it on to offload the whole model (LLM and image encoding) to the GPU (Vulkan). Faster prompt processing and image encoding when your GPU supports it; if you get wrong output or a crash, turn it back off. Applies on the next model load."),
     )),
     ChangelogEntry("1.9.40", "GPU-accelerated image vision", listOf(
-        Change(ChangeType.NEW, "Image processing for vision models now runs on your phone's GPU (Vulkan) instead of the CPU — noticeably faster image encoding, especially for larger/higher-detail images. Text generation still runs on the CPU (that's by design — the GPU isn't faster there on mobile)."),
-        Change(ChangeType.IMPROVED, "Safety net: if a device's GPU driver can't handle the vision encoder, the app automatically falls back to CPU vision — a known-bad GPU is skipped up front, and a GPU that crashes once is disabled for good afterwards, so vision keeps working."),
+        Change(ChangeType.NEW, "Image processing for vision models now runs on your phone's GPU (Vulkan) instead of the CPU, noticeably faster image encoding, especially for larger/higher-detail images. Text generation still runs on the CPU (that's by design, the GPU isn't faster there on mobile)."),
+        Change(ChangeType.IMPROVED, "Safety net: if a device's GPU driver can't handle the vision encoder, the app automatically falls back to CPU vision: a known-bad GPU is skipped up front, and a GPU that crashes once is disabled for good afterwards, so vision keeps working."),
     )),
     ChangelogEntry("1.9.39", "GPU groundwork (Vulkan)", listOf(
-        Change(ChangeType.IMPROVED, "Under the hood: the Vulkan GPU backend is now compiled into the app, groundwork for upcoming GPU-accelerated image processing. No behaviour change yet — text generation and image input still run on the CPU exactly as before; this build just verifies the GPU support builds and installs cleanly on your device."),
+        Change(ChangeType.IMPROVED, "Under the hood: the Vulkan GPU backend is now compiled into the app, groundwork for upcoming GPU-accelerated image processing. No behaviour change yet: text generation and image input still run on the CPU exactly as before; this build just verifies the GPU support builds and installs cleanly on your device."),
     )),
     ChangelogEntry("1.9.38", "KV-cache quantization", listOf(
-        Change(ChangeType.NEW, "New \"KV cache\" picker in a local model's settings (Parameters tab): FP16, Q8_0 (standard), or Q4_0. Q8_0 is now the default — it roughly halves the memory the conversation cache uses, at near-zero quality loss, and can speed up longer chats."),
-        Change(ChangeType.IMPROVED, "Quantized cache automatically enables Flash Attention, and safely falls back to full-precision FP16 if your device can't run that combination — so a model always loads."),
+        Change(ChangeType.NEW, "New \"KV cache\" picker in a local model's settings (Parameters tab): FP16, Q8_0 (standard), or Q4_0. Q8_0 is now the default: it roughly halves the memory the conversation cache uses, at near-zero quality loss, and can speed up longer chats."),
+        Change(ChangeType.IMPROVED, "Quantized cache automatically enables Flash Attention, and safely falls back to full-precision FP16 if your device can't run that combination, so a model always loads."),
     )),
     ChangelogEntry("1.9.37", "True model-view + wider vision detection", listOf(
-        Change(ChangeType.NEW, "A sent image now displays at the exact resolution the model actually received it — so you see the real image the model \"saw\". Move the Image detail slider and watch it change."),
-        Change(ChangeType.IMPROVED, "Any downloaded model paired with a matching projector (mmproj) file in your models folder is now recognized as a vision model — not just sideloaded ones — so its image badge shows in the picker."),
+        Change(ChangeType.NEW, "A sent image now displays at the exact resolution the model actually received it, so you see the real image the model \"saw\". Move the Image detail slider and watch it change."),
+        Change(ChangeType.IMPROVED, "Any downloaded model paired with a matching projector (mmproj) file in your models folder is now recognized as a vision model (not just sideloaded ones), so its image badge shows in the picker."),
     )),
     ChangelogEntry("1.9.36", "Image token count + detail slider", listOf(
         Change(ChangeType.NEW, "Sent images now show how many tokens they used (🖼 N), so you can see how much of the context a photo consumes."),
-        Change(ChangeType.NEW, "New \"Image detail\" slider in a vision model's settings — trade image resolution/detail against tokens and speed. Higher = sharper, lower = faster & lighter on context."),
+        Change(ChangeType.NEW, "New \"Image detail\" slider in a vision model's settings: trade image resolution/detail against tokens and speed. Higher = sharper, lower = faster & lighter on context."),
     )),
     ChangelogEntry("1.9.35", "Vision projector loads (audio encoder skipped)", listOf(
         Change(ChangeType.FIX, "Fixed the crash when loading a vision model whose projector also bundles an audio encoder (e.g. Gemma 3n / Gemma 4 E2B): the unused audio part is now skipped, so image input can finally load."),
@@ -93,34 +96,34 @@ private val CHANGELOG = listOf(
         Change(ChangeType.IMPROVED, "If a vision model's image projector fails to load, the app now shows a copyable diagnostic (memory + the native crash report) so projector-compatibility issues on sideloaded models can be pinned down precisely."),
     )),
     ChangelogEntry("1.9.32", "Image preview + clearer vision errors", listOf(
-        Change(ChangeType.NEW, "Tap an attached or sent image to view it full-screen — pinch to zoom, tap to close, just like the document and PDF previews."),
+        Change(ChangeType.NEW, "Tap an attached or sent image to view it full-screen: pinch to zoom, tap to close, just like the document and PDF previews."),
         Change(ChangeType.IMPROVED, "When a vision model can't load its image projector, the message now says exactly why (e.g. an incompatible mmproj) instead of a generic error."),
     )),
     ChangelogEntry("1.9.31", "Send images to vision models", listOf(
-        Change(ChangeType.NEW, "Attach a photo from your gallery and ask about it — the attach button now offers Document / Image for vision models (those with an mmproj projector in your models folder)."),
+        Change(ChangeType.NEW, "Attach a photo from your gallery and ask about it. The attach button now offers Document / Image for vision models (those with an mmproj projector in your models folder)."),
         Change(ChangeType.NEW, "Sent images show as a thumbnail in the chat and are kept with the conversation."),
         Change(ChangeType.IMPROVED, "The vision projector loads only at your first image, so text chats stay as fast as ever; the model line shows \"Loading vision…\" while it loads."),
-        Change(ChangeType.IMPROVED, "Photos are downscaled on-device before reaching the model — HEIC from the camera works, and portrait shots stay upright."),
+        Change(ChangeType.IMPROVED, "Photos are downscaled on-device before reaching the model. HEIC from the camera works, and portrait shots stay upright."),
     )),
     ChangelogEntry("1.9.30", "Vision projector no longer auto-loads", listOf(
-        Change(ChangeType.FIX, "Paired vision models no longer load their image projector at startup — this was causing some sideloaded models to hang when generating. Image support will load the projector only when an image is attached."),
+        Change(ChangeType.FIX, "Paired vision models no longer load their image projector at startup. This was causing some sideloaded models to hang when generating. Image support will load the projector only when an image is attached."),
     )),
     ChangelogEntry("1.9.29", "Vision loading hardened", listOf(
-        Change(ChangeType.FIX, "An incompatible or oversized vision projector can no longer crash the app or block loading other models — a failed projector now just means the model loads as text."),
+        Change(ChangeType.FIX, "An incompatible or oversized vision projector can no longer crash the app or block loading other models. A failed projector now just means the model loads as text."),
         Change(ChangeType.FIX, "Tightened model↔projector pairing so an unrelated model is never tagged as vision by mistake."),
     )),
     ChangelogEntry("1.9.28", "Vision models recognised", listOf(
-        Change(ChangeType.NEW, "Drop a vision model together with its mmproj projector in your models folder and it's now detected automatically — shown with an image badge in the model list."),
+        Change(ChangeType.NEW, "Drop a vision model together with its mmproj projector in your models folder and it's now detected automatically, shown with an image badge in the model list."),
         Change(ChangeType.NEW, "Loading such a model attaches its projector on-device. Attaching and sending images arrives in the next update."),
     )),
     ChangelogEntry("1.9.27", "Vision groundwork II", listOf(
-        Change(ChangeType.NEW, "Wired up on-device image tokenization and generation (vision) — the feature keeps coming together; UI arrives soon."),
+        Change(ChangeType.NEW, "Wired up on-device image tokenization and generation (vision). The feature keeps coming together; UI arrives soon."),
     )),
     ChangelogEntry("1.9.26", "Vision groundwork", listOf(
-        Change(ChangeType.NEW, "Laid the on-device foundation for image input (vision) — image understanding arrives over the next few updates."),
+        Change(ChangeType.NEW, "Laid the on-device foundation for image input (vision). Image understanding arrives over the next few updates."),
     )),
     ChangelogEntry("1.9.25", "Unified, tabbed model settings", listOf(
-        Change(ChangeType.NEW, "Manage your saved system prompts straight from the model settings — pick, edit, delete or create one, without leaving the chat."),
+        Change(ChangeType.NEW, "Manage your saved system prompts straight from the model settings: pick, edit, delete or create one, without leaving the chat."),
         Change(ChangeType.IMPROVED, "Remote server models now share the same tabbed settings (Prompt · Tools · Parameters) as local models, including system prompts."),
         Change(ChangeType.DESIGN, "The settings tabs now blend into the sheet instead of sitting on a dark bar."),
         Change(ChangeType.DESIGN, "Redesigned this changelog, grouped by change type."),
@@ -133,7 +136,7 @@ private val CHANGELOG = listOf(
         Change(ChangeType.NEW, "The model settings sheet is now split into Prompt · Tools · Parameters tabs."),
     )),
     ChangelogEntry("1.9.22", "Smarter chats & more file types", listOf(
-        Change(ChangeType.NEW, "Auto-name new chats from the first reply — optional, in Settings › Tools."),
+        Change(ChangeType.NEW, "Auto-name new chats from the first reply. Optional, in Settings › Tools."),
         Change(ChangeType.NEW, "Preview spreadsheets (Excel/CSV) as a table, with a Table ⇄ Raw toggle."),
         Change(ChangeType.NEW, "Attach RTF, OpenDocument (ODT/ODS/ODP) and EPUB files."),
         Change(ChangeType.IMPROVED, "More accurate token estimates for non-Latin (CJK) text."),
@@ -143,17 +146,17 @@ private val CHANGELOG = listOf(
         Change(ChangeType.FIX, "Two-finger pan on a zoomed PDF now reaches every edge, including single-page documents."),
     )),
     ChangelogEntry("1.9.20", "Office documents", listOf(
-        Change(ChangeType.NEW, "Attach Word (.docx), Excel (.xlsx) and PowerPoint (.pptx) files — their text is extracted and sent to the model."),
+        Change(ChangeType.NEW, "Attach Word (.docx), Excel (.xlsx) and PowerPoint (.pptx) files. Their text is extracted and sent to the model."),
     )),
     ChangelogEntry("1.9.19", "Pinch to zoom PDFs", listOf(
         Change(ChangeType.NEW, "Pinch to zoom PDF pages in the preview."),
     )),
     ChangelogEntry("1.9.18", "Real PDF pages", listOf(
         Change(ChangeType.NEW, "Preview PDFs as real pages, not just text, with a Pages ⇄ Text toggle."),
-        Change(ChangeType.IMPROVED, "Scanned or image-only PDFs now preview too — pages show even without extractable text."),
+        Change(ChangeType.IMPROVED, "Scanned or image-only PDFs now preview too. Pages show even without extractable text."),
     )),
     ChangelogEntry("1.9.17", "Attach PDFs", listOf(
-        Change(ChangeType.NEW, "Attach PDF files — their text is extracted and sent to the model."),
+        Change(ChangeType.NEW, "Attach PDF files. Their text is extracted and sent to the model."),
     )),
     ChangelogEntry("1.9.16", "Complete HTML previews", listOf(
         Change(ChangeType.FIX, "HTML preview now shows the whole page, including sections that reveal on scroll."),
@@ -171,7 +174,7 @@ private val CHANGELOG = listOf(
         Change(ChangeType.DESIGN, "A roomier message box."),
     )),
     ChangelogEntry("1.9.12", "Attach text & HTML", listOf(
-        Change(ChangeType.NEW, "Attach text and HTML files — their contents are extracted and sent along with your message."),
+        Change(ChangeType.NEW, "Attach text and HTML files. Their contents are extracted and sent along with your message."),
     )),
     ChangelogEntry("1.9.11", "Clearer settings & reasoning", listOf(
         Change(ChangeType.DESIGN, "Settings reorganised into clearer sections."),
@@ -182,7 +185,7 @@ private val CHANGELOG = listOf(
         Change(ChangeType.FIX, "Stability and model-picker fixes."),
     )),
     ChangelogEntry("1.9.9", "In-app changelog & date", listOf(
-        Change(ChangeType.NEW, "In-app changelog — tap the version number a few times to open this list."),
+        Change(ChangeType.NEW, "In-app changelog: tap the version number a few times to open this list."),
         Change(ChangeType.NEW, "Optional current date in the system prompt (toggle in Settings)."),
     )),
     ChangelogEntry("1.9.8", "Themed logo & reasoning peek", listOf(
