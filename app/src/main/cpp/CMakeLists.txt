@@ -20,20 +20,18 @@ if(DEFINED ANDROID_ABI)
     if(ANDROID_ABI STREQUAL "arm64-v8a")
         set(GGML_CPU_KLEIDIAI ON)
         set(GGML_OPENMP OFF)
+        # GPU backend: OpenCL, the Qualcomm-authored, Adreno-optimized mobile GPU
+        # path (arm64 only). The Adreno kernels + kernel-embedding are ON by
+        # default in ggml; find_package(OpenCL) resolves against the headers +
+        # libOpenCL.so the "Set up OpenCL toolchain" CI step stages into the NDK
+        # sysroot. Opt-in at runtime behind the "GPU acceleration" setting.
+        set(GGML_OPENCL ON)
     elseif(ANDROID_ABI STREQUAL "x86_64")
         set(GGML_CPU_KLEIDIAI OFF)
         set(GGML_OPENMP OFF)
+        # No OpenCL driver on the x86_64 emulator — CPU only.
+        set(GGML_OPENCL OFF)
     endif()
-endif()
-
-# ggml-vulkan.cpp includes <spirv/unified1/spirv.hpp>, but the upstream
-# ggml-vulkan target wires SPIRV-Headers only to the host shader generator (the
-# glslc build), not to the ggml-vulkan library itself. When SPIRV-Headers come
-# from a separate prefix (e.g. apt's spirv-headers staged for CI), inject the
-# include dir globally before adding llama.cpp so ggml-vulkan can compile.
-# Passed from build.gradle.kts (spirvIncludeDir) / the Vulkan CI step.
-if(DEFINED SPIRV_HEADERS_INCLUDE_DIR)
-    include_directories(${SPIRV_HEADERS_INCLUDE_DIR})
 endif()
 
 # Include llama.cpp subdirectory

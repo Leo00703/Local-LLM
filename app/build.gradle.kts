@@ -10,74 +10,15 @@ plugins {
     alias(libs.plugins.paparazzi)
 }
 
-// Pinned NDK (used both for android.ndkVersion and to locate the bundled glslc).
+// Pinned NDK version (android.ndkVersion + referenced by the OpenCL CI toolchain step).
 val ndkVersionPin = "27.2.12479018"
 
-// --- Vulkan build toolchain discovery (portable; no machine-specific paths) ---
-// GPU is used ONLY for the mtmd/CLIP vision encoder; the LLM stays pinned to CPU.
-// glslc ships inside every NDK under shader-tools/<host>; auto-derive it from the
-// pinned NDK, overridable via -PvulkanGlslc or the VULKAN_GLSLC env var.
-val vulkanGlslcPath: String? = run {
-    val override = (project.findProperty("vulkanGlslc") as String?) ?: System.getenv("VULKAN_GLSLC")
-    if (override != null) return@run override
-    val sdkDir = System.getenv("ANDROID_HOME")
-        ?: System.getenv("ANDROID_SDK_ROOT")
-        ?: Properties().apply {
-            val lp = rootProject.file("local.properties")
-            if (lp.exists()) lp.inputStream().use { load(it) }
-        }.getProperty("sdk.dir")
-    val osName = System.getProperty("os.name").lowercase()
-    val hostTag = when {
-        osName.contains("mac") || osName.contains("darwin") -> "darwin-x86_64"
-        osName.contains("win") -> "windows-x86_64"
-        else -> "linux-x86_64"
-    }
-    sdkDir?.let { File("$it/ndk/$ndkVersionPin/shader-tools/$hostTag/glslc") }
-        ?.takeIf { it.exists() }?.absolutePath
-}
-
-// The NDK sysroot ships only the C Vulkan headers; ggml-vulkan needs the C++
-// bindings (vulkan.hpp), so an external Vulkan-Headers source is required.
-// Override via -PvulkanIncludeDir / VULKAN_HEADERS_DIR / VULKAN_SDK; otherwise
-// probe the usual install locations (Homebrew on macOS, system include on Linux).
-val vulkanIncludeDir: String? = run {
-    val override = (project.findProperty("vulkanIncludeDir") as String?)
-        ?: System.getenv("VULKAN_HEADERS_DIR")
-        ?: System.getenv("VULKAN_SDK")?.let { "$it/include" }
-    if (override != null) return@run override
-    listOf(
-        "/opt/homebrew/opt/vulkan-headers/include", // macOS arm64 (brew)
-        "/usr/local/opt/vulkan-headers/include",    // macOS x86_64 (brew)
-        "/usr/include",                              // Linux system vulkan-headers
-    ).firstOrNull { File(it, "vulkan/vulkan.hpp").exists() }
-}
-
-// b9496's ggml-vulkan requires find_package(SPIRV-Headers CONFIG). Point CMake
-// at the host CONFIG package dir. Override via -PspirvHeadersDir / SPIRV_HEADERS_DIR.
-val spirvHeadersDir: String? = run {
-    val override = (project.findProperty("spirvHeadersDir") as String?) ?: System.getenv("SPIRV_HEADERS_DIR")
-    if (override != null) return@run override
-    listOf(
-        "/opt/homebrew/opt/spirv-headers/share/cmake/SPIRV-Headers", // macOS arm64 (brew)
-        "/usr/local/opt/spirv-headers/share/cmake/SPIRV-Headers",    // macOS x86_64 (brew)
-        "/usr/lib/cmake/SPIRV-Headers",                               // Linux system
-        "/usr/share/cmake/SPIRV-Headers",
-    ).firstOrNull { File(it, "SPIRV-HeadersConfig.cmake").exists() }
-}
-
-// ggml-vulkan.cpp #includes <spirv/unified1/spirv.hpp> but the ggml-vulkan
-// CMake target only links SPIRV-Headers to the host shader generator, not to
-// itself. Add the SPIRV include dir to the build explicitly (consumed by our
-// top-level CMakeLists via include_directories).
-val spirvIncludeDir: String? = run {
-    val override = (project.findProperty("spirvIncludeDir") as String?) ?: System.getenv("SPIRV_HEADERS_INCLUDE_DIR")
-    if (override != null) return@run override
-    listOf(
-        "/opt/homebrew/opt/spirv-headers/include", // macOS arm64 (brew)
-        "/usr/local/opt/spirv-headers/include",    // macOS x86_64 (brew)
-        "/usr/include",                            // Linux system
-    ).firstOrNull { File(it, "spirv/unified1/spirv.hpp").exists() }
-}
+// GPU backend = OpenCL (Qualcomm/Adreno-native), enabled per-ABI (arm64 only) in
+// src/main/cpp/CMakeLists.txt. The OpenCL headers + the Khronos ICD loader
+// (libOpenCL.so) are installed into the NDK sysroot by the "Set up OpenCL
+// toolchain" CI step, so find_package(OpenCL) resolves with no build.gradle
+// wiring; libOpenCL.so is also copied into jniLibs for runtime. (This replaces the
+// earlier Vulkan path, which crashed on Adreno 830.)
 
 android {
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -109,21 +50,11 @@ android {
                 arguments += "-DLLAMA_OPENSSL=OFF"
                 arguments += "-DGGML_LLAMAFILE=OFF"
                 arguments += "-DGGML_NATIVE=OFF"
-                // Vulkan GPU backend — used ONLY for the mtmd/CLIP vision
-                // encoder (the LLM is pinned to CPU in LlamaModel.cpp). Needs
-                // the host Vulkan/SPIRV toolchain, discovered above and provided
-                // by the "Set up Vulkan toolchain" CI step; a build without it
-                // will fail at CMake configure, so the two land together.
-                arguments += "-DGGML_VULKAN=ON"
-                vulkanGlslcPath?.let { arguments += "-DVulkan_GLSLC_EXECUTABLE=$it" }
-                vulkanIncludeDir?.let { arguments += "-DVulkan_INCLUDE_DIR=$it" }
-                spirvHeadersDir?.let { arguments += "-DSPIRV-Headers_DIR=$it" }
-                spirvIncludeDir?.let { arguments += "-DSPIRV_HEADERS_INCLUDE_DIR=$it" }
-                // ggml-vulkan's find_package(SPIRV-Headers CONFIG) is a host
-                // package; let the Android cross-compile toolchain search the
-                // host prefix for CONFIG packages (does not affect FindVulkan,
-                // which resolves the NDK's libvulkan via library/include modes).
-                arguments += "-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH"
+                // GGML_OPENCL is enabled per-ABI (arm64 only) in CMakeLists.txt;
+                // the OpenCL headers + libOpenCL.so are staged into the NDK
+                // sysroot by the "Set up OpenCL toolchain" CI step, so a build
+                // without that step fails at find_package(OpenCL) — the two land
+                // together. (The GPU is opt-in behind the Settings toggle.)
                 arguments += "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
                 // Shared libs + dynamic CPU backend loading. Builds one
                 // libggml-cpu-<variant>.so per ARM feature level (NEON,

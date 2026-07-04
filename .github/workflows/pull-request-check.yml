@@ -42,29 +42,34 @@ jobs:
         cache: 'gradle'
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
-    # Vulkan (GGML_VULKAN=ON) host build deps — see build-debug-apk.yml for why.
-    # Vulkan is used ONLY for the mtmd/CLIP vision encoder; the LLM stays on CPU.
-    - name: Set up Vulkan toolchain for the native build
+    # OpenCL (GGML_OPENCL=ON, arm64) host build deps — see build-debug-apk.yml for why.
+    - name: Set up OpenCL toolchain for the native build
       run: |
         set -eu
-        SDKMANAGER="$(command -v sdkmanager || echo "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager")"
-        printf 'y\n' | "$SDKMANAGER" --install "ndk;27.2.12479018" >/dev/null
-        GLSLC="$ANDROID_HOME/ndk/27.2.12479018/shader-tools/linux-x86_64/glslc"
-        test -x "$GLSLC"
-        echo "VULKAN_GLSLC=$GLSLC" >> "$GITHUB_ENV"
+        NDK="$ANDROID_HOME/ndk/27.2.12479018"
+        SYSROOT="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+        test -d "$SYSROOT"
         sudo apt-get update
-        sudo apt-get install -y libvulkan-dev spirv-headers
-        VKINC="$RUNNER_TEMP/vk-headers/include"
-        mkdir -p "$VKINC"
-        for d in vulkan vk_video spirv; do
-          [ -d "/usr/include/$d" ] && cp -r "/usr/include/$d" "$VKINC/"
-        done
-        test -f "$VKINC/vulkan/vulkan.hpp"
-        test -f "$VKINC/spirv/unified1/spirv.hpp"
-        SPIRV_CFG="$(find /usr -name SPIRV-HeadersConfig.cmake 2>/dev/null | head -1)"
-        test -n "$SPIRV_CFG"
-        echo "VULKAN_HEADERS_DIR=$VKINC" >> "$GITHUB_ENV"
-        echo "SPIRV_HEADERS_INCLUDE_DIR=$VKINC" >> "$GITHUB_ENV"
-        echo "SPIRV_HEADERS_DIR=$(dirname "$SPIRV_CFG")" >> "$GITHUB_ENV"
+        sudo apt-get install -y ninja-build
+        WORK="$RUNNER_TEMP/opencl"
+        mkdir -p "$WORK" && cd "$WORK"
+        git clone --depth 1 --branch v2025.07.22 https://github.com/KhronosGroup/OpenCL-Headers
+        cp -r OpenCL-Headers/CL "$SYSROOT/usr/include/"
+        git clone --depth 1 --branch v2025.07.22 https://github.com/KhronosGroup/OpenCL-ICD-Loader
+        cmake -S OpenCL-ICD-Loader -B OpenCL-ICD-Loader/build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+          -DOPENCL_ICD_LOADER_HEADERS_DIR="$SYSROOT/usr/include" \
+          -DANDROID_ABI=arm64-v8a \
+          -DANDROID_PLATFORM=24 \
+          -DANDROID_STL=c++_static
+        cmake --build OpenCL-ICD-Loader/build
+        LIB="$WORK/OpenCL-ICD-Loader/build/libOpenCL.so"
+        test -f "$LIB"
+        cp "$LIB" "$SYSROOT/usr/lib/aarch64-linux-android/"
+        JNILIBS="$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a"
+        mkdir -p "$JNILIBS"
+        cp "$LIB" "$JNILIBS/"
+        echo "OpenCL toolchain ready: $(ls -la "$JNILIBS/libOpenCL.so")"
     - name: Run connected android tests
       run: ./gradlew app:mvdApi35Check

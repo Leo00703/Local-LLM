@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.42", "GPU backend switched to OpenCL", listOf(
+        Change(ChangeType.IMPROVED, "The experimental GPU path now uses OpenCL (Qualcomm's Adreno-native GPU API) instead of Vulkan. Vulkan crashed on Adreno GPUs; OpenCL is the path Google's own on-device AI and llama.cpp both use on Qualcomm chips, so it has a real chance of running the model on the GPU reliably. Still opt-in (Settings → Advanced → GPU acceleration); if it doesn't help or misbehaves on your device, leave it off — everything runs on the CPU by default."),
+    )),
     ChangelogEntry("1.9.41", "GPU acceleration is now an opt-in toggle", listOf(
         Change(ChangeType.FIX, "Vision on the GPU crashed the inference engine on some devices (e.g. Adreno). GPU use is now OFF by default, so vision and text both run reliably on the CPU again — no more crashes out of the box."),
         Change(ChangeType.NEW, "New \"GPU acceleration (experimental)\" switch in Settings → Advanced. Turn it on to offload the whole model — LLM and image encoding — to the GPU (Vulkan). Faster prompt processing and image encoding when your GPU supports it; if you get wrong output or a crash, turn it back off. Applies on the next model load."),
