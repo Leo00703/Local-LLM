@@ -135,7 +135,7 @@ void LlamaGenerationSession::recreateToolSampler(const common_chat_params &rende
          render.grammar.size(), (int)render.grammar_lazy, render.grammar_triggers.size());
 }
 
-void LlamaGenerationSession::init(llama_model *model, const struct common_chat_templates *tmpls, mtmd_context *mmctx, const SamplerParams &params) {
+void LlamaGenerationSession::init(llama_model *model, const struct common_chat_templates *tmpls, mtmd_context *mmctx, const SamplerParams &params, bool gpu_enabled) {
 
     vocab = llama_model_get_vocab(model);
     chat_tmpls = tmpls;
@@ -154,16 +154,19 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     ctx_params.n_threads       = n_threads;
     ctx_params.n_threads_batch = n_threads;
 
-    // KV-cache quantization (user-selectable). Q8_0 ~= half the KV memory at
-    // near-zero quality loss and is often faster on long contexts; Q4_0 is
-    // smaller still with a small quality cost. Quantized *V* requires Flash
-    // Attention (llama.cpp aborts context creation otherwise), so force FA on
-    // whenever the cache is quantized. F16 keeps the default AUTO behaviour.
+    // KV-cache quantization (user-selectable, CPU only). Q8_0 ~= half the KV
+    // memory at near-zero quality loss; Q4_0 is smaller with a small quality
+    // cost. Quantized *V* requires Flash Attention. The OpenCL GPU backend's FA
+    // kernels are F16/F32 only (no quantized-KV variants), so a quantized KV
+    // cache on the GPU crashes context creation. Therefore: keep the KV cache
+    // F16 whenever the model runs on the GPU; KV quant applies on CPU only.
     ggml_type kv_type = GGML_TYPE_F16;
-    switch (params.kv_cache_type) {
-        case 1: kv_type = GGML_TYPE_Q8_0; break;
-        case 2: kv_type = GGML_TYPE_Q4_0; break;
-        default: kv_type = GGML_TYPE_F16; break;
+    if (!gpu_enabled) {
+        switch (params.kv_cache_type) {
+            case 1: kv_type = GGML_TYPE_Q8_0; break;
+            case 2: kv_type = GGML_TYPE_Q4_0; break;
+            default: kv_type = GGML_TYPE_F16; break;
+        }
     }
     ctx_params.type_k = kv_type;
     ctx_params.type_v = kv_type;

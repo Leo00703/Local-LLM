@@ -55,7 +55,7 @@ public:
 
     ~LlamaGenerationSession();
 
-    void init(llama_model *model, const struct common_chat_templates *chat_tmpls, mtmd_context *mmctx, const SamplerParams &params);
+    void init(llama_model *model, const struct common_chat_templates *chat_tmpls, mtmd_context *mmctx, const SamplerParams &params, bool gpu_enabled);
 
     void printReport();
 

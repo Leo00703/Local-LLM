@@ -346,6 +346,7 @@
     <string name="kv_cache_desc_q8">Standard: ~metà memoria, qualità pressoché intatta</string>
     <string name="kv_cache_desc_q4">Compatta: meno memoria, lieve calo di qualità</string>
     <string name="compute_backend_label">Backend di calcolo</string>
+    <string name="kv_cache_gpu_note">Sulla GPU la cache KV gira sempre a precisione piena (F16). La quantizzazione vale solo su CPU.</string>
     <string name="tool_web_search_title">Ricerca web</string>
     <string name="tool_web_search_desc">Cerca sul web e restituisce titoli dei risultati, link e frammenti affinché il modello possa trovare informazioni aggiornate.</string>
     <string name="tool_web_search_example">\"Trova recensioni recenti dell\'ultimo telefono Pixel.\"</string>

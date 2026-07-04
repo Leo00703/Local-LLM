@@ -79,7 +79,10 @@ LlamaGenerationSession* LlamaModel::createGenerationSession(const SamplerParams 
         return nullptr;
     }
     auto *session = new LlamaGenerationSession();
-    session->init(model, chat_tmpls.get(), mctx, params);
+    // gpu_enabled gates KV-cache quantization: the OpenCL GPU can't do quantized
+    // KV (its Flash Attention kernels are F16/F32 only), so on the GPU the
+    // session keeps the KV cache F16 regardless of the user's KV setting.
+    session->init(model, chat_tmpls.get(), mctx, params, gpu_enabled);
     return session;
 }
 

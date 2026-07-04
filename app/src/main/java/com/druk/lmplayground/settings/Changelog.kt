@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.47", "GPU works with any KV setting", listOf(
+        Change(ChangeType.FIX, "With GPU acceleration on, creating a chat failed (\"Failed to create session\") whenever the KV cache was set to Q8_0 or Q4_0, which is the default. The GPU's OpenCL backend can't run a quantized KV cache, so the app now keeps the KV cache at full precision (F16) on the GPU automatically. KV quantization still works on the CPU."),
+    )),
     ChangelogEntry("1.9.46", "Reach the phone's OpenCL driver", listOf(
         Change(ChangeType.FIX, "With GPU acceleration on, the Compute backend showed \"no OpenCL device\" because the app couldn't reach the phone's own GPU driver. The app now declares access to the device OpenCL library and uses it directly, so an Adreno GPU can be detected. Still opt-in; if your device does not expose OpenCL, it falls back to the CPU as before."),
     )),

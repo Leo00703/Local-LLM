@@ -517,6 +517,16 @@ fun GenerationParamsSheet(
                     selected = editedParams.kvCacheType,
                     onSelect = { editedParams = editedParams.copy(kvCacheType = it) }
                 )
+                // On the GPU the KV cache stays F16 (OpenCL has no quantized-KV
+                // Flash Attention), so the picker above only takes effect on CPU.
+                if (computeBackend?.startsWith("GPU") == true) {
+                    Text(
+                        text = stringResource(R.string.kv_cache_gpu_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
             }
 
             // Advanced section
