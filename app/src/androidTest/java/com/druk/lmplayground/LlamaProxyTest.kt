@@ -197,7 +197,7 @@ class LlamaProxyTest {
             override fun onProgress(progress: Float) {}
         })
         val session1 = model1.createSession(
-            2048, 0.8f, 0.95f, 1.0f, 40, 0.05f, -1, -1, "",
+            2048, 0.8f, 0.95f, 1.0f, 40, 0.05f, -1, -1, "", 0,
         )!!
         session1.addMessage("Tell me a long story about dragons.", false)
 
@@ -242,7 +242,7 @@ class LlamaProxyTest {
         })
         try {
             val session2 = model2.createSession(
-                2048, 0.8f, 0.95f, 1.0f, 40, 0.05f, -1, -1, "",
+                2048, 0.8f, 0.95f, 1.0f, 40, 0.05f, -1, -1, "", 0,
             )!!
             try {
                 session2.addMessage("Say hello in one short sentence.", false)
@@ -289,6 +289,7 @@ class LlamaProxyTest {
                 seed = -1,
                 thinkingBudget = -1,
                 systemPrompt = "",
+                kvCacheType = 0,
             )
             assertNotNull("createSession returned null", session)
 

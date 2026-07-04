@@ -13,7 +13,8 @@ class NativeLlamaModel {
         minP: Float,
         seed: Int,
         thinkingBudget: Int,
-        systemPrompt: String
+        systemPrompt: String,
+        kvCacheType: Int = 0
     ): NativeLlamaSession?
 
     external fun getContextTrainSize(): Int

@@ -92,7 +92,7 @@ class InferenceLimitsTest {
     }
 
     private fun openSession(model: LlamaModel, systemPrompt: String = "") =
-        model.createSession(2048, 0.8f, 0.95f, 1.0f, 40, 0.05f, -1, -1, systemPrompt)!!
+        model.createSession(2048, 0.8f, 0.95f, 1.0f, 40, 0.05f, -1, -1, systemPrompt, 0)!!
 
     /**
      * `addMessage` with a single payload above the 700 KB cap must throw

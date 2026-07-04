@@ -43,6 +43,7 @@ class RemoteOpenAiModel(
         seed: Int,
         thinkingBudget: Int,
         systemPrompt: String,
+        kvCacheType: Int,   // ignored: a remote server owns its own KV cache
     ): GenerationBackend {
         return RemoteOpenAiBackend(
             client = client,

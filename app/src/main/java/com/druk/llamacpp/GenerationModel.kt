@@ -36,5 +36,7 @@ interface GenerationModel {
         seed: Int,
         thinkingBudget: Int,
         systemPrompt: String,
+        /** KV-cache quantization: 0 = F16, 1 = Q8_0, 2 = Q4_0. Local-only; remote ignores it. */
+        kvCacheType: Int = 0,
     ): GenerationBackend?
 }

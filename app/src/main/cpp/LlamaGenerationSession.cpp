@@ -154,7 +154,37 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     ctx_params.n_threads       = n_threads;
     ctx_params.n_threads_batch = n_threads;
 
+    // KV-cache quantization (user-selectable). Q8_0 ~= half the KV memory at
+    // near-zero quality loss and is often faster on long contexts; Q4_0 is
+    // smaller still with a small quality cost. Quantized *V* requires Flash
+    // Attention (llama.cpp aborts context creation otherwise), so force FA on
+    // whenever the cache is quantized. F16 keeps the default AUTO behaviour.
+    ggml_type kv_type = GGML_TYPE_F16;
+    switch (params.kv_cache_type) {
+        case 1: kv_type = GGML_TYPE_Q8_0; break;
+        case 2: kv_type = GGML_TYPE_Q4_0; break;
+        default: kv_type = GGML_TYPE_F16; break;
+    }
+    ctx_params.type_k = kv_type;
+    ctx_params.type_v = kv_type;
+    if (kv_type != GGML_TYPE_F16) {
+        ctx_params.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_ENABLED;
+    }
+    LOGi("KV cache type: %d (0=F16 1=Q8_0 2=Q4_0), flash_attn forced=%d",
+         params.kv_cache_type, kv_type != GGML_TYPE_F16);
+
     ctx = llama_init_from_model(model, ctx_params);
+    if (!ctx && kv_type != GGML_TYPE_F16) {
+        // Some model/backend combinations on this device can't do Flash
+        // Attention + quantized KV. Retry once with full-precision F16 KV
+        // (AUTO flash-attn) so the session still loads instead of failing.
+        LOGe("%s: quantized KV (type %d) init failed; falling back to F16 KV",
+             __func__, params.kv_cache_type);
+        ctx_params.type_k = GGML_TYPE_F16;
+        ctx_params.type_v = GGML_TYPE_F16;
+        ctx_params.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;
+        ctx = llama_init_from_model(model, ctx_params);
+    }
     if (!ctx) {
         LOGe("%s: error: failed to create the llama_context\n" , __func__);
         return;

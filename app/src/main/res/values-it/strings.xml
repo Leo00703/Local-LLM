@@ -337,6 +337,14 @@
     <string name="image_token_count">🖼 %1$d token</string>
     <string name="image_detail_label">Dettaglio immagine</string>
     <string name="image_detail_subtitle">più = nitido</string>
+    <!-- Selettore quantizzazione cache KV (parametri modello) -->
+    <string name="kv_cache_label">Cache KV</string>
+    <string name="kv_cache_fp16">FP16</string>
+    <string name="kv_cache_q8">Q8_0</string>
+    <string name="kv_cache_q4">Q4_0</string>
+    <string name="kv_cache_desc_fp16">Precisione piena — più memoria</string>
+    <string name="kv_cache_desc_q8">Standard — ~metà memoria, qualità pressoché intatta</string>
+    <string name="kv_cache_desc_q4">Compatta — meno memoria, lieve calo di qualità</string>
     <string name="tool_web_search_title">Ricerca web</string>
     <string name="tool_web_search_desc">Cerca sul web e restituisce titoli dei risultati, link e frammenti affinché il modello possa trovare informazioni aggiornate.</string>
     <string name="tool_web_search_example">\"Trova recensioni recenti dell\'ultimo telefono Pixel.\"</string>

@@ -21,4 +21,6 @@ data class SamplerParams(
     val seed: Int,
     val thinkingBudget: Int,
     val systemPrompt: String,
+    /** KV-cache quantization: 0 = F16, 1 = Q8_0, 2 = Q4_0. */
+    val kvCacheType: Int = 0,
 ) : Parcelable

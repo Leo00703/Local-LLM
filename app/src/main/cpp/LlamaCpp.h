@@ -31,6 +31,9 @@ struct SamplerParams {
     uint32_t seed;
     int32_t thinking_budget; // -1 = unlimited
     std::string system_prompt;
+    // KV-cache quantization: 0 = F16 (default), 1 = Q8_0, 2 = Q4_0. Applied to
+    // both K and V at context creation. Quantized V requires Flash Attention.
+    int kv_cache_type = 0;
 };
 
 class LlamaGenerationSession {

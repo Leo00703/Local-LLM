@@ -137,6 +137,7 @@ class ConversationViewModelToolCallTest {
             /* seed = */ -1,
             /* thinkingBudget = */ -1,
             /* systemPrompt = */ "",
+            /* kvCacheType = */ 0,
         ) ?: error("createSession returned null")
         injectedSession = session
 

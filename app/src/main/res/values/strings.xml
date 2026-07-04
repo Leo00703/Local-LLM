@@ -441,6 +441,14 @@
     <string name="image_token_count">🖼 %1$d tokens</string>
     <string name="image_detail_label">Image detail</string>
     <string name="image_detail_subtitle">more = sharper</string>
+    <!-- KV-cache quantization picker (model params) -->
+    <string name="kv_cache_label">KV cache</string>
+    <string name="kv_cache_fp16">FP16</string>
+    <string name="kv_cache_q8">Q8_0</string>
+    <string name="kv_cache_q4">Q4_0</string>
+    <string name="kv_cache_desc_fp16">Full precision — most memory</string>
+    <string name="kv_cache_desc_q8">Standard — ~half the memory, ~no quality loss</string>
+    <string name="kv_cache_desc_q4">Compact — least memory, small quality cost</string>
     <!-- Per-tool copy -->
     <string name="tool_run_javascript_title">Run JavaScript</string>
     <string name="tool_run_javascript_desc">Runs JavaScript in a secure sandbox for math, dates, and text processing. No internet or file access.</string>

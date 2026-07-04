@@ -47,6 +47,7 @@ class LlamaModel internal constructor(
         seed: Int,
         thinkingBudget: Int,
         systemPrompt: String,
+        kvCacheType: Int,
     ): LlamaGenerationSession? {
         InferenceLimits.requireWithinBudget(systemPrompt, "system prompt")
         val params = SamplerParams(
@@ -59,6 +60,7 @@ class LlamaModel internal constructor(
             seed = seed,
             thinkingBudget = thinkingBudget,
             systemPrompt = systemPrompt,
+            kvCacheType = kvCacheType,
         )
         val sessionId = client.withService { it.createSession(modelId, params) }
         if (sessionId == 0) return null

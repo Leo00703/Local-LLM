@@ -12,7 +12,12 @@ data class GenerationParams(
     // Vision only: max tokens an attached image may use (higher = more image
     // resolution/detail, more context). Applied to the projector via
     // mtmd_context_params.image_max_tokens. Ignored by text-only models.
-    val imageMaxTokens: Int = 256
+    val imageMaxTokens: Int = 256,
+    // KV-cache quantization (local models only): 0 = F16, 1 = Q8_0, 2 = Q4_0.
+    // Default Q8_0 — ~half the KV memory at near-zero quality loss. Applied at
+    // context creation; the native side auto-falls back to F16 if the device
+    // can't do Flash Attention + quantized KV. Ignored by remote backends.
+    val kvCacheType: Int = 1
 ) {
     fun toMap(): Map<String, Float> = mapOf(
         "contextSize" to contextSize.toFloat(),
@@ -23,7 +28,8 @@ data class GenerationParams(
         "minP" to minP,
         "seed" to seed.toFloat(),
         "thinkingBudget" to thinkingBudget.toFloat(),
-        "imageMaxTokens" to imageMaxTokens.toFloat()
+        "imageMaxTokens" to imageMaxTokens.toFloat(),
+        "kvCacheType" to kvCacheType.toFloat()
     )
 
     companion object {
@@ -38,7 +44,8 @@ data class GenerationParams(
                 minP = map["minP"] ?: 0.05f,
                 seed = map["seed"]?.toInt() ?: -1,
                 thinkingBudget = map["thinkingBudget"]?.toInt() ?: (contextSize / 4),
-                imageMaxTokens = map["imageMaxTokens"]?.toInt() ?: 256
+                imageMaxTokens = map["imageMaxTokens"]?.toInt() ?: 256,
+                kvCacheType = map["kvCacheType"]?.toInt() ?: 1
             )
         }
     }

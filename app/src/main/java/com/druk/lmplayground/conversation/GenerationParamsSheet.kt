@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -481,6 +482,15 @@ fun GenerationParamsSheet(
                 }
             )
 
+            // KV cache — local models only (a remote server owns its own KV
+            // cache). Q8_0 default: ~half the KV memory at near-zero quality loss.
+            if (!isRemote) {
+                KvCacheSelector(
+                    selected = editedParams.kvCacheType,
+                    onSelect = { editedParams = editedParams.copy(kvCacheType = it) }
+                )
+            }
+
             // Advanced section
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -844,6 +854,59 @@ private fun ParamSlider(
                 color = MaterialTheme.colorScheme.error
             )
         }
+    }
+}
+
+/**
+ * KV-cache quantization picker (local models only). Three mutually-exclusive
+ * choices — FP16 (full), Q8_0 (standard, default) and Q4_0 (compact) — with a
+ * one-line description of the currently selected tier. Codes: 0=F16, 1=Q8_0,
+ * 2=Q4_0, matching [GenerationParams.kvCacheType] and the native SamplerParams.
+ */
+@Composable
+private fun KvCacheSelector(
+    selected: Int,
+    onSelect: (Int) -> Unit
+) {
+    val options = listOf(
+        0 to stringResource(R.string.kv_cache_fp16),
+        1 to stringResource(R.string.kv_cache_q8),
+        2 to stringResource(R.string.kv_cache_q4),
+    )
+    val descRes = when (selected) {
+        1 -> R.string.kv_cache_desc_q8
+        2 -> R.string.kv_cache_desc_q4
+        else -> R.string.kv_cache_desc_fp16
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.kv_cache_label),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            options.forEach { (code, label) ->
+                FilterChip(
+                    selected = selected == code,
+                    onClick = { onSelect(code) },
+                    label = { Text(label) }
+                )
+            }
+        }
+        Text(
+            text = stringResource(descRes),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 

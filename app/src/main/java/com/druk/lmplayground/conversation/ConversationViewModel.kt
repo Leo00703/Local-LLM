@@ -535,7 +535,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             val session = model.createSession(
                 params.contextSize, params.temperature, params.topP,
                 params.repetitionPenalty, params.topK, params.minP, params.seed,
-                params.thinkingBudget, effectiveSystemPrompt
+                params.thinkingBudget, effectiveSystemPrompt, params.kvCacheType
             )
             llamaModel = model
             llamaSession = session
@@ -1050,7 +1050,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 params.minP,
                 params.seed,
                 params.thinkingBudget,
-                effective
+                effective,
+                params.kvCacheType
             )
         } catch (e: InferenceUnavailableException) {
             // The :llama service died (or hasn't bound yet). Surface a
@@ -1520,7 +1521,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             if (chatRepository?.getSession(sessionId)?.title != firstUser.take(50)) return@launch
             var backend: GenerationBackend? = null
             try {
-                backend = model.createSession(1024, 0.3f, 0.9f, 1.0f, 40, 0.0f, 0, 0, "")
+                backend = model.createSession(1024, 0.3f, 0.9f, 1.0f, 40, 0.0f, 0, 0, "", 0)
                     ?: return@launch
                 backend.addMessage(buildTitlePrompt(firstUser, firstAssistant), false)
                 var out = ""
@@ -2269,7 +2270,13 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     topK = sessionEntity.topK,
                     minP = sessionEntity.minP,
                     seed = sessionEntity.seed,
-                    thinkingBudget = sessionEntity.thinkingBudget
+                    thinkingBudget = sessionEntity.thinkingBudget,
+                    // kvCacheType isn't a per-session Room column; restore it from
+                    // the per-model preference (which does persist it) so reopening
+                    // a saved chat keeps the model's chosen KV cache type instead of
+                    // silently reverting to the Q8_0 default.
+                    kvCacheType = storagePreferences.getModelGenerationParams(sessionEntity.modelFilename)
+                        ?.get("kvCacheType")?.toInt() ?: 1
                 )
                 _generationParams.value = params
                 _systemPrompt.value = sessionEntity.systemPrompt

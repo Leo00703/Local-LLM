@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.38", "KV-cache quantization", listOf(
+        Change(ChangeType.NEW, "New \"KV cache\" picker in a local model's settings (Parameters tab): FP16, Q8_0 (standard), or Q4_0. Q8_0 is now the default — it roughly halves the memory the conversation cache uses, at near-zero quality loss, and can speed up longer chats."),
+        Change(ChangeType.IMPROVED, "Quantized cache automatically enables Flash Attention, and safely falls back to full-precision FP16 if your device can't run that combination — so a model always loads."),
+    )),
     ChangelogEntry("1.9.37", "True model-view + wider vision detection", listOf(
         Change(ChangeType.NEW, "A sent image now displays at the exact resolution the model actually received it — so you see the real image the model \"saw\". Move the Image detail slider and watch it change."),
         Change(ChangeType.IMPROVED, "Any downloaded model paired with a matching projector (mmproj) file in your models folder is now recognized as a vision model — not just sideloaded ones — so its image badge shows in the picker."),
