@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FolderEntity::class,
         MemoryNoteEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -181,9 +181,30 @@ abstract class AppDatabase : RoomDatabase() {
          */
         private val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `memory_notes`")
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `memory_notes` (" +
-                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`content` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL)"
+                )
+            }
+        }
+
+        /**
+         * v1.9.56 shipped MIGRATION_10_11 WITHOUT `NOT NULL` on the autoGenerate
+         * id, so Room's schema validation (which expects `INTEGER PRIMARY KEY
+         * AUTOINCREMENT NOT NULL`) FAILED and the app CRASHED on open. This
+         * re-creates memory_notes with the correct schema for anyone whose DB got
+         * stuck at v11. The table is new (no user notes existed yet), so dropping
+         * it is safe and loses no data.
+         */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `memory_notes`")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `memory_notes` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                         "`content` TEXT NOT NULL, " +
                         "`createdAt` INTEGER NOT NULL)"
                 )
@@ -207,7 +228,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_7_8,
                         MIGRATION_8_9,
                         MIGRATION_9_10,
-                        MIGRATION_10_11
+                        MIGRATION_10_11,
+                        MIGRATION_11_12
                     )
                     .build().also { INSTANCE = it }
             }

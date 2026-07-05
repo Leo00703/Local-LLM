@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.57", "Fix crash on startup", listOf(
+        Change(ChangeType.FIX, "The previous update could crash the app on startup, because the new Memory feature created its database table with a slightly wrong schema. Fixed so the app opens normally again; your chats and settings are untouched."),
+    )),
     ChangelogEntry("1.9.56", "Memory tool, clearer tool steps", listOf(
         Change(ChangeType.NEW, "New Memory tool (turn it on in Settings, then Tools): the model can save short notes and recall them in later chats, for example \"remember that…\". Notes are stored only on your device."),
         Change(ChangeType.IMPROVED, "In the reasoning card, each tool step now shows the tool's real name and its own icon (calculator, location pin, and so on) instead of a generic wrench and the internal name."),
