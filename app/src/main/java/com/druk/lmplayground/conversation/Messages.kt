@@ -61,6 +61,8 @@ fun Messages(
     onTokenCountClicked: (() -> Unit)? = null,
     // Regenerate the latest assistant reply (only wired for the last message).
     onRegenerate: (() -> Unit)? = null,
+    // Page between regenerated answer variants: (assistant message id, variant index).
+    onSelectVariant: ((Long, Int) -> Unit)? = null,
     // Edit & resend a user message; receives the tapped message.
     onEditUserMessage: ((Message) -> Unit)? = null,
     // Whether to show the per-message generation-stats line (Settings toggle).
@@ -99,6 +101,7 @@ fun Messages(
                     // Regenerate only on the latest assistant reply, when idle.
                     canRegenerate = !isUser && isLast && !isGenerating,
                     onRegenerate = onRegenerate,
+                    onSelectVariant = onSelectVariant?.let { cb -> { idx -> cb(content.id, idx) } },
                     // Edit only user messages, and not mid-generation.
                     onEdit = if (isUser && !isGenerating && onEditUserMessage != null) {
                         { onEditUserMessage.invoke(content) }

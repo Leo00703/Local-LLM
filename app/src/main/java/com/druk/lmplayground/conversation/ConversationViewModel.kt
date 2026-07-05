@@ -1391,6 +1391,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
     @MainThread
     private fun dispatchUserMessage(content: String) {
+        // A fresh user turn is not a regeneration: drop any pending variant list
+        // so this reply doesn't inherit variants from an earlier regenerate.
+        pendingRegenVariants = null
         val staged = _stagedAttachments.value.orEmpty()
         _stagedAttachments.value = emptyList()
         var ready = staged.mapNotNull { s -> (s.state as? StagedState.Ready)?.let { s to it } }
@@ -1404,11 +1407,23 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             ready = ready.filter { (s, _) -> s.kind != AttachmentKind.IMAGE }
             _userError.postValue(app.getString(com.druk.lmplayground.R.string.image_attach_failed))
         }
-        if (ready.isEmpty()) {
-            addMessage(Message("User", content))
-            return
+        val attachments = if (ready.isEmpty()) emptyList()
+            else buildAttachments(ready, content)
+        // If the user paged back to an older regenerated variant (the shown one
+        // isn't the newest), the live session's KV cache / remote history still
+        // holds the newest answer. Rebuild the context to the SELECTED variant by
+        // replaying the current messages before appending this turn, so the chat
+        // continues from what's on screen. The common case (no variants, or the
+        // newest shown) falls through to the plain append path, unchanged.
+        val lastAssistant = uiState.messages.lastOrNull { it.author == "Assistant" }
+        val continueFromOldVariant = lastAssistant != null &&
+            lastAssistant.variants.size > 1 &&
+            lastAssistant.variantIndex != lastAssistant.variants.lastIndex
+        if (continueFromOldVariant) {
+            resendUserTurn(uiState.messages.toList(), content, attachments)
+        } else {
+            addMessage(Message("User", content, attachments = attachments))
         }
-        addMessage(Message("User", content, attachments = buildAttachments(ready, content)))
     }
 
     /**
@@ -1983,6 +1998,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         // would clobber the in-flight new generation.
                         // The new job's own finally will handle its
                         // state. We just exit quietly.
+                        // Consume the regenerate variant list now (before the
+                        // superseded guard) so it can never leak to a later turn;
+                        // it's applied below only when this is still our message.
+                        val regenVariants = pendingRegenVariants
+                        pendingRegenVariants = null
                         val supersededByNewer = generatingJob !== ourJob
                         // Belt-and-suspenders: also confirm the last
                         // message in uiState is still our placeholder
@@ -2003,6 +2023,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                             if (rs != null) {
                                 uiState.applyRemoteStats(rs.completionTokens, rs.ttftMs, rs.decodeMs)
                             }
+                            // Regenerate: fold the prior reply(ies) + this fresh
+                            // one into a ‹ N/M › variant list on this message.
+                            regenVariants?.let { uiState.commitRegenVariants(it) }
                         }
                         _isGenerating.postValue(false)
                         // Refresh the context-window meter from this turn's real
@@ -2061,9 +2084,18 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Prior assistant reply(ies) captured when the user taps Regenerate, folded
+     * into the fresh reply's [Message.variants] at finalize so the user can page
+     * ‹ N/M › between answers. Consumed (and cleared) exactly once per turn; a
+     * normal send / edit-resend clears it so they never inherit variants.
+     */
+    private var pendingRegenVariants: List<String>? = null
+
+    /**
      * Re-run the most recent user turn to produce a fresh assistant reply.
      * No-op while generating, with no model loaded, or when there's no user
-     * message to re-send. Everything after that user turn is discarded.
+     * message to re-send. Everything after that user turn is discarded, but the
+     * old reply is kept as a variant for ‹ N/M › paging.
      */
     @MainThread
     fun regenerateLastResponse() {
@@ -2072,9 +2104,32 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         val msgs = uiState.messages.toList()
         val lastUserIdx = msgs.indexOfLast { it.author == "User" }
         if (lastUserIdx < 0) return
+        // Capture the reply being regenerated as a variant (carrying any existing
+        // variants forward), before resendUserTurn truncates the conversation.
+        val lastAssistant = msgs.subList(lastUserIdx + 1, msgs.size)
+            .lastOrNull { it.author == "Assistant" }
+        val priorVariants = when {
+            lastAssistant == null -> emptyList()
+            lastAssistant.variants.isNotEmpty() -> lastAssistant.variants
+            lastAssistant.content.isNotEmpty() -> listOf(lastAssistant.content)
+            else -> emptyList()
+        }
+        pendingRegenVariants = priorVariants.ifEmpty { null }
         val userContent = msgs[lastUserIdx].content
         val prior = msgs.subList(0, lastUserIdx).toList()
         resendUserTurn(prior, userContent, msgs[lastUserIdx].attachments)
+    }
+
+    /**
+     * Switch which stored variant of an assistant message is shown (UI-only, no
+     * regeneration). Applied to [Message.content] so a continued chat replays
+     * the selected answer.
+     */
+    @MainThread
+    fun selectMessageVariant(messageId: Long, index: Int) {
+        Snapshot.withMutableSnapshot {
+            uiState.selectVariant(messageId, index)
+        }
     }
 
     /**
@@ -2093,6 +2148,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         val idx = msgs.indexOfFirst { it.id == messageId }
         if (idx < 0 || msgs[idx].author != "User") return
         val prior = msgs.subList(0, idx).toList()
+        // Edit-resend is a new user turn, not a regeneration: never inherit a
+        // pending variant list from an earlier (possibly failed) regenerate.
+        pendingRegenVariants = null
         // Keep the original turn's attachment when re-sending the edited text.
         resendUserTurn(prior, trimmed, msgs[idx].attachments)
     }

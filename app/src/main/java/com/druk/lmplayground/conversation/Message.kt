@@ -51,6 +51,8 @@ fun Message(
     showStats: Boolean = true,
     canRegenerate: Boolean = false,
     onRegenerate: (() -> Unit)? = null,
+    // Page between regenerated answer variants (only wired for the last reply).
+    onSelectVariant: ((Int) -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
     onTokenCountClicked: (() -> Unit)? = null,
     // Vision info of sent images, keyed by localPath (token count + model-view).
@@ -149,6 +151,7 @@ fun Message(
                 showStats = showStats,
                 canRegenerate = canRegenerate,
                 onRegenerate = onRegenerate,
+                onSelectVariant = onSelectVariant,
                 onTokenCountClicked = onTokenCountClicked
             )
         }

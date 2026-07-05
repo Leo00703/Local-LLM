@@ -605,6 +605,9 @@ class ConversationFragment : Fragment() {
                                 onRegenerate = {
                                     viewModel.regenerateLastResponse()
                                 },
+                                onSelectVariant = { id, index ->
+                                    viewModel.selectMessageVariant(id, index)
+                                },
                                 onEditUserMessage = { msg ->
                                     editingMessage = msg
                                 },

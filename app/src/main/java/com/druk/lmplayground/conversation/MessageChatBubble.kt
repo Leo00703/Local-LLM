@@ -43,6 +43,8 @@ import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
@@ -78,6 +80,7 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
@@ -90,6 +93,10 @@ fun ChatItemBubble(
     showStats: Boolean = true,
     canRegenerate: Boolean = false,
     onRegenerate: (() -> Unit)? = null,
+    // Page between regenerated answer variants (index into message.variants).
+    // Only the last assistant message wires this (mid-chat switching would
+    // desync later turns' context).
+    onSelectVariant: ((Int) -> Unit)? = null,
     onTokenCountClicked: (() -> Unit)? = null
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -291,12 +298,50 @@ fun ChatItemBubble(
                         )
                     }
                 }
+                // Regenerate history: page ‹ N/M › between answer variants. Shown
+                // only on the last assistant reply (canRegenerate) once it has been
+                // regenerated at least once.
+                if (canRegenerate && onSelectVariant != null && message.variants.size > 1) {
+                    val idx = message.variantIndex.coerceIn(0, message.variants.lastIndex)
+                    IconButton(
+                        onClick = { onSelectVariant(idx - 1) },
+                        enabled = idx > 0,
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.KeyboardArrowLeft,
+                            contentDescription = stringResource(id = R.string.variant_previous),
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                    Text(
+                        text = "${idx + 1}/${message.variants.size}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    IconButton(
+                        onClick = { onSelectVariant(idx + 1) },
+                        enabled = idx < message.variants.lastIndex,
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.KeyboardArrowRight,
+                            contentDescription = stringResource(id = R.string.variant_next),
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
                 if (showStats && message.responseTokens + message.thinkingTokens > 0) {
                     Text(
                         text = formatResponseStats(message),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier
+                            .weight(1f, fill = false)
                             .padding(start = 8.dp)
                             .then(
                                 if (onTokenCountClicked != null) {

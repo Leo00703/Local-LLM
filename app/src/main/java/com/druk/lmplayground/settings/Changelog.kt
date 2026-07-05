@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.49", "Regenerate keeps the old answers", listOf(
+        Change(ChangeType.NEW, "Regenerating a reply no longer throws the old one away. Each answer is kept as a variant, and back and forward arrows next to the Regenerate button (with a \"2/2\" counter) let you page between them. The answer you leave showing is the one the chat continues from. Variants are kept for the current session; they are not saved across an app restart yet."),
+    )),
     ChangelogEntry("1.9.48", "Send images to remote servers", listOf(
         Change(ChangeType.NEW, "You can now attach an image to a chat with a remote server model, just like with on-device models. The image is sent to the server together with your message. The attach-image button appears when the server reports a vision-capable model (and always for LM Studio, which doesn't advertise it, so you can try). If the model can't see images, the server returns an error."),
     )),

@@ -55,6 +55,8 @@
     <string name="stop">Ferma</string>
     <string name="share">Condividi</string>
     <string name="copy">Copia</string>
+    <string name="variant_previous">Risposta precedente</string>
+    <string name="variant_next">Risposta successiva</string>
     <string name="upvote">Voto positivo</string>
     <string name="downvote">Voto negativo</string>
     <string name="rating_question">Perch\u00E9 hai scelto questa valutazione?</string>

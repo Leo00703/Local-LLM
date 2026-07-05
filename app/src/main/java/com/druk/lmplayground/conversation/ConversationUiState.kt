@@ -149,6 +149,45 @@ class ConversationUiState(
         _messages.clear()
     }
 
+    /**
+     * Fold a regenerated reply into a variant list on the last (assistant)
+     * message: [prior] are the earlier answers and the current content becomes
+     * the newest, selected variant. No-op if there's no assistant message to
+     * attach to. Call inside a mutable snapshot.
+     */
+    fun commitRegenVariants(prior: List<String>) {
+        if (_messages.isEmpty()) return
+        val message = _messages.last()
+        if (message.author != "Assistant") return
+        // A stopped/empty regenerate produced no answer: don't store a blank
+        // variant (it would page to an empty ‹N/N› entry). Revert to the previous
+        // answers instead of losing them.
+        val all = if (message.content.isNotBlank()) prior + message.content else prior
+        if (all.isEmpty()) return
+        val index = all.lastIndex
+        _messages[_messages.size - 1] = message.copy(
+            content = all[index],
+            variants = all,
+            variantIndex = index
+        )
+    }
+
+    /**
+     * Switch which stored variant of an assistant message is shown (UI-only, no
+     * regeneration). Keeps [Message.content] in sync with the selection so replay
+     * / continue feed the model the chosen answer. Call inside a mutable snapshot.
+     */
+    fun selectVariant(messageId: Long, index: Int) {
+        val i = _messages.indexOfFirst { it.id == messageId }
+        if (i < 0) return
+        val message = _messages[i]
+        if (index < 0 || index >= message.variants.size) return
+        _messages[i] = message.copy(
+            content = message.variants[index],
+            variantIndex = index
+        )
+    }
+
     fun removeLastMessage() {
         if (_messages.isNotEmpty()) {
             _messages.removeAt(_messages.size - 1)
@@ -202,5 +241,14 @@ data class Message(
     val id: Long = messageIdCounter.incrementAndGet(),
     val toolCalls: List<ToolCallInfo>? = null,
     /** Files attached to this (user) turn — their text is injected into the prompt. */
-    val attachments: List<com.druk.lmplayground.files.Attachment> = emptyList()
+    val attachments: List<com.druk.lmplayground.files.Attachment> = emptyList(),
+    /**
+     * Regenerate history for an assistant turn: every answer produced for the
+     * same user turn, so the user can page ‹ N/M › between them (LM Studio-style).
+     * Empty until the reply is regenerated at least once. [content] is kept in
+     * sync with variants[variantIndex] so replay/persist use the selected answer.
+     * In-memory only in v1 (not persisted across an app restart).
+     */
+    val variants: List<String> = emptyList(),
+    val variantIndex: Int = 0,
 )
