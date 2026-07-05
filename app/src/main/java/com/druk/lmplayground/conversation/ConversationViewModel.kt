@@ -523,8 +523,15 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // loop drives RemoteOpenAiBackend (tools only sent when the user enables
             // them, so non-tool models are unaffected by default).
             _supportsToolCalling.postValue(true)
-            // Remote models have no on-device vision projector.
-            _supportsVision.postValue(false)
+            // Remote vision: the image is sent to the server as a base64 image_url
+            // part (no on-device projector). Ollama reports `capabilities` via
+            // /api/show, so gate on "vision" there; LM Studio doesn't report them
+            // at all, so an empty list is "unknown" -> allow attaching and let the
+            // server reject a non-vision model, rather than hide the option for
+            // every LM Studio model.
+            val caps = details?.capabilities ?: emptyList()
+            val remoteVision = caps.isEmpty() || caps.any { it.equals("vision", ignoreCase = true) }
+            _supportsVision.postValue(remoteVision)
             // Compute backend is a local (on-device) concept; the server owns its own.
             _computeBackend.postValue(null)
             _toolEnabledStates.postValue(emptyMap())
@@ -1367,8 +1374,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         // Lazy vision: the CLIP projector loads only now, at the first image
         // send — never at model load (eager load froze text decode on-device,
         // v1.9.28→30). On failure the chips stay staged and nothing is sent,
-        // matching the vision_load_failed copy.
-        if (hasReadyImage && _supportsVision.value == true && !projectorLoaded) {
+        // matching the vision_load_failed copy. Remote models have no projector
+        // (the image is base64'd straight into the request), so skip this.
+        if (hasReadyImage && _supportsVision.value == true && !projectorLoaded && !isRemoteModel) {
             viewModelScope.launch {
                 if (!ensureProjectorLoaded()) {
                     _userError.postValue(visionLoadFailedMessage())
@@ -1402,6 +1410,14 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         }
         addMessage(Message("User", content, attachments = buildAttachments(ready, content)))
     }
+
+    /**
+     * True when the loaded model is an OpenAI-compatible remote server: it has no
+     * on-device CLIP projector, so vision turns stage the image straight to the
+     * backend (base64 image_url) instead of loading/attaching a projector.
+     */
+    private val isRemoteModel: Boolean
+        get() = llamaModel is RemoteOpenAiModel
 
     /**
      * Load the current model's mmproj/CLIP projector into the :llama process —
@@ -1685,10 +1701,27 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     // actually evaluated (mtmd path taken), so we read its token
                     // weight after addMessage and never show a stale count.
                     var evaluatedImagePath: String? = null
-                    message.attachments.firstOrNull {
+                    val imageAtt = message.attachments.firstOrNull {
                         it.kind == AttachmentKind.IMAGE && it.localPath != null
-                    }?.let { imageAtt ->
-                        if (!ensureProjectorLoaded()) {
+                    }
+                    if (imageAtt != null) {
+                        if (isRemoteModel) {
+                            // Remote vision: no projector — stage the transcoded JPEG
+                            // bytes; RemoteOpenAiBackend base64-encodes them into an
+                            // image_url content part on the next addMessage. No native
+                            // token readback (the server owns the count).
+                            val staged = runCatching {
+                                File(imageAtt.localPath!!).readBytes()
+                                    .takeIf { it.isNotEmpty() && it.size <= InferenceLimits.MAX_PAYLOAD_BYTES }
+                                    ?.also { llamaSession.setImageData(it) } != null
+                            }.getOrDefault(false)
+                            if (!staged) {
+                                android.util.Log.w("ConversationViewModel", "remote image staging failed, sending text-only")
+                                _userError.postValue(
+                                    app.getString(com.druk.lmplayground.R.string.image_attach_failed)
+                                )
+                            }
+                        } else if (!ensureProjectorLoaded()) {
                             // Projector rejected — surface WHY (native reason).
                             android.util.Log.w("ConversationViewModel", "image turn: projector not loaded, text-only")
                             _userError.postValue(visionLoadFailedMessage())

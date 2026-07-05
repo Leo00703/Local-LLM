@@ -1,5 +1,6 @@
 package com.druk.lmplayground.remote
 
+import android.util.Base64
 import com.druk.llamacpp.GenerationBackend
 import com.druk.llamacpp.GenerationStats
 import com.druk.llamacpp.LlamaGenerationCallback
@@ -48,11 +49,15 @@ class RemoteOpenAiBackend(
     // role: system/user/assistant/tool. For an assistant turn that issued tool
     // calls, [toolCalls] holds the OpenAI-format array and [content] may be null;
     // for a tool-result turn, [toolCallId] links it to the call it answers.
+    // [imageDataUrls] carries `data:image/jpeg;base64,…` parts for a vision user
+    // turn; when present the message content is emitted as an OpenAI content-part
+    // array (text + image_url) instead of a plain string.
     private data class Msg(
         val role: String,
         val content: String?,
         val toolCalls: JSONArray? = null,
         val toolCallId: String? = null,
+        val imageDataUrls: List<String>? = null,
     )
 
     private data class PendingCall(val id: String, val name: String, val arguments: String)
@@ -66,6 +71,9 @@ class RemoteOpenAiBackend(
 
     private val history = mutableListOf<Msg>()
     private val pendingToolCalls = mutableListOf<PendingCall>()
+    // Data URLs staged via [setImageData], consumed by the next [addMessage] user
+    // turn (one vision turn). Kept separate so a turn without an image is unchanged.
+    private val pendingImages = mutableListOf<String>()
 
     @Volatile private var currentCall: Call? = null
     @Volatile private var lastEnableThinking = true
@@ -77,7 +85,22 @@ class RemoteOpenAiBackend(
 
     override fun addMessage(message: String, enableThinking: Boolean) {
         lastEnableThinking = enableThinking
-        history.add(Msg("user", message))
+        val images = pendingImages.toList().takeIf { it.isNotEmpty() }
+        pendingImages.clear()
+        history.add(Msg("user", message, imageDataUrls = images))
+    }
+
+    /**
+     * Stage an image for the next user turn. The bytes are the transcoded JPEG
+     * the vision UI already produced; base64-encode them into an OpenAI
+     * `image_url` data URL. Vision-capable servers (e.g. Ollama llava / an
+     * LM Studio VLM) read it; a non-vision server rejects the request, which the
+     * error path below surfaces as a normal failure.
+     */
+    override fun setImageData(data: ByteArray) {
+        if (data.isEmpty()) return
+        val b64 = Base64.encodeToString(data, Base64.NO_WRAP)
+        pendingImages.add("data:image/jpeg;base64,$b64")
     }
 
     override fun replayHistory(userMessages: Array<String>, assistantMessages: Array<String>) {
@@ -207,7 +230,27 @@ class RemoteOpenAiBackend(
                             o.put("content", if (m.content.isNullOrEmpty()) JSONObject.NULL else m.content)
                             o.put("tool_calls", m.toolCalls)
                         }
-                        else -> o.put("content", m.content ?: "")
+                        else -> {
+                            val imgs = m.imageDataUrls
+                            if (imgs != null && imgs.isNotEmpty()) {
+                                // Vision turn: OpenAI content-part array (text first,
+                                // then each image as an image_url data URL).
+                                val parts = JSONArray()
+                                if (!m.content.isNullOrEmpty()) {
+                                    parts.put(JSONObject().put("type", "text").put("text", m.content))
+                                }
+                                for (url in imgs) {
+                                    parts.put(
+                                        JSONObject()
+                                            .put("type", "image_url")
+                                            .put("image_url", JSONObject().put("url", url))
+                                    )
+                                }
+                                o.put("content", parts)
+                            } else {
+                                o.put("content", m.content ?: "")
+                            }
+                        }
                     }
                     put(o)
                 }

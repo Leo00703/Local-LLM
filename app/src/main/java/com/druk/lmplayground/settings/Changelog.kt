@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.48", "Send images to remote servers", listOf(
+        Change(ChangeType.NEW, "You can now attach an image to a chat with a remote server model, just like with on-device models. The image is sent to the server together with your message. The attach-image button appears when the server reports a vision-capable model (and always for LM Studio, which doesn't advertise it, so you can try). If the model can't see images, the server returns an error."),
+    )),
     ChangelogEntry("1.9.47", "GPU works with any KV setting", listOf(
         Change(ChangeType.FIX, "With GPU acceleration on, creating a chat failed (\"Failed to create session\") whenever the KV cache was set to Q8_0 or Q4_0, which is the default. The GPU's OpenCL backend can't run a quantized KV cache, so the app now keeps the KV cache at full precision (F16) on the GPU automatically. KV quantization still works on the CPU."),
     )),
