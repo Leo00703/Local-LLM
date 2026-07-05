@@ -2,6 +2,7 @@ package com.druk.lmplayground.settings
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.LocationOn
@@ -68,5 +69,9 @@ val TOOL_UI_CATALOG: Map<String, ToolUiInfo> = mapOf(
     "location" to ToolUiInfo(
         R.string.tool_location_title, R.string.tool_location_desc,
         R.string.tool_location_example, Icons.Outlined.LocationOn,
+    ),
+    "memory" to ToolUiInfo(
+        R.string.tool_memory_title, R.string.tool_memory_desc,
+        R.string.tool_memory_example, Icons.Outlined.Bookmark,
     ),
 )

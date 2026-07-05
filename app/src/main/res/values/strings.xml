@@ -487,6 +487,9 @@
     <string name="tool_location_title">Location</string>
     <string name="tool_location_desc">Shares your device\'s approximate location (city level) with the model when it asks. Requires the location permission, which is requested when you turn this on.</string>
     <string name="tool_location_example">\"What city am I in right now?\"</string>
+    <string name="tool_memory_title">Memory</string>
+    <string name="tool_memory_desc">Lets the model save short notes and recall them in later chats. Notes are stored only on this device.</string>
+    <string name="tool_memory_example">\"Remember that my favorite language is Italian.\"</string>
 
     <!-- Inference engine service notification (foreground service while a
          model is loaded so the OS does not evict the :llama process). -->

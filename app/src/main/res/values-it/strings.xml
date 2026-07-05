@@ -377,6 +377,9 @@
     <string name="tool_location_title">Posizione</string>
     <string name="tool_location_desc">Condivide col modello la posizione approssimata del dispositivo (a livello di città) quando la richiede. Richiede il permesso di localizzazione, chiesto quando attivi questo strumento.</string>
     <string name="tool_location_example">\"In che città mi trovo adesso?\"</string>
+    <string name="tool_memory_title">Memoria</string>
+    <string name="tool_memory_desc">Permette al modello di salvare brevi note e richiamarle nelle chat successive. Le note restano solo su questo dispositivo.</string>
+    <string name="tool_memory_example">\"Ricorda che la mia lingua preferita è l\'italiano.\"</string>
     <string name="tool_run_javascript_title">Esegui JavaScript</string>
     <string name="tool_run_javascript_desc">Esegue JavaScript in un ambiente isolato sicuro per calcoli, date ed elaborazione del testo. Nessun accesso a internet o ai file.</string>
     <string name="tool_run_javascript_example">\"Quanto fa (2 + 3) × 4 e che giorno della settimana è il 1° gennaio 2027?\"</string>

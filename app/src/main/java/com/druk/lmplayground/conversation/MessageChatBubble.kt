@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.druk.lmplayground.R
+import com.druk.lmplayground.settings.TOOL_UI_CATALOG
 
 @Composable
 fun ChatItemBubble(
@@ -647,7 +648,10 @@ private class ProcessStep(
     val label: String,
     val body: String,
     val markdown: Boolean,
-    val sources: List<WebSource>
+    val sources: List<WebSource>,
+    /** Registry name of the tool for this step (null for non-tool steps), used to
+     *  pick the tool's catalog icon in the timeline. */
+    val toolName: String? = null,
 )
 
 /** A web source surfaced by web_search / web_fetch, shown as a chip in a step. */
@@ -669,11 +673,12 @@ private fun AgentProcessCard(
     val thinkingLabel = stringResource(R.string.thinking)
     val inputLabel = stringResource(R.string.tool_call_input)
     val outputLabel = stringResource(R.string.tool_call_output)
-    val toolNames = mapOf(
-        "run_javascript" to stringResource(R.string.tool_run_javascript_title),
-        "web_search" to stringResource(R.string.tool_web_search_title),
-        "web_fetch" to stringResource(R.string.tool_web_fetch_title),
-    )
+    // Friendly tool names for the timeline come from the shared catalog, so
+    // every tool (not just the original three) shows a proper name + icon.
+    val toolNames = HashMap<String, String>()
+    for ((toolName, ui) in TOOL_UI_CATALOG) {
+        toolNames[toolName] = stringResource(ui.titleRes)
+    }
     // While generating, the still-streaming reasoning isn't a finished step yet —
     // it's shown as the animated live tail instead, so don't fold it in here.
     val effectiveFinalThinking = if (isGenerating) "" else finalThinking
@@ -823,7 +828,9 @@ private fun ProcessStepRow(step: ProcessStep) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = iconFor(step.kind),
+                    // A tool step uses its catalog icon (calculator, location pin, …);
+                    // non-tool steps and unmapped tools fall back to the kind icon.
+                    imageVector = step.toolName?.let { TOOL_UI_CATALOG[it]?.icon } ?: iconFor(step.kind),
                     contentDescription = null,
                     modifier = Modifier.size(13.dp),
                     tint = MaterialTheme.colorScheme.primary
@@ -1252,7 +1259,8 @@ private fun buildProcessSteps(
                 append(outputLabel).append('\n').append(prettyJson(tc.result))
             },
             markdown = false,
-            sources = extractSources(tc)
+            sources = extractSources(tc),
+            toolName = tc.name,
         )
     }
     if (finalThinking.isNotEmpty()) {

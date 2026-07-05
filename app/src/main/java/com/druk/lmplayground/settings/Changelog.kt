@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.56", "Memory tool, clearer tool steps", listOf(
+        Change(ChangeType.NEW, "New Memory tool (turn it on in Settings, then Tools): the model can save short notes and recall them in later chats, for example \"remember that…\". Notes are stored only on your device."),
+        Change(ChangeType.IMPROVED, "In the reasoning card, each tool step now shows the tool's real name and its own icon (calculator, location pin, and so on) instead of a generic wrench and the internal name."),
+    )),
     ChangelogEntry("1.9.55", "Location tool, tidier attach menu", listOf(
         Change(ChangeType.NEW, "New Location tool (turn it on in Settings, then Tools): the model can get your device's approximate location (city level) when it asks, for example \"what city am I in?\". It asks for the location permission when you enable it, only shares an approximate position, and stays off by default."),
         Change(ChangeType.DESIGN, "The attach menu is now a compact box on the left, sitting just above the input bar, instead of stretching the full screen width."),
