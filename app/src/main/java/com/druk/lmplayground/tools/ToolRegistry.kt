@@ -87,6 +87,10 @@ class ToolRegistry {
                 register(WebSearchTool(webLinkStore))
                 register(WebFetchTool(webLinkStore))
                 register(JavaScriptTool(context))
+                register(CalculatorTool())
+                register(UnitConverterTool())
+                register(DateTimeTool())
+                register(HardwareInfoTool(context))
             }
         }
     }

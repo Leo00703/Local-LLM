@@ -469,6 +469,18 @@
     <string name="tool_web_fetch_title">Fetch web page</string>
     <string name="tool_web_fetch_desc">Opens a link and reads its main content as text so the model can summarize or quote a page.</string>
     <string name="tool_web_fetch_example">\"Summarize the article at this link.\"</string>
+    <string name="tool_calculator_title">Calculator</string>
+    <string name="tool_calculator_desc">Evaluates math expressions exactly, so the model does not make arithmetic mistakes. Supports functions and constants.</string>
+    <string name="tool_calculator_example">\"What is (1234 × 5678) ÷ 3?\"</string>
+    <string name="tool_convert_units_title">Unit converter</string>
+    <string name="tool_convert_units_desc">Converts a value between units of length, mass, temperature, volume, area, speed, data, or time.</string>
+    <string name="tool_convert_units_example">\"How many kilometers is 5 miles?\"</string>
+    <string name="tool_datetime_title">Current date &amp; time</string>
+    <string name="tool_datetime_desc">Gives the model the live date, time, day of week, and time zone, instead of the frozen date in the system prompt.</string>
+    <string name="tool_datetime_example">\"What day of the week is it today?\"</string>
+    <string name="tool_device_info_title">Device info</string>
+    <string name="tool_device_info_desc">Lets the model read this device\'s specs: model, Android version, chipset, RAM, storage, and battery. No location or personal data.</string>
+    <string name="tool_device_info_example">\"How much free RAM does my phone have?\"</string>
 
     <!-- Inference engine service notification (foreground service while a
          model is loaded so the OS does not evict the :llama process). -->

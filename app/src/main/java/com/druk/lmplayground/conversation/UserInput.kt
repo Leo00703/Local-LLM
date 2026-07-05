@@ -77,6 +77,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
 
@@ -319,7 +320,11 @@ private fun UserInputText(
             if (onAttachImageClick != null) {
                 DropdownMenu(
                     expanded = attachMenuOpen,
-                    onDismissRequest = { attachMenuOpen = false }
+                    onDismissRequest = { attachMenuOpen = false },
+                    // Nudge the menu down so it sits closer to the input bar
+                    // (Material3 keeps a ~48dp margin off the bottom edge). Value
+                    // may need on-device tuning.
+                    offset = DpOffset(0.dp, 24.dp),
                 ) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.attach_document)) },

@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.52", "New tools: calculator, unit converter, date & time, device info", listOf(
+        Change(ChangeType.NEW, "Four new tools the model can use (turn them on in Settings, then Tools): a Calculator for exact math so there are no more arithmetic slips, a Unit converter (length, mass, temperature and more), Current date & time (live, so time-sensitive answers are correct instead of using a frozen date), and Device info (your phone's model, RAM, storage and battery, so the model can reason about what runs on your device). Each is off by default; Device info only reads device specs, no location or personal data."),
+        Change(ChangeType.IMPROVED, "The attach menu (Document, Image, Take photo) now opens closer to the input bar."),
+    )),
     ChangelogEntry("1.9.51", "Bigger context by default, provider logos on your models", listOf(
         Change(ChangeType.IMPROVED, "On-device models now open with a much larger context window by default, sized to safely fit your phone's memory (up to the model's trained limit). Long documents you attach are far less likely to be cut off. You can still change the context size in the model settings, and if something is still too big to fit, the app now tells you it will be trimmed."),
         Change(ChangeType.IMPROVED, "Your sideloaded (custom) models now show the right provider logo when the name is recognizable (for example a Gemma model shows the Google logo) instead of the generic placeholder."),
