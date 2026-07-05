@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.51", "Bigger context by default, provider logos on your models", listOf(
+        Change(ChangeType.IMPROVED, "On-device models now open with a much larger context window by default, sized to safely fit your phone's memory (up to the model's trained limit). Long documents you attach are far less likely to be cut off. You can still change the context size in the model settings, and if something is still too big to fit, the app now tells you it will be trimmed."),
+        Change(ChangeType.IMPROVED, "Your sideloaded (custom) models now show the right provider logo when the name is recognizable (for example a Gemma model shows the Google logo) instead of the generic placeholder."),
+    )),
     ChangelogEntry("1.9.50", "Take a photo to attach", listOf(
         Change(ChangeType.NEW, "The attach menu on a vision model now has a \"Take photo\" option that opens the camera, so you can snap a picture and send it straight to the model without saving it to the gallery first."),
     )),

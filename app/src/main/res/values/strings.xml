@@ -441,6 +441,7 @@
     <string name="attach_camera">Take photo</string>
     <string name="camera_photo">Photo</string>
     <string name="camera_unavailable">No camera available</string>
+    <string name="context_overflow_warning">The attached content is larger than the context window and will be partially trimmed to fit.</string>
     <string name="image_attach_failed">Couldn\'t read that image</string>
     <string name="vision_load_failed">Couldn\'t load the vision projector. The message wasn\'t sent. Try again, or remove the image to send text only.</string>
     <string name="vision_load_failed_reason">Vision couldn\'t load: %1$s</string>

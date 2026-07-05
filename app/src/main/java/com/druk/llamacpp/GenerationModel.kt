@@ -9,6 +9,13 @@ interface GenerationModel {
     fun getModelSize(): Long
     fun getModelReport(): String
     fun getContextTrainSize(): Int
+    /**
+     * Recommended n_ctx that fits device RAM (after weights + an OS reserve),
+     * capped at the trained context. Returns 0 when the backend can't recommend
+     * one (e.g. remote) so callers fall back to their default. [kvBytesPerElemX16]
+     * = KV element size in bytes * 16 (F16=32, Q8_0=17, Q4_0=9).
+     */
+    fun getRecommendedContextSize(deviceRamBytes: Long, kvBytesPerElemX16: Int): Int = 0
     fun supportsThinking(): Boolean
     fun supportsToolCalling(): Boolean
     /**

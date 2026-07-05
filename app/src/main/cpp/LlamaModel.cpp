@@ -93,6 +93,50 @@ int LlamaModel::getContextTrainSize() {
     return llama_model_n_ctx_train(model);
 }
 
+int LlamaModel::getRecommendedContextSize(int64_t deviceRamBytes, int kvBytesPerElemX16) {
+    if (model == nullptr) {
+        return 0;
+    }
+    const int FLOOR = 2048;      // smallest usable context we ever return
+    const int HARD_CAP = 32768;  // don't auto-pick more than this on a phone
+
+    int n_ctx_train = llama_model_n_ctx_train(model);
+    int n_layer     = llama_model_n_layer(model);
+    int n_embd      = llama_model_n_embd(model);
+    int n_head      = llama_model_n_head(model);
+    int n_head_kv   = llama_model_n_head_kv(model);
+
+    int safe_train = (n_ctx_train > 0)
+        ? (n_ctx_train < HARD_CAP ? n_ctx_train : HARD_CAP)
+        : HARD_CAP;
+
+    // Missing metadata or a bad KV size -> stay conservative.
+    if (n_layer <= 0 || n_embd <= 0 || n_head <= 0 || n_head_kv <= 0 || kvBytesPerElemX16 <= 0) {
+        return (safe_train < 8192) ? safe_train : 8192;
+    }
+
+    int head_dim = n_embd / n_head;
+    // KV cache bytes/token = 2 (K+V) * n_layer * (n_head_kv * head_dim) * bytes_per_elem.
+    // bytes_per_elem is passed as x16 fixed-point (F16=32, Q8_0=17, Q4_0=9) for integer math.
+    int64_t per_token_bytes = 2LL * n_layer * (int64_t) n_head_kv * head_dim * kvBytesPerElemX16 / 16;
+    if (per_token_bytes <= 0) {
+        return (safe_train < 8192) ? safe_train : 8192;
+    }
+
+    // Budget for the KV cache = device RAM - model weights - an OS/app reserve.
+    const int64_t RESERVE_BYTES = 3500LL * 1024 * 1024;  // ~3.5 GB headroom
+    int64_t kv_budget = deviceRamBytes - (int64_t) llama_model_size(model) - RESERVE_BYTES;
+    if (kv_budget < (int64_t) FLOOR * per_token_bytes) {
+        return FLOOR;  // tight RAM: minimal usable context
+    }
+
+    int64_t max_ctx_ram = kv_budget / per_token_bytes;
+    int64_t recommended = (max_ctx_ram < safe_train) ? max_ctx_ram : safe_train;
+    recommended = (recommended / 256) * 256;  // tidy multiple of 256
+    if (recommended < FLOOR) recommended = FLOOR;
+    return (int) recommended;
+}
+
 uint64_t LlamaModel::getModelSize() {
     if (this->model == nullptr) {
         return 0;

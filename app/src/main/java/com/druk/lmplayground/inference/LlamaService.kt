@@ -269,6 +269,9 @@ class LlamaService : Service() {
         override fun getContextTrainSize(modelId: Int): Int =
             models[modelId]?.nativeModel?.getContextTrainSize() ?: 0
 
+        override fun getRecommendedContextSize(modelId: Int, deviceRamBytes: Long, kvBytesPerElemX16: Int): Int =
+            models[modelId]?.nativeModel?.getRecommendedContextSize(deviceRamBytes, kvBytesPerElemX16) ?: 0
+
         override fun supportsThinking(modelId: Int): Boolean =
             models[modelId]?.nativeModel?.supportsThinking() == true
 

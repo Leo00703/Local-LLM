@@ -19,6 +19,8 @@ class NativeLlamaModel {
 
     external fun getContextTrainSize(): Int
 
+    external fun getRecommendedContextSize(deviceRamBytes: Long, kvBytesPerElemX16: Int): Int
+
     external fun getModelSize(): Long
 
     external fun getModelReport(): String

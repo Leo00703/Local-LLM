@@ -15,6 +15,9 @@ class LlamaModel internal constructor(
 
     override fun getContextTrainSize(): Int = client.withService { it.getContextTrainSize(modelId) }
 
+    override fun getRecommendedContextSize(deviceRamBytes: Long, kvBytesPerElemX16: Int): Int =
+        client.withService { it.getRecommendedContextSize(modelId, deviceRamBytes, kvBytesPerElemX16) }
+
     override fun supportsThinking(): Boolean = client.withService { it.supportsThinking(modelId) }
 
     override fun supportsToolCalling(): Boolean = client.requireConnected().supportsToolCalling(modelId)

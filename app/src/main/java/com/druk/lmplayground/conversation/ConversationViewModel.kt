@@ -781,7 +781,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         com.druk.lmplayground.R.string.inference_notification_loaded_title
                     )
                     val nCtxTrain = llamaModel.getContextTrainSize()
-                    _maxContextSize.postValue(minOf(nCtxTrain, 16384))
+                    _maxContextSize.postValue(minOf(nCtxTrain, 32768))
                     // Surface the active compute backend (GPU-OpenCL vs CPU) so
                     // the user can verify the GPU toggle really took effect.
                     _computeBackend.postValue(
@@ -793,12 +793,23 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                                 ?.trim()
                         } catch (_: Throwable) { null }
                     )
-                    // Load saved per-model params, or use defaults
+                    // Load saved per-model params, or use defaults. For a model the
+                    // user hasn't configured yet, default the context window to the
+                    // RAM-safe maximum (capped natively at the model's trained
+                    // context) so long documents fit instead of being truncated.
                     val savedMap = storagePreferences.getModelGenerationParams(modelInfo.filename)
                     val params = if (savedMap != null) {
                         GenerationParams.fromMap(savedMap)
                     } else {
-                        GenerationParams()
+                        val defaults = GenerationParams()
+                        val gpuOn = storagePreferences.gpuAccelerationEnabled
+                        val recommended = try {
+                            llamaModel.getRecommendedContextSize(
+                                deviceRamBytes(),
+                                kvBytesPerElemX16(defaults.kvCacheType, gpuOn),
+                            )
+                        } catch (_: Throwable) { 0 }
+                        if (recommended >= 2048) defaults.copy(contextSize = recommended) else defaults
                     }
                     _generationParams.postValue(params)
                     // Every model load starts without a system prompt. Per-model
@@ -1409,6 +1420,14 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         }
         val attachments = if (ready.isEmpty()) emptyList()
             else buildAttachments(ready, content)
+        // Heads-up when this turn (typically a large attached document) is bigger
+        // than the model's context window: the engine trims/truncates it to fit.
+        val ctxSize = _generationParams.value?.contextSize ?: 0
+        if (ctxSize > 0 &&
+            estimateTokens(buildModelPrompt(Message("User", content, attachments = attachments))) > ctxSize
+        ) {
+            _userError.postValue(app.getString(com.druk.lmplayground.R.string.context_overflow_warning))
+        }
         // If the user paged back to an older regenerated variant (the shown one
         // isn't the newest), the live session's KV cache / remote history still
         // holds the newest answer. Rebuild the context to the SELECTED variant by
@@ -1433,6 +1452,29 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      */
     private val isRemoteModel: Boolean
         get() = llamaModel is RemoteOpenAiModel
+
+    /** Total device RAM in bytes, for the RAM-safe context-size recommendation. */
+    private fun deviceRamBytes(): Long = try {
+        val am = app.getSystemService(android.content.Context.ACTIVITY_SERVICE)
+            as android.app.ActivityManager
+        val mi = android.app.ActivityManager.MemoryInfo()
+        am.getMemoryInfo(mi)
+        mi.totalMem
+    } catch (_: Throwable) { 0L }
+
+    /**
+     * KV-cache element size in bytes * 16 for the recommendation formula. The GPU
+     * (OpenCL) path forces F16; on CPU it follows the KV type (default Q8_0).
+     * Encoding matches [GenerationParams.kvCacheType]: 0=F16, 1=Q8_0, 2=Q4_0.
+     */
+    private fun kvBytesPerElemX16(kvCacheType: Int, gpuEnabled: Boolean): Int {
+        if (gpuEnabled) return 32 // F16 on GPU (OpenCL flash-attention is F16/F32 only)
+        return when (kvCacheType) {
+            2 -> 9    // Q4_0 (~0.5625 bytes/elem)
+            1 -> 17   // Q8_0 (~1.0625 bytes/elem)
+            else -> 32 // F16
+        }
+    }
 
     /**
      * Load the current model's mmproj/CLIP projector into the :llama process —

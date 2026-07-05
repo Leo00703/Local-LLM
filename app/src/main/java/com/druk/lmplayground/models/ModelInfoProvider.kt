@@ -456,13 +456,18 @@ object ModelInfoProvider {
         mmprojFilename: String? = null,
     ): ModelInfo {
         val sizeLabel = formatFileSize(sizeBytes)
+        // Give a sideloaded model its provider logo (Gemma -> Google, Qwen, Llama,
+        // etc.) by keyword-matching the probed name then the filename, exactly like
+        // remote models. Falls back to the generic penrose when nothing matches.
+        val logo = logoForModelId(name).takeIf { it != R.drawable.penrose_triangle }
+            ?: logoForModelId(filename)
         return ModelInfo(
             name = sanitizeCustomModelName(name, filename),
             filename = filename,
             remoteUri = null,
             releaseDate = null,
             description = "Custom model \u00B7 $sizeLabel",
-            logoRes = R.drawable.penrose_triangle,
+            logoRes = logo,
             mmprojFilename = mmprojFilename,
         )
     }

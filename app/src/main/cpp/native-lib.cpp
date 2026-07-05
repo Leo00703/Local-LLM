@@ -417,6 +417,19 @@ Java_com_druk_llamacpp_jni_NativeLlamaModel_getContextTrainSize(JNIEnv *env, job
 }
 
 extern "C"
+JNIEXPORT jint JNICALL
+Java_com_druk_llamacpp_jni_NativeLlamaModel_getRecommendedContextSize(
+        JNIEnv *env, jobject thiz, jlong deviceRamBytes, jint kvBytesPerElemX16) {
+    jclass clazz = env->GetObjectClass(thiz);
+    jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");
+    auto* model = (LlamaModel*) env->GetLongField(thiz, fid);
+    if (model == nullptr) {
+        return 0;
+    }
+    return model->getRecommendedContextSize((int64_t) deviceRamBytes, (int) kvBytesPerElemX16);
+}
+
+extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_druk_llamacpp_jni_NativeLlamaModel_createSession(JNIEnv *env, jobject thiz,
                                                   jint contextSize,

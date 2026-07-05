@@ -212,6 +212,10 @@ public:
 
     LlamaGenerationSession* createGenerationSession(const SamplerParams &params);
     int getContextTrainSize();
+    // Recommended n_ctx that fits [deviceRamBytes] after the model weights and an
+    // OS reserve, capped at the trained context. [kvBytesPerElemX16] = KV element
+    // size in bytes * 16 (F16=32, Q8_0=17, Q4_0=9). Returns 0 if no model.
+    int getRecommendedContextSize(int64_t deviceRamBytes, int kvBytesPerElemX16);
     void loadModel(const std::string &modelPath,
                    int32_t n_gpu_layers,
                    llama_progress_callback progress_callback,

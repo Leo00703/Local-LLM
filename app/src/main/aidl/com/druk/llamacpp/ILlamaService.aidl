@@ -50,6 +50,7 @@ interface ILlamaService {
     long getModelSize(int modelId);
     String getModelReport(int modelId);
     int getContextTrainSize(int modelId);
+    int getRecommendedContextSize(int modelId, long deviceRamBytes, int kvBytesPerElemX16);
     boolean supportsThinking(int modelId);
     boolean supportsToolCalling(int modelId);
     /** True once a vision-capable mmproj is attached via [loadMmproj]. */

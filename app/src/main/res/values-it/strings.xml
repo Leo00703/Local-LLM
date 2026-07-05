@@ -335,6 +335,7 @@
     <string name="attach_camera">Scatta foto</string>
     <string name="camera_photo">Foto</string>
     <string name="camera_unavailable">Nessuna fotocamera disponibile</string>
+    <string name="context_overflow_warning">Il contenuto allegato supera la finestra di contesto e verrà troncato in parte per rientrare.</string>
     <string name="image_attach_failed">Impossibile leggere l\'immagine</string>
     <string name="vision_load_failed">Impossibile caricare il proiettore vision. Il messaggio non è stato inviato. Riprova, oppure rimuovi l\'immagine per inviare solo il testo.</string>
     <string name="vision_load_failed_reason">Vision non caricata: %1$s</string>
