@@ -14,6 +14,11 @@
          ensures Play Store still surfaces the app to phones. -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.freeform_window_management" android:required="false" />
+    <!-- Photo capture for the vision attach flow. Optional so the app still
+         installs on camera-less devices; we do NOT declare the CAMERA permission
+         (ACTION_IMAGE_CAPTURE via the system camera app needs none, and declaring
+         it would force a runtime grant). -->
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <application
         android:name=".App"
@@ -98,6 +103,18 @@
             android:noHistory="true"
             android:taskAffinity=""
             android:exported="false" />
+
+        <!-- Hands the system camera app a writable content:// URI for a captured
+             photo (see file_paths.xml). Not exported; grants are per-launch. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 </manifest>

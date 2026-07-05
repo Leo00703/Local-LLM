@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.50", "Take a photo to attach", listOf(
+        Change(ChangeType.NEW, "The attach menu on a vision model now has a \"Take photo\" option that opens the camera, so you can snap a picture and send it straight to the model without saving it to the gallery first."),
+    )),
     ChangelogEntry("1.9.49", "Regenerate keeps the old answers", listOf(
         Change(ChangeType.NEW, "Regenerating a reply no longer throws the old one away. Each answer is kept as a variant, and back and forward arrows next to the Regenerate button (with a \"2/2\" counter) let you page between them. The answer you leave showing is the one the chat continues from. Variants are kept for the current session; they are not saved across an app restart yet."),
     )),

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider paths. `camera/` under the app cache is where the system camera
+     app writes a freshly captured photo before it is transcoded and attached. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="camera" path="camera/" />
+</paths>

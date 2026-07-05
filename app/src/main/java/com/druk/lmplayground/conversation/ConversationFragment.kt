@@ -125,6 +125,44 @@ class ConversationFragment : Fragment() {
         uri?.let { viewModel.stageImageAttachment(it, resolveDisplayName(it)) }
     }
 
+    /** Where the system camera writes a just-captured photo (a FileProvider URI). */
+    private var pendingCameraUri: Uri? = null
+
+    /**
+     * Full-resolution capture via the system camera app, then the same
+     * transcode+stage path as a gallery pick. No CAMERA permission is needed:
+     * we don't declare it, so ACTION_IMAGE_CAPTURE runs unguarded.
+     */
+    private val takePhotoLauncher = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        val uri = pendingCameraUri
+        pendingCameraUri = null
+        if (success && uri != null) {
+            viewModel.stageImageAttachment(uri, getString(R.string.camera_photo))
+        }
+    }
+
+    /** Create a cache target, hand the camera a writable FileProvider URI, launch. */
+    private fun launchCamera() {
+        try {
+            val dir = java.io.File(requireContext().cacheDir, "camera").apply { mkdirs() }
+            val file = java.io.File(dir, "capture_${System.currentTimeMillis()}.jpg")
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                requireContext(), "${requireContext().packageName}.fileprovider", file
+            )
+            pendingCameraUri = uri
+            takePhotoLauncher.launch(uri)
+        } catch (e: Exception) {
+            pendingCameraUri = null
+            android.widget.Toast.makeText(
+                requireContext(),
+                R.string.camera_unavailable,
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
     private fun resolveDisplayName(uri: Uri): String {
         requireContext().contentResolver
             .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
@@ -777,6 +815,9 @@ class ConversationFragment : Fragment() {
                                             ).show()
                                         }
                                     }
+                                } else null,
+                                onTakePhotoClick = if (supportsVision) {
+                                    { launchCamera() }
                                 } else null,
                                 onCancelClicked = {
                                     viewModel.cancelGeneration()

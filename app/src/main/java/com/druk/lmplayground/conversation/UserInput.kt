@@ -50,6 +50,7 @@ import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -137,6 +138,8 @@ fun UserInput(
      * picker directly, and this callback opens the system photo picker.
      */
     onAttachImageClick: (() -> Unit)? = null,
+    /** Non-null (vision) to add a "Take photo" item that launches the camera. */
+    onTakePhotoClick: (() -> Unit)? = null,
 ) {
 
     var textState by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -219,6 +222,7 @@ fun UserInput(
                 onAttachClick = onAttachClick,
                 attachEnabled = attachEnabled,
                 onAttachImageClick = onAttachImageClick,
+                onTakePhotoClick = onTakePhotoClick,
                 // On tablet landscape (integrateWithSurface) reduce the row's
                 // vertical padding from 8dp → 2dp so the input dock saves ~12dp
                 // of message area — vertical space is the constrained dimension
@@ -278,6 +282,7 @@ private fun UserInputText(
     onAttachClick: () -> Unit = {},
     attachEnabled: Boolean = false,
     onAttachImageClick: (() -> Unit)? = null,
+    onTakePhotoClick: (() -> Unit)? = null,
     compact: Boolean = false
 ) {
     val a11ylabel = stringResource(id = R.string.textfield_desc)
@@ -332,6 +337,16 @@ private fun UserInputText(
                             onAttachImageClick()
                         }
                     )
+                    if (onTakePhotoClick != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.attach_camera)) },
+                            leadingIcon = { Icon(Icons.Outlined.PhotoCamera, contentDescription = null) },
+                            onClick = {
+                                attachMenuOpen = false
+                                onTakePhotoClick()
+                            }
+                        )
+                    }
                 }
             }
         }
