@@ -23,9 +23,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -77,14 +77,39 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.druk.lmplayground.R
 
 enum class UserInputStatus {
     IDLE,
     NOT_LOADED,
     GENERATING
+}
+
+/**
+ * Positions the attach popup so its BOTTOM sits at the attach button's top,
+ * left-aligned and clamped on-screen, so it hugs the input bar (a DropdownMenu
+ * instead keeps a ~48dp margin off the window edge, floating it up into the chat).
+ */
+private val AttachMenuPositionProvider = object : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset {
+        val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
+        val x = anchorBounds.left.coerceIn(0, maxX)
+        val y = (anchorBounds.top - popupContentSize.height).coerceAtLeast(0)
+        return IntOffset(x, y)
+    }
 }
 
 @Preview
@@ -317,40 +342,50 @@ private fun UserInputText(
                     tint = LocalContentColor.current
                 )
             }
-            if (onAttachImageClick != null) {
-                DropdownMenu(
-                    expanded = attachMenuOpen,
+            if (onAttachImageClick != null && attachMenuOpen) {
+                // A DropdownMenu keeps a ~48dp margin off the window edge, so it
+                // floated well above the input bar. Use a Popup whose position
+                // provider pins the menu's BOTTOM to the attach button's top, so
+                // it hugs the input bar with no system margin.
+                Popup(
+                    popupPositionProvider = AttachMenuPositionProvider,
                     onDismissRequest = { attachMenuOpen = false },
-                    // Nudge the menu down so it sits closer to the input bar
-                    // (Material3 keeps a ~48dp margin off the bottom edge). Value
-                    // may need on-device tuning.
-                    offset = DpOffset(0.dp, 24.dp),
+                    properties = PopupProperties(focusable = true),
                 ) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.attach_document)) },
-                        leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null) },
-                        onClick = {
-                            attachMenuOpen = false
-                            onAttachClick()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.attach_image)) },
-                        leadingIcon = { Icon(Icons.Outlined.Image, contentDescription = null) },
-                        onClick = {
-                            attachMenuOpen = false
-                            onAttachImageClick()
-                        }
-                    )
-                    if (onTakePhotoClick != null) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.attach_camera)) },
-                            leadingIcon = { Icon(Icons.Outlined.PhotoCamera, contentDescription = null) },
-                            onClick = {
-                                attachMenuOpen = false
-                                onTakePhotoClick()
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        tonalElevation = 3.dp,
+                        shadowElevation = 6.dp,
+                    ) {
+                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.attach_document)) },
+                                leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null) },
+                                onClick = {
+                                    attachMenuOpen = false
+                                    onAttachClick()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.attach_image)) },
+                                leadingIcon = { Icon(Icons.Outlined.Image, contentDescription = null) },
+                                onClick = {
+                                    attachMenuOpen = false
+                                    onAttachImageClick()
+                                }
+                            )
+                            if (onTakePhotoClick != null) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.attach_camera)) },
+                                    leadingIcon = { Icon(Icons.Outlined.PhotoCamera, contentDescription = null) },
+                                    onClick = {
+                                        attachMenuOpen = false
+                                        onTakePhotoClick()
+                                    }
+                                )
                             }
-                        )
+                        }
                     }
                 }
             }

@@ -85,7 +85,7 @@ class ToolRegistry {
                 // "ddg:N" references instead of long URLs, web_fetch resolves
                 // them back at call time. See WebLinkStore.
                 register(WebSearchTool(webLinkStore))
-                register(WebFetchTool(webLinkStore))
+                register(WebFetchTool(webLinkStore, context))
                 register(JavaScriptTool(context))
                 register(CalculatorTool())
                 register(UnitConverterTool())

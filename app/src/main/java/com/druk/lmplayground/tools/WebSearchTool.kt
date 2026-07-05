@@ -10,8 +10,8 @@ import java.util.concurrent.TimeUnit
 
 class WebSearchTool(private val linkStore: WebLinkStore? = null) : Tool {
     override val name = "web_search"
-    override val description = "Search the web and return results with titles, snippets, and a compact reference for each result. Pass a result's \"ref\" to web_fetch to read that page."
-    override val parametersSchema = """{"type":"object","properties":{"query":{"type":"string","description":"The search query"},"max_results":{"type":"integer","description":"Maximum number of results to return (default 5, max 10)"}},"required":["query"]}"""
+    override val description = "Search the web and return results with titles, snippets, and a compact reference for each result. Optionally scope by region (e.g. \"it-it\") or recency (day/week/month/year). Pass a result's \"ref\" to web_fetch to read that page."
+    override val parametersSchema = """{"type":"object","properties":{"query":{"type":"string","description":"The search query"},"max_results":{"type":"integer","description":"Maximum number of results to return (default 5, max 10)"},"region":{"type":"string","description":"Optional region/locale, e.g. \"us-en\", \"it-it\", or \"wt-wt\" for no region"},"recency":{"type":"string","description":"Optional recency filter: day, week, month, or year"}},"required":["query"]}"""
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
@@ -28,12 +28,23 @@ class WebSearchTool(private val linkStore: WebLinkStore? = null) : Tool {
             val args = JSONObject(arguments)
             val query = args.getString("query")
             val maxResults = args.optInt("max_results", 5).coerceIn(1, 10)
+            // Optional DuckDuckGo scoping: kl = region/locale, df = time filter.
+            val region = args.optString("region").trim().lowercase()
+            val df = when (args.optString("recency").trim().lowercase()) {
+                "day", "d" -> "d"
+                "week", "w" -> "w"
+                "month", "m" -> "m"
+                "year", "y" -> "y"
+                else -> ""
+            }
 
-            val url = "https://html.duckduckgo.com/html/"
+            val urlBuilder = "https://html.duckduckgo.com/html/"
                 .toHttpUrlOrNull()!!
                 .newBuilder()
                 .addQueryParameter("q", query)
-                .build()
+            if (region.isNotEmpty()) urlBuilder.addQueryParameter("kl", region)
+            if (df.isNotEmpty()) urlBuilder.addQueryParameter("df", df)
+            val url = urlBuilder.build()
 
             val request = Request.Builder()
                 .url(url)

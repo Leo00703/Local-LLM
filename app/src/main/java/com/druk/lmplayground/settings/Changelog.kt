@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.54", "Attach menu hugs the bar, smarter web tools", listOf(
+        Change(ChangeType.DESIGN, "The attach menu (Document, Image, Take photo) now opens right above the input bar instead of floating up into the chat."),
+        Change(ChangeType.IMPROVED, "Web search can now be scoped by region and recency (day, week, month or year). And Fetch web page now reads linked PDF and Office documents (PDF, DOCX, XLSX, PPTX, ODT, RTF, EPUB) as text, not just web pages."),
+    )),
     ChangelogEntry("1.9.53", "Tidier tools list, plus a Wikipedia tool", listOf(
         Change(ChangeType.NEW, "New Wikipedia tool (turn it on in Settings, then Tools): the model can look up a topic and get a concise summary with the article title and link, more reliable than a general web search for well-known facts."),
         Change(ChangeType.IMPROVED, "In the model's Tools tab, every tool now shows a proper name, description and icon; the tools added in the last update previously showed only their raw internal name there. Both tool screens now share the same presentation."),
