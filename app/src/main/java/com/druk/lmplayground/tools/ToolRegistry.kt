@@ -92,6 +92,7 @@ class ToolRegistry {
                 register(DateTimeTool())
                 register(HardwareInfoTool(context))
                 register(WikipediaTool())
+                register(LocationTool(context))
             }
         }
     }

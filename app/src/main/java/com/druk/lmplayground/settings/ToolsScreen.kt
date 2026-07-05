@@ -2,6 +2,10 @@
 
 package com.druk.lmplayground.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,9 +31,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.druk.lmplayground.R
 import com.druk.lmplayground.tools.Tool
 
@@ -77,12 +83,28 @@ fun ToolsContent(
     onToolEnabledChanged: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    // The location tool needs a runtime permission: when the user turns it on,
+    // request ACCESS_COARSE_LOCATION and only enable it if the user grants it.
+    val locationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) onToolEnabledChanged("location", true) }
+    val onToggle: (String, Boolean) -> Unit = { name, enable ->
+        if (name == "location" && enable &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            locationPermission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+        } else {
+            onToolEnabledChanged(name, enable)
+        }
+    }
     Column(modifier = modifier.verticalScroll(rememberScrollState())) {
         tools.forEach { tool ->
             ToolRow(
                 tool = tool,
                 enabled = enabledStates[tool.name] ?: false,
-                onToggle = { onToolEnabledChanged(tool.name, it) },
+                onToggle = { onToggle(tool.name, it) },
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }

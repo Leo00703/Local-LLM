@@ -374,6 +374,9 @@
     <string name="tool_wikipedia_title">Wikipedia</string>
     <string name="tool_wikipedia_desc">Cerca un argomento su Wikipedia e restituisce un breve riassunto, così il modello risponde con affidabilità alle domande di fatto.</string>
     <string name="tool_wikipedia_example">\"Dammi un riassunto della GPU Adreno da Wikipedia.\"</string>
+    <string name="tool_location_title">Posizione</string>
+    <string name="tool_location_desc">Condivide col modello la posizione approssimata del dispositivo (a livello di città) quando la richiede. Richiede il permesso di localizzazione, chiesto quando attivi questo strumento.</string>
+    <string name="tool_location_example">\"In che città mi trovo adesso?\"</string>
     <string name="tool_run_javascript_title">Esegui JavaScript</string>
     <string name="tool_run_javascript_desc">Esegue JavaScript in un ambiente isolato sicuro per calcoli, date ed elaborazione del testo. Nessun accesso a internet o ai file.</string>
     <string name="tool_run_javascript_example">\"Quanto fa (2 + 3) × 4 e che giorno della settimana è il 1° gennaio 2027?\"</string>

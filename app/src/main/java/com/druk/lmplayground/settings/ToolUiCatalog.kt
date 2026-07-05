@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Schedule
@@ -63,5 +64,9 @@ val TOOL_UI_CATALOG: Map<String, ToolUiInfo> = mapOf(
     "wikipedia" to ToolUiInfo(
         R.string.tool_wikipedia_title, R.string.tool_wikipedia_desc,
         R.string.tool_wikipedia_example, Icons.Outlined.MenuBook,
+    ),
+    "location" to ToolUiInfo(
+        R.string.tool_location_title, R.string.tool_location_desc,
+        R.string.tool_location_example, Icons.Outlined.LocationOn,
     ),
 )

@@ -484,6 +484,9 @@
     <string name="tool_wikipedia_title">Wikipedia</string>
     <string name="tool_wikipedia_desc">Looks up a topic on Wikipedia and returns a short summary, so the model can answer factual questions reliably.</string>
     <string name="tool_wikipedia_example">\"Give me a summary of the Adreno GPU from Wikipedia.\"</string>
+    <string name="tool_location_title">Location</string>
+    <string name="tool_location_desc">Shares your device\'s approximate location (city level) with the model when it asks. Requires the location permission, which is requested when you turn this on.</string>
+    <string name="tool_location_example">\"What city am I in right now?\"</string>
 
     <!-- Inference engine service notification (foreground service while a
          model is loaded so the OS does not evict the :llama process). -->

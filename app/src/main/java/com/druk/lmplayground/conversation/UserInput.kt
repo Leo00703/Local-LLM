@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -66,6 +67,7 @@ import kotlin.math.roundToInt
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.SemanticsPropertyKey
@@ -94,11 +96,11 @@ enum class UserInputStatus {
 }
 
 /**
- * Positions the attach popup so its BOTTOM sits at the attach button's top,
- * left-aligned and clamped on-screen, so it hugs the input bar (a DropdownMenu
- * instead keeps a ~48dp margin off the window edge, floating it up into the chat).
+ * Positions the attach popup so its BOTTOM sits [gapPx] above the attach button's
+ * top, left-aligned and clamped on-screen, so it rests just above the input bar
+ * (a DropdownMenu instead keeps a ~48dp margin off the window edge, floating up).
  */
-private val AttachMenuPositionProvider = object : PopupPositionProvider {
+private class AttachMenuPositionProvider(private val gapPx: Int) : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: IntRect,
         windowSize: IntSize,
@@ -107,7 +109,7 @@ private val AttachMenuPositionProvider = object : PopupPositionProvider {
     ): IntOffset {
         val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
         val x = anchorBounds.left.coerceIn(0, maxX)
-        val y = (anchorBounds.top - popupContentSize.height).coerceAtLeast(0)
+        val y = (anchorBounds.top - popupContentSize.height - gapPx).coerceAtLeast(0)
         return IntOffset(x, y)
     }
 }
@@ -344,15 +346,18 @@ private fun UserInputText(
             }
             if (onAttachImageClick != null && attachMenuOpen) {
                 // A DropdownMenu keeps a ~48dp margin off the window edge, so it
-                // floated well above the input bar. Use a Popup whose position
-                // provider pins the menu's BOTTOM to the attach button's top, so
-                // it hugs the input bar with no system margin.
+                // floated up into the chat. A Popup with a custom position provider
+                // rests the menu just above the input bar; a fixed width keeps it a
+                // compact box on the left instead of stretching full width.
+                val menuGapPx = with(LocalDensity.current) { 8.dp.roundToPx() }
+                val attachMenuPosition = remember(menuGapPx) { AttachMenuPositionProvider(menuGapPx) }
                 Popup(
-                    popupPositionProvider = AttachMenuPositionProvider,
+                    popupPositionProvider = attachMenuPosition,
                     onDismissRequest = { attachMenuOpen = false },
                     properties = PopupProperties(focusable = true),
                 ) {
                     Surface(
+                        modifier = Modifier.width(220.dp),
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         tonalElevation = 3.dp,

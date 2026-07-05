@@ -8,6 +8,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Per-token typewriter haptic while streaming a response. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Optional, only for the "location" agent tool (off by default). Coarse
+         (network) accuracy only; requested at runtime when the user turns the
+         tool on. Not required for the app to function. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- Large-screen / Chromebook posture: app works without touch input and
          supports freeform window management. Keeping these as required="false"
