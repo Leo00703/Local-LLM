@@ -91,6 +91,7 @@ class ToolRegistry {
                 register(UnitConverterTool())
                 register(DateTimeTool())
                 register(HardwareInfoTool(context))
+                register(WikipediaTool())
             }
         }
     }

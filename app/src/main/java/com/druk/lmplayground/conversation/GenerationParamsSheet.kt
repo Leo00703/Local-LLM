@@ -61,6 +61,7 @@ import com.druk.lmplayground.data.SystemPromptEntity
 import com.druk.lmplayground.remote.ServerModelDetails
 import com.druk.lmplayground.settings.EditorBottomSheet
 import com.druk.lmplayground.settings.EditorTarget
+import com.druk.lmplayground.settings.TOOL_UI_CATALOG
 import com.druk.lmplayground.tools.Tool
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -347,21 +348,34 @@ fun GenerationParamsSheet(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 for (tool in tools) {
+                    // Shared catalog drives icon + friendly title + description here
+                    // and in Settings -> Tools; an unmapped tool falls back to its raw name.
+                    val ui = TOOL_UI_CATALOG[tool.name]
+                    val title = if (ui != null) stringResource(ui.titleRes) else tool.name
+                    val desc = ui?.let { stringResource(it.descRes) }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        if (ui != null) {
+                            Icon(
+                                imageVector = ui.icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                        }
                         Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                             Text(
-                                text = toolFriendlyName(tool.name),
+                                text = title,
                                 style = MaterialTheme.typography.bodyMedium
                             )
-                            toolShortDescription(tool.name)?.let { desc ->
+                            desc?.let {
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = desc,
+                                    text = it,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -948,29 +962,5 @@ private fun KvCacheSelector(
     }
 }
 
-/**
- * Friendly, user-facing name for a tool keyed by its registry [Tool.name].
- * The raw name (e.g. "run_javascript") is model-facing; falls back to it for
- * any tool without a mapped string.
- */
-@Composable
-internal fun toolFriendlyName(name: String): String = when (name) {
-    "run_javascript" -> stringResource(R.string.tool_run_javascript_title)
-    "web_search" -> stringResource(R.string.tool_web_search_title)
-    "web_fetch" -> stringResource(R.string.tool_web_fetch_title)
-    else -> name
-}
-
-/**
- * User-facing description for the params-sheet tool toggle — the same plain-language
- * copy as Settings → Tools (minus the worked example). The registry
- * [Tool.description] is written for the model, so we use these strings instead.
- * Null for unmapped tools (the subtitle is then hidden).
- */
-@Composable
-internal fun toolShortDescription(name: String): String? = when (name) {
-    "run_javascript" -> stringResource(R.string.tool_run_javascript_desc)
-    "web_search" -> stringResource(R.string.tool_web_search_desc)
-    "web_fetch" -> stringResource(R.string.tool_web_fetch_desc)
-    else -> null
-}
+// Tool title/description/icon now come from the shared TOOL_UI_CATALOG
+// (settings/ToolUiCatalog.kt), used by both this sheet and Settings -> Tools.

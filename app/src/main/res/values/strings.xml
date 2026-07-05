@@ -481,6 +481,9 @@
     <string name="tool_device_info_title">Device info</string>
     <string name="tool_device_info_desc">Lets the model read this device\'s specs: model, Android version, chipset, RAM, storage, and battery. No location or personal data.</string>
     <string name="tool_device_info_example">\"How much free RAM does my phone have?\"</string>
+    <string name="tool_wikipedia_title">Wikipedia</string>
+    <string name="tool_wikipedia_desc">Looks up a topic on Wikipedia and returns a short summary, so the model can answer factual questions reliably.</string>
+    <string name="tool_wikipedia_example">\"Give me a summary of the Adreno GPU from Wikipedia.\"</string>
 
     <!-- Inference engine service notification (foreground service while a
          model is loaded so the OS does not evict the :llama process). -->
