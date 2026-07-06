@@ -82,6 +82,9 @@ LlamaGenerationSession::~LlamaGenerationSession() {
     if (ctx != nullptr) {
         llama_free(ctx);
     }
+    if (ctx_dft != nullptr) {
+        llama_free(ctx_dft);
+    }
     if (smpl != nullptr) {
         llama_sampler_free(smpl);
     }
@@ -191,6 +194,24 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     if (!ctx) {
         LOGe("%s: error: failed to create the llama_context\n" , __func__);
         return;
+    }
+
+    // Experimental self-MTP speculative decoding: build a second "draft" context
+    // of type MTP on the SAME model. llama_init_from_model returns null when the
+    // model has no MTP head (nextn tensors) — only Qwen3.5 / 3.5-MoE execute it in
+    // this llama.cpp — so we detect capability by trying, and fall back to normal
+    // decode (ctx_dft == null) otherwise. Increment 1: build + log only; the
+    // draft->verify->accept loop lands in a later step.
+    if (params.speculative_enabled) {
+        llama_context_params mtp_params = ctx_params;
+        mtp_params.ctx_type = LLAMA_CONTEXT_TYPE_MTP;
+        ctx_dft = llama_init_from_model(model, mtp_params);
+        if (ctx_dft) {
+            LOGi("MTP: draft context created (model has an MTP head); n_draft=%d",
+                 params.spec_n_draft);
+        } else {
+            LOGe("MTP: requested but this model has no MTP head; using normal decode");
+        }
     }
 
     // Abort callback: llama_decode polls this between compute steps, so setting

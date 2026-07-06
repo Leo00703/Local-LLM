@@ -45,6 +45,11 @@ struct SamplerParams {
     // KV-cache quantization: 0 = F16 (default), 1 = Q8_0, 2 = Q4_0. Applied to
     // both K and V at context creation. Quantized V requires Flash Attention.
     int kv_cache_type = 0;
+    // Experimental self-MTP speculative decoding (only Qwen3.5-class models whose
+    // MTP head llama.cpp executes). When true, init() builds an MTP draft context
+    // on the SAME model. spec_n_draft = max draft tokens per verify step.
+    bool speculative_enabled = false;
+    int spec_n_draft = 0;
 };
 
 class LlamaGenerationSession {
@@ -140,6 +145,10 @@ private:
 
     const struct llama_vocab * vocab = nullptr;
     llama_context * ctx = nullptr;
+    // Experimental: MTP draft context on the SAME model (ctx_type=MTP), built in
+    // init() when speculative_enabled AND the model has an MTP head. Null
+    // otherwise (no MTP head -> normal decode). Freed in the destructor.
+    llama_context * ctx_dft = nullptr;
     llama_sampler * smpl = nullptr;
     const struct common_chat_templates * chat_tmpls = nullptr;
     bool prev_had_thinking = false;

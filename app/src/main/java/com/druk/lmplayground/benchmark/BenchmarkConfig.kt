@@ -10,7 +10,12 @@ data class BenchmarkConfig(
     val decodeTokens: Int = 256,
     val runs: Int = 3,
     val kvCacheType: Int = 1,
+    /** Experimental: build the self-MTP draft context (Qwen3.5-class models). */
+    val speculative: Boolean = false,
 ) {
+    /** Max draft tokens per MTP verify step when [speculative] is on. */
+    val specNDraft: Int get() = if (speculative) 4 else 0
+
     companion object {
         const val MIN_TOKENS = 32
         const val MAX_TOKENS = 2048

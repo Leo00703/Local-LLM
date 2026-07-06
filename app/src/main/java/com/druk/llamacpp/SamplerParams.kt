@@ -23,4 +23,8 @@ data class SamplerParams(
     val systemPrompt: String,
     /** KV-cache quantization: 0 = F16, 1 = Q8_0, 2 = Q4_0. */
     val kvCacheType: Int = 0,
+    /** Experimental self-MTP speculative decoding (Qwen3.5-class models only). */
+    val speculativeEnabled: Boolean = false,
+    /** Max draft tokens per MTP verify step. */
+    val specNDraft: Int = 0,
 ) : Parcelable

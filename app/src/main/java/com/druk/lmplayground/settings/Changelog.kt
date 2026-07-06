@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.68", "Experimental MTP groundwork", listOf(
+        Change(ChangeType.NEW, "First step toward MTP speculative decoding on Qwen 3.5 models: an experimental toggle in the benchmark. This step only detects whether a model has an MTP head (check the logs); the actual decode speedup lands in a later update, and it does nothing on other models."),
+    )),
     ChangelogEntry("1.9.67", "Benchmark comparison", listOf(
         Change(ChangeType.NEW, "New Compare toggle on the benchmark screen: see every model side by side, one bar per model and accelerator for decode speed, prefill speed and time-to-first-token, sorted best first and colored, so you can tell at a glance which model is fastest on this device. Uses each model's latest result per CPU/GPU; tap a bar for the full detail."),
     )),

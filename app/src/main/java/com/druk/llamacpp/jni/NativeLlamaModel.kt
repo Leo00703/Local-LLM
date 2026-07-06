@@ -14,7 +14,9 @@ class NativeLlamaModel {
         seed: Int,
         thinkingBudget: Int,
         systemPrompt: String,
-        kvCacheType: Int = 0
+        kvCacheType: Int = 0,
+        speculativeEnabled: Boolean = false,
+        specNDraft: Int = 0
     ): NativeLlamaSession?
 
     external fun getContextTrainSize(): Int

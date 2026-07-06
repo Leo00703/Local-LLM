@@ -40,6 +40,7 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -207,6 +208,7 @@ private fun ConfigSection(
     var decode by remember { mutableIntStateOf(BenchmarkConfig().decodeTokens) }
     var runs by remember { mutableIntStateOf(BenchmarkConfig().runs) }
     var hardware by remember { mutableStateOf(BenchmarkHardware.CPU) }
+    var speculative by remember { mutableStateOf(false) }
 
     // Model picker (downloaded local models only).
     Text(
@@ -235,10 +237,33 @@ private fun ConfigSection(
     BenchStepSlider(stringResource(R.string.benchmark_prefill_tokens), prefill, BenchmarkConfig.MIN_TOKENS, BenchmarkConfig.MAX_TOKENS, 32) { prefill = it }
     BenchStepSlider(stringResource(R.string.benchmark_decode_tokens), decode, BenchmarkConfig.MIN_TOKENS, BenchmarkConfig.MAX_TOKENS, 32) { decode = it }
     BenchStepSlider(stringResource(R.string.benchmark_runs), runs, BenchmarkConfig.MIN_RUNS, BenchmarkConfig.MAX_RUNS, 1) { runs = it }
+    Spacer(Modifier.height(8.dp))
+
+    // Experimental self-MTP speculative decoding (only Qwen3.5-class models whose
+    // MTP head llama.cpp executes; a no-op on any other model).
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.benchmark_mtp), style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = stringResource(R.string.benchmark_mtp_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Switch(checked = speculative, onCheckedChange = { speculative = it })
+    }
     Spacer(Modifier.height(12.dp))
 
     Button(
-        onClick = { selectedModel?.let { onRun(it, hardware, BenchmarkConfig(prefill, decode, runs)) } },
+        onClick = {
+            selectedModel?.let {
+                onRun(it, hardware, BenchmarkConfig(prefill, decode, runs, speculative = speculative))
+            }
+        },
         enabled = selectedModel != null,
         modifier = Modifier.fillMaxWidth()
     ) { Text(stringResource(R.string.benchmark_run)) }

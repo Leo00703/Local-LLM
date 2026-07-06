@@ -321,6 +321,8 @@ class LlamaService : Service() {
                 params.thinkingBudget,
                 params.systemPrompt,
                 params.kvCacheType,
+                params.speculativeEnabled,
+                params.specNDraft,
             ) ?: return 0
             val id = nextSessionId.getAndIncrement()
             sessions[id] = SessionEntry(id, modelId, nativeSession)

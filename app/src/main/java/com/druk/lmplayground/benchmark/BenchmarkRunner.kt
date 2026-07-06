@@ -59,6 +59,8 @@ class BenchmarkRunner(private val model: GenerationModel) {
             0,    // thinkingBudget (thinking disabled on the turn anyway)
             "",   // no system prompt
             config.kvCacheType,
+            config.speculative,   // experimental self-MTP (builds the draft context)
+            config.specNDraft,
         ) ?: throw BenchmarkException("Could not create a benchmark session (is a local model loaded?)")
 
         try {

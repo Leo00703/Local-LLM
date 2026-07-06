@@ -191,6 +191,8 @@
     <string name="benchmark_hw_both">Both</string>
     <string name="benchmark_mode_test">Test</string>
     <string name="benchmark_mode_compare">Compare</string>
+    <string name="benchmark_mtp">MTP speculative decoding (experimental)</string>
+    <string name="benchmark_mtp_desc">Only Qwen 3.5 models with an MTP head. A no-op on other models.</string>
     <string name="benchmark_loading">Loading model into memory…</string>
     <string name="benchmark_loading_hw">Loading %1$s (%2$s)…</string>
     <string name="benchmark_config">Prefill / Decode / Runs</string>

@@ -441,7 +441,9 @@ Java_com_druk_llamacpp_jni_NativeLlamaModel_createSession(JNIEnv *env, jobject t
                                                   jint seed,
                                                   jint thinkingBudget,
                                                   jstring systemPrompt,
-                                                  jint kvCacheType) {
+                                                  jint kvCacheType,
+                                                  jboolean speculativeEnabled,
+                                                  jint specNDraft) {
 
     jclass clazz1 = env->GetObjectClass(thiz);
     jfieldID fid1 = env->GetFieldID(clazz1, "nativeHandle", "J");
@@ -460,6 +462,8 @@ Java_com_druk_llamacpp_jni_NativeLlamaModel_createSession(JNIEnv *env, jobject t
     params.seed = (seed < 0) ? LLAMA_DEFAULT_SEED : static_cast<uint32_t>(seed);
     params.thinking_budget = thinkingBudget;
     params.kv_cache_type = kvCacheType;
+    params.speculative_enabled = (speculativeEnabled == JNI_TRUE);
+    params.spec_n_draft = specNDraft;
     if (systemPrompt != nullptr) {
         const char* utfSystemPrompt = env->GetStringUTFChars(systemPrompt, nullptr);
         if (utfSystemPrompt != nullptr) {

@@ -244,6 +244,8 @@
     <string name="benchmark_hw_both">Entrambi</string>
     <string name="benchmark_mode_test">Test</string>
     <string name="benchmark_mode_compare">Confronto</string>
+    <string name="benchmark_mtp">Decoding speculativo MTP (sperimentale)</string>
+    <string name="benchmark_mtp_desc">Solo modelli Qwen 3.5 con MTP head. Ininfluente sugli altri.</string>
     <string name="benchmark_loading">Caricamento del modello in memoria…</string>
     <string name="benchmark_loading_hw">Caricamento %1$s (%2$s)…</string>
     <string name="benchmark_config">Prefill / Decode / Esecuzioni</string>

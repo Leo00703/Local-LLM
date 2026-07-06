@@ -45,5 +45,9 @@ interface GenerationModel {
         systemPrompt: String,
         /** KV-cache quantization: 0 = F16, 1 = Q8_0, 2 = Q4_0. Local-only; remote ignores it. */
         kvCacheType: Int = 0,
+        /** Experimental self-MTP speculative decoding (Qwen3.5-class local models). */
+        speculativeEnabled: Boolean = false,
+        /** Max draft tokens per MTP verify step. */
+        specNDraft: Int = 0,
     ): GenerationBackend?
 }
