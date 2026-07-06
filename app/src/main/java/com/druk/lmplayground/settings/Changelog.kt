@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.62", "Tidier model picker + names", listOf(
+        Change(ChangeType.IMPROVED, "Downloaded models in the picker are now grouped by provider and sorted alphabetically within each group, the same way remote server models already were."),
+        Change(ChangeType.IMPROVED, "For a model loaded from a remote server, its full name now shows at the top of the parameters sheet, so you can read it even when the top bar truncates a long name."),
+    )),
     ChangelogEntry("1.9.61", "Benchmark your models", listOf(
         Change(ChangeType.NEW, "New Benchmark tab in a model's settings sheet: measure the loaded model's prefill and decode speed (tokens per second) plus time-to-first-token over a few runs, and keep a per-model history. Set the prefill tokens, decode tokens and number of runs. On-device models only; comparison across models and charts are coming next."),
     )),

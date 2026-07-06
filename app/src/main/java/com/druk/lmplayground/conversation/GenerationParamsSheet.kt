@@ -109,6 +109,9 @@ fun GenerationParamsSheet(
     // (which are server-owned or local-only) are hidden, and the server's
     // metadata is shown as info pills atop the Parameters tab.
     isRemote: Boolean = false,
+    // Loaded model's display name; shown atop the remote Parameters tab so a
+    // long server model name (which the top bar truncates) is fully visible.
+    modelName: String = "",
     serverDetails: ServerModelDetails? = null,
     // Active compute backend of a loaded local model ("GPU (OpenCL): … " or
     // "CPU"); shown atop the Parameters tab so the user can verify GPU use.
@@ -256,6 +259,14 @@ fun GenerationParamsSheet(
                 // context / capabilities) as info pills at the top, then the
                 // adjustable sliders below.
                 if (isRemote) {
+                    if (modelName.isNotBlank()) {
+                        Text(
+                            text = modelName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                     ServerInfoHeader(details = serverDetails, maxContext = maxContextSize)
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                 }

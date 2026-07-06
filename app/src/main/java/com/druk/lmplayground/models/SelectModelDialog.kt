@@ -87,8 +87,17 @@ fun SelectModelDialog(
     onLoadRemoteModel: (String) -> Unit = {},
     onDismissRequest: () -> Unit
 ) {
-    // Only show downloaded models
-    val downloadedModels = models.filter { it.isDownloaded }
+    // Only show downloaded models, grouped by provider (Qwen, Gemma, …) and
+    // alphabetical within each group — same layout as the remote section below.
+    val downloadedModels = remember(models) {
+        models.filter { it.isDownloaded }
+            .sortedWith(
+                compareBy(
+                    { ModelInfoProvider.providerGroup(it.model.name) },
+                    { it.model.name.lowercase() }
+                )
+            )
+    }
     var remoteExpanded by remember { mutableStateOf(false) }
     // Server models grouped by provider (Qwen, Gemma, …), alphabetical by their
     // prettified display name within each group; a header precedes each group.
@@ -218,13 +227,19 @@ fun SelectModelDialog(
                         )
                     }
                 } else {
-                    items(
+                    itemsIndexed(
                         items = downloadedModels,
-                        key = { it.model.filename }
-                    ) { modelWithStatus ->
-                        Model(model = modelWithStatus.model) {
-                            onDismissRequest()
-                            onLoadModel(modelWithStatus.model)
+                        key = { _, m -> m.model.filename }
+                    ) { index, modelWithStatus ->
+                        val group = ModelInfoProvider.providerGroup(modelWithStatus.model.name)
+                        val firstInGroup = index == 0 ||
+                            ModelInfoProvider.providerGroup(downloadedModels[index - 1].model.name) != group
+                        Column {
+                            if (firstInGroup) ProviderHeader(group)
+                            Model(model = modelWithStatus.model) {
+                                onDismissRequest()
+                                onLoadModel(modelWithStatus.model)
+                            }
                         }
                     }
                 }

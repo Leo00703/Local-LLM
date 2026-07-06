@@ -914,6 +914,7 @@ class ConversationFragment : Fragment() {
                                 systemPrompt = systemPrompt,
                                 canUpdateLinkedPrompt = systemPromptId != null,
                                 isRemote = isRemote,
+                                modelName = modelInfo?.name.orEmpty(),
                                 serverDetails = if (isRemote) serverModelDetails else null,
                                 computeBackend = if (!isRemote) computeBackend else null,
                                 showBenchmarkTab = !isRemote,
