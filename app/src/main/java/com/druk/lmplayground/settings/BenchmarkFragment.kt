@@ -67,11 +67,16 @@ class BenchmarkFragment : Fragment() {
                     }
                 val history by historyLive.observeAsState(emptyList())
 
+                // All saved results (newest first) for the Compare view.
+                val allResultsLive = remember { repo.getAllLive() }
+                val allResults by allResultsLive.observeAsState(emptyList())
+
                 BenchmarkScreen(
                     models = models,
                     selectedModel = selected,
                     state = state,
                     history = history,
+                    allResults = allResults,
                     onSelectModel = { selected = it },
                     onRun = { model, hw, config -> viewModel.runBenchmarkSuite(model, hw, config) },
                     onCancel = { viewModel.cancelBenchmark() },

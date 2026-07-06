@@ -189,6 +189,8 @@
     <string name="benchmark_hw_cpu">CPU</string>
     <string name="benchmark_hw_gpu">GPU</string>
     <string name="benchmark_hw_both">Both</string>
+    <string name="benchmark_mode_test">Test</string>
+    <string name="benchmark_mode_compare">Compare</string>
     <string name="benchmark_loading">Loading model into memory…</string>
     <string name="benchmark_loading_hw">Loading %1$s (%2$s)…</string>
     <string name="benchmark_config">Prefill / Decode / Runs</string>

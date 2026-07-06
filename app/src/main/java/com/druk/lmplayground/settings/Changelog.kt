@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.67", "Benchmark comparison", listOf(
+        Change(ChangeType.NEW, "New Compare toggle on the benchmark screen: see every model side by side, one bar per model and accelerator for decode speed, prefill speed and time-to-first-token, sorted best first and colored, so you can tell at a glance which model is fastest on this device. Uses each model's latest result per CPU/GPU; tap a bar for the full detail."),
+    )),
     ChangelogEntry("1.9.66", "Benchmark loading indicator", listOf(
         Change(ChangeType.FIX, "Starting a benchmark now immediately shows a loading indicator while the model loads into memory, instead of leaving the Run button up (which looked like nothing had happened, so it got tapped again)."),
     )),

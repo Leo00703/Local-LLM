@@ -242,6 +242,8 @@
     <string name="benchmark_hw_cpu">CPU</string>
     <string name="benchmark_hw_gpu">GPU</string>
     <string name="benchmark_hw_both">Entrambi</string>
+    <string name="benchmark_mode_test">Test</string>
+    <string name="benchmark_mode_compare">Confronto</string>
     <string name="benchmark_loading">Caricamento del modello in memoria…</string>
     <string name="benchmark_loading_hw">Caricamento %1$s (%2$s)…</string>
     <string name="benchmark_config">Prefill / Decode / Esecuzioni</string>

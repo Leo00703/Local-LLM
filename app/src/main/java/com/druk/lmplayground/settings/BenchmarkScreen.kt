@@ -79,6 +79,7 @@ fun BenchmarkScreen(
     selectedModel: ModelInfo?,
     state: BenchmarkUiState,
     history: List<BenchmarkResultEntity>,
+    allResults: List<BenchmarkResultEntity>,
     onSelectModel: (ModelInfo) -> Unit,
     onRun: (ModelInfo, BenchmarkHardware, BenchmarkConfig) -> Unit,
     onCancel: () -> Unit,
@@ -86,6 +87,7 @@ fun BenchmarkScreen(
 ) {
     val running = state is BenchmarkUiState.Running
     var detailResult by remember { mutableStateOf<BenchmarkResultEntity?>(null) }
+    var compareMode by remember { mutableStateOf(false) }
 
     // While a benchmark runs, block back navigation so the user can't leave (and
     // load another model) mid-run; they must Cancel explicitly.
@@ -115,34 +117,51 @@ fun BenchmarkScreen(
         ) {
             if (running) {
                 RunningCard(state as BenchmarkUiState.Running, onCancel)
-                Spacer(Modifier.height(16.dp))
             } else {
-                ConfigSection(
-                    models = models,
-                    selectedModel = selectedModel,
-                    state = state,
-                    onSelectModel = onSelectModel,
-                    onRun = onRun,
-                )
+                // Test | Compare toggle.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !compareMode,
+                        onClick = { compareMode = false },
+                        label = { Text(stringResource(R.string.benchmark_mode_test)) }
+                    )
+                    FilterChip(
+                        selected = compareMode,
+                        onClick = { compareMode = true },
+                        label = { Text(stringResource(R.string.benchmark_mode_compare)) }
+                    )
+                }
                 Spacer(Modifier.height(16.dp))
-            }
 
-            Text(
-                text = stringResource(R.string.benchmark_history),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(6.dp))
-            if (history.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.benchmark_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                for (result in history) {
-                    BenchmarkResultRow(result, onClick = { detailResult = result })
-                    Spacer(Modifier.height(8.dp))
+                if (compareMode) {
+                    BenchmarkComparison(allResults, onSelect = { detailResult = it })
+                } else {
+                    ConfigSection(
+                        models = models,
+                        selectedModel = selectedModel,
+                        state = state,
+                        onSelectModel = onSelectModel,
+                        onRun = onRun,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(R.string.benchmark_history),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    if (history.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.benchmark_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        for (result in history) {
+                            BenchmarkResultRow(result, onClick = { detailResult = result })
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))
@@ -347,6 +366,110 @@ private fun Metric(label: String, value: String, unit: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(text = "$value $unit", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+/**
+ * Compare view: the LATEST saved result per (model, accelerator), shown as
+ * grouped horizontal bars per metric (best first). Tap a bar for its detail.
+ */
+@Composable
+private fun BenchmarkComparison(
+    allResults: List<BenchmarkResultEntity>,
+    onSelect: (BenchmarkResultEntity) -> Unit,
+) {
+    if (allResults.isEmpty()) {
+        Text(
+            text = stringResource(R.string.benchmark_empty),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        return
+    }
+    // allResults is newest-first, so the first row of each group is the latest.
+    val entries = remember(allResults) {
+        allResults.groupBy { it.modelFilename to it.accelerator.startsWith("GPU") }
+            .map { (_, rs) -> rs.first() }
+    }
+    val tps = stringResource(R.string.benchmark_unit_tps)
+
+    ComparisonMetric(
+        title = "${stringResource(R.string.benchmark_metric_decode)} ($tps)",
+        entries = entries.sortedByDescending { it.decodeTokPerSecAvg },
+        valueText = { "%.1f".format(it.decodeTokPerSecAvg) },
+        score = { scoreHigher(it.decodeTokPerSecAvg, 60f, 8f, 20f) },
+        onSelect = onSelect,
+    )
+    Spacer(Modifier.height(16.dp))
+    ComparisonMetric(
+        title = "${stringResource(R.string.benchmark_metric_prefill)} ($tps)",
+        entries = entries.sortedByDescending { it.prefillTokPerSecAvg },
+        valueText = { "%.1f".format(it.prefillTokPerSecAvg) },
+        score = { scoreHigher(it.prefillTokPerSecAvg, 120f, 15f, 40f) },
+        onSelect = onSelect,
+    )
+    Spacer(Modifier.height(16.dp))
+    ComparisonMetric(
+        title = "${stringResource(R.string.benchmark_metric_ttft)} (ms)",
+        entries = entries.sortedBy { it.ttftMsAvg },
+        valueText = { "${it.ttftMsAvg.roundToInt()}" },
+        score = { scoreLower(it.ttftMsAvg, 15000f, 2000f, 6000f) },
+        onSelect = onSelect,
+    )
+}
+
+@Composable
+private fun ComparisonMetric(
+    title: String,
+    entries: List<BenchmarkResultEntity>,
+    valueText: (BenchmarkResultEntity) -> String,
+    score: (BenchmarkResultEntity) -> Score,
+    onSelect: (BenchmarkResultEntity) -> Unit,
+) {
+    Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Spacer(Modifier.height(6.dp))
+    for (e in entries) {
+        val label = "${e.modelName} · ${if (e.accelerator.startsWith("GPU")) "GPU" else "CPU"}"
+        ComparisonBar(label = label, value = valueText(e), score = score(e), onClick = { onSelect(e) })
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun ComparisonBar(label: String, value: String, score: Score, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 2.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+        }
+        Spacer(Modifier.height(3.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            val frac = score.fraction.coerceIn(0f, 1f)
+            if (frac > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(frac)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(score.color)
+                )
+            }
+        }
     }
 }
 
