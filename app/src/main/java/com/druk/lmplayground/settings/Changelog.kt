@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.66", "Benchmark loading indicator", listOf(
+        Change(ChangeType.FIX, "Starting a benchmark now immediately shows a loading indicator while the model loads into memory, instead of leaving the Run button up (which looked like nothing had happened, so it got tapped again)."),
+    )),
     ChangelogEntry("1.9.65", "Benchmark detail cards", listOf(
         Change(ChangeType.IMPROVED, "Tap a saved benchmark to open a detail card with colored score bars for prefill, decode and time-to-first-token, so you can see at a glance whether a model ran well. Each result also records how long it took."),
         Change(ChangeType.IMPROVED, "The benchmark history shows a short CPU / GPU badge (the full accelerator name is in the detail card)."),

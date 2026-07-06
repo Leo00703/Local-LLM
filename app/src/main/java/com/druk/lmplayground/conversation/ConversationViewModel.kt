@@ -2957,6 +2957,15 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         benchmarkJob = viewModelScope.launch {
             val results = mutableListOf<BenchmarkResultEntity>()
             try {
+                // Flip the UI into the blocking "running" view IMMEDIATELY (before
+                // the multi-second model load), otherwise the config screen stays
+                // up during the load and the user re-taps Run thinking nothing
+                // happened. This also covers waiting for the lock below.
+                _benchmarkState.postValue(
+                    BenchmarkUiState.Running(
+                        app.getString(com.druk.lmplayground.R.string.benchmark_loading), 0f
+                    )
+                )
                 // Hold the lock across teardown + every hardware load so no chat
                 // load (or a re-entered benchmark) can touch the shared model in
                 // the meantime. The restore in the finally is OUTSIDE this lock.
@@ -2968,6 +2977,17 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 var completed = 0
                 for (gpu in gpuFlags) {
                     val hwLabel = if (gpu) "GPU" else "CPU"
+                    // Show the load phase for this hardware (also covers the
+                    // CPU -> GPU reload in "both" mode).
+                    _benchmarkState.postValue(
+                        BenchmarkUiState.Running(
+                            app.getString(
+                                com.druk.lmplayground.R.string.benchmark_loading_hw,
+                                target.name, hwLabel
+                            ),
+                            completed.toFloat() / totalRuns
+                        )
+                    )
                     val handle = withContext(Dispatchers.IO) {
                         storageRepository.openModelFile(target.filename)
                     } ?: throw BenchmarkRunner.BenchmarkException(
