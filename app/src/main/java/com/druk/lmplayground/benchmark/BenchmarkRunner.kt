@@ -66,6 +66,7 @@ class BenchmarkRunner(private val model: GenerationModel) {
 
             val count = AtomicInteger(0)
             val firstTokenMs = AtomicLong(0L)
+            val lastTokenMs = AtomicLong(0L)
             val startMs = SystemClock.elapsedRealtime()
             val done = CompletableDeferred<Unit>()
 
@@ -74,7 +75,9 @@ class BenchmarkRunner(private val model: GenerationModel) {
             // call site).
             val callback = object : LlamaGenerationCallback {
                 override fun onFullResponse(response: String) {
-                    if (firstTokenMs.get() == 0L) firstTokenMs.set(SystemClock.elapsedRealtime())
+                    val now = SystemClock.elapsedRealtime()
+                    if (firstTokenMs.get() == 0L) firstTokenMs.set(now)
+                    lastTokenMs.set(now)
                     if (count.incrementAndGet() >= config.decodeTokens && done.isActive) {
                         done.complete(Unit)
                     }
@@ -97,14 +100,26 @@ class BenchmarkRunner(private val model: GenerationModel) {
             }
 
             val report = session.getReport()
-            val ttft = firstTokenMs.get().let { if (it > 0L) (it - startMs).toInt().coerceAtLeast(0) else 0 }
+            // The native report only prints "Prompt eval"/"Generation" t/s when the
+            // context's perf timing is enabled, which it is NOT (only the sampler's
+            // is), so those lines are absent and would parse to 0. Compute
+            // throughput from wall-clock instead, using the report's ALWAYS-present
+            // token counts: prefill speed over the TTFT window (Edge Gallery's
+            // AICore-path approach), decode speed over the first->last token window.
+            val first = firstTokenMs.get()
+            val last = lastTokenMs.get()
+            val ttft = if (first > 0L) (first - startMs).toInt().coerceAtLeast(0) else 0
+            val promptTokens = parseTokenCount(report, "Prompt tokens:")
+            val genTokens = parseTokenCount(report, "Generated tokens:").takeIf { it > 0 } ?: count.get()
+            val prefillSec = ttft / 1000f
+            val decodeSec = (last - first).coerceAtLeast(0L) / 1000f
             RunMetrics(
-                prefillTokPerSec = parseTps(report, "Prompt eval:"),
-                decodeTokPerSec = parseTps(report, "Generation:"),
+                prefillTokPerSec = if (prefillSec > 0f && promptTokens > 0) promptTokens / prefillSec else 0f,
+                decodeTokPerSec = if (decodeSec > 0f && genTokens > 0) genTokens / decodeSec else 0f,
                 ttftMs = ttft,
                 loadTimeMs = parseInt(report, "Load time:", "ms"),
                 contextUsed = parseContextUsed(report),
-                generatedTokens = count.get(),
+                generatedTokens = genTokens,
             )
         } finally {
             session.destroy()
@@ -129,10 +144,10 @@ class BenchmarkRunner(private val model: GenerationModel) {
         return sb.toString()
     }
 
-    /** Parse "  Prompt eval: 15 tokens, 12.3 t/s" -> 12.3 (the value before " t/s"). */
-    private fun parseTps(report: String, tag: String): Float {
-        val line = report.lineSequence().firstOrNull { it.contains(tag) } ?: return 0f
-        return line.substringAfterLast(", ").substringBefore(" t/s").trim().toFloatOrNull() ?: 0f
+    /** Parse "  Prompt tokens: 256" / "  Generated tokens: 256" -> the int. */
+    private fun parseTokenCount(report: String, tag: String): Int {
+        val line = report.lineSequence().firstOrNull { it.contains(tag) } ?: return 0
+        return line.substringAfter(tag).trim().toIntOrNull() ?: 0
     }
 
     /** Parse "  Load time: 1234 ms" -> 1234 (the int before [unit]). */

@@ -51,9 +51,9 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -229,9 +229,13 @@ fun GenerationParamsSheet(
             // Transparent container so the tab strip blends into the frosted
             // sheet (just the selected-tab underline + a hairline divider),
             // instead of painting a solid dark box over the glass.
-            TabRow(
+            // Scrollable so the tab labels size to their content instead of being
+            // squeezed into equal quarters (which wrapped "Strumenti"/"Parametri"
+            // onto two lines once the Benchmark tab was added).
+            ScrollableTabRow(
                 selectedTabIndex = selectedTab.coerceIn(0, tabKeys.lastIndex),
                 containerColor = Color.Transparent,
+                edgePadding = 0.dp,
             ) {
                 tabKeys.forEachIndexed { i, key ->
                     Tab(

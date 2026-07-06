@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.63", "Benchmark fixes", listOf(
+        Change(ChangeType.FIX, "The benchmark now reports real prefill and decode speeds. The on-device engine doesn't expose those timings, so they are computed from wall-clock timing plus the token counts (before, both showed 0)."),
+        Change(ChangeType.FIX, "The model settings tabs no longer wrap onto two lines with the Benchmark tab present."),
+    )),
     ChangelogEntry("1.9.62", "Tidier model picker + names", listOf(
         Change(ChangeType.IMPROVED, "Downloaded models in the picker are now grouped by provider and sorted alphabetically within each group, the same way remote server models already were."),
         Change(ChangeType.IMPROVED, "For a model loaded from a remote server, its full name now shows at the top of the parameters sheet, so you can read it even when the top bar truncates a long name."),
