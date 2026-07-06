@@ -4,6 +4,7 @@ package com.druk.lmplayground.settings
 
 import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +30,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -36,7 +39,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,10 +51,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.druk.lmplayground.R
 import com.druk.lmplayground.benchmark.BenchmarkConfig
 import com.druk.lmplayground.benchmark.BenchmarkHardware
@@ -77,6 +85,7 @@ fun BenchmarkScreen(
     onBackClick: () -> Unit,
 ) {
     val running = state is BenchmarkUiState.Running
+    var detailResult by remember { mutableStateOf<BenchmarkResultEntity?>(null) }
 
     // While a benchmark runs, block back navigation so the user can't leave (and
     // load another model) mid-run; they must Cancel explicitly.
@@ -132,12 +141,16 @@ fun BenchmarkScreen(
                 )
             } else {
                 for (result in history) {
-                    BenchmarkResultRow(result)
+                    BenchmarkResultRow(result, onClick = { detailResult = result })
                     Spacer(Modifier.height(8.dp))
                 }
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    detailResult?.let { r ->
+        BenchmarkDetailDialog(result = r, onDismiss = { detailResult = null })
     }
 }
 
@@ -288,8 +301,11 @@ private fun BenchStepSlider(label: String, value: Int, min: Int, max: Int, step:
 }
 
 @Composable
-private fun BenchmarkResultRow(result: BenchmarkResultEntity) {
-    OutlinedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+private fun BenchmarkResultRow(result: BenchmarkResultEntity, onClick: () -> Unit) {
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp)
+    ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -303,14 +319,14 @@ private fun BenchmarkResultRow(result: BenchmarkResultEntity) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // Short, consistent badge (CPU / GPU); the full accelerator name
+                // lives in the detail dialog.
+                val isGpu = result.accelerator.startsWith("GPU")
                 Text(
-                    text = result.accelerator,
+                    text = if (isGpu) "GPU" else "CPU",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (result.accelerator.startsWith("GPU")) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
+                    color = if (isGpu) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(Modifier.height(6.dp))
@@ -332,4 +348,155 @@ private fun Metric(label: String, value: String, unit: String) {
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(text = "$value $unit", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
     }
+}
+
+/**
+ * Full detail for one saved benchmark result: header, colored "score" bars per
+ * metric (red = poor, yellow = ok, green = good; TTFT is inverted since lower is
+ * better), and the run config / duration / KV cache.
+ */
+@Composable
+private fun BenchmarkDetailDialog(result: BenchmarkResultEntity, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 4.dp,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp)
+            ) {
+                Text(result.modelName, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = result.accelerator,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (result.accelerator.startsWith("GPU")) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+
+                val tps = stringResource(R.string.benchmark_unit_tps)
+                ScoreBar(
+                    label = stringResource(R.string.benchmark_metric_prefill),
+                    value = "%.1f %s".format(result.prefillTokPerSecAvg, tps),
+                    score = scoreHigher(result.prefillTokPerSecAvg, 120f, 15f, 40f)
+                )
+                ScoreBar(
+                    label = stringResource(R.string.benchmark_metric_decode),
+                    value = "%.1f %s".format(result.decodeTokPerSecAvg, tps),
+                    score = scoreHigher(result.decodeTokPerSecAvg, 60f, 8f, 20f)
+                )
+                ScoreBar(
+                    label = stringResource(R.string.benchmark_metric_ttft),
+                    value = "${result.ttftMsAvg.roundToInt()} ms",
+                    score = scoreLower(result.ttftMsAvg, 15000f, 2000f, 6000f)
+                )
+
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                DetailRow(
+                    stringResource(R.string.benchmark_config),
+                    "${result.prefillTokens} / ${result.decodeTokens} / ${result.runs}"
+                )
+                DetailRow(stringResource(R.string.benchmark_duration), formatMillis(result.durationMs))
+                DetailRow(stringResource(R.string.benchmark_context), "${result.contextUsed}")
+                DetailRow(stringResource(R.string.kv_cache_label), kvLabel(result.kvCacheType))
+
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                    Text(stringResource(R.string.close))
+                }
+            }
+        }
+    }
+}
+
+private data class Score(val fraction: Float, val color: Color)
+
+private val ScoreRed = Color(0xFFE53935)
+private val ScoreYellow = Color(0xFFF9A825)
+private val ScoreGreen = Color(0xFF43A047)
+
+/** Higher is better (tok/s): fuller + greener the larger the value. */
+private fun scoreHigher(value: Float, scaleMax: Float, redBelow: Float, greenAtLeast: Float): Score {
+    val color = when {
+        value < redBelow -> ScoreRed
+        value < greenAtLeast -> ScoreYellow
+        else -> ScoreGreen
+    }
+    return Score((value / scaleMax).coerceIn(0f, 1f), color)
+}
+
+/** Lower is better (TTFT): fuller + greener the SMALLER the value. */
+private fun scoreLower(value: Float, scaleMax: Float, greenBelow: Float, redAbove: Float): Score {
+    val color = when {
+        value < greenBelow -> ScoreGreen
+        value <= redAbove -> ScoreYellow
+        else -> ScoreRed
+    }
+    return Score((1f - value / scaleMax).coerceIn(0f, 1f), color)
+}
+
+@Composable
+private fun ScoreBar(label: String, value: String, score: Score) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        }
+        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(10.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            // fillMaxWidth requires a fraction > 0, so only draw the fill when
+            // there's something to fill (a 0 score just shows the empty track).
+            val frac = score.fraction.coerceIn(0f, 1f)
+            if (frac > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(frac)
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(score.color)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun kvLabel(kv: Int): String = stringResource(
+    when (kv) {
+        0 -> R.string.kv_cache_fp16
+        2 -> R.string.kv_cache_q4
+        else -> R.string.kv_cache_q8
+    }
+)
+
+private fun formatMillis(ms: Long): String {
+    val sec = ms / 1000.0
+    return if (sec < 60) "%.1f s".format(sec) else "${ms / 60000}m ${(ms % 60000) / 1000}s"
 }

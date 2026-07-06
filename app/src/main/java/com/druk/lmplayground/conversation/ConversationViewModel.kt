@@ -2991,6 +2991,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         }.getOrNull()?.takeIf { it.isNotEmpty() } ?: hwLabel
                         val runner = BenchmarkRunner(model)
                         val runs = mutableListOf<BenchmarkRunner.RunMetrics>()
+                        val hwStart = System.currentTimeMillis()
                         for (i in 1..config.runs) {
                             _benchmarkState.postValue(
                                 BenchmarkUiState.Running(
@@ -3001,7 +3002,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                             runs.add(runner.runOnce(config))
                             completed++
                         }
-                        val result = aggregateBenchmark(runs, config, target.filename, target.name, accelerator)
+                        val hwDurationMs = System.currentTimeMillis() - hwStart
+                        val result = aggregateBenchmark(runs, config, target.filename, target.name, accelerator, hwDurationMs)
                         repo?.insert(result)
                         results.add(result)
                     } finally {
@@ -3072,6 +3074,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         filename: String,
         name: String,
         accelerator: String,
+        durationMs: Long,
     ): BenchmarkResultEntity {
         val ttft = runs.map { it.ttftMs.toFloat() }
         val prefill = runs.map { it.prefillTokPerSec }
@@ -3102,6 +3105,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             loadTimeMs = runs.firstOrNull()?.loadTimeMs ?: 0,
             peakMemoryMb = null, // Build 2
             contextUsed = runs.maxOfOrNull { it.contextUsed } ?: 0,
+            durationMs = durationMs,
             kvCacheType = config.kvCacheType,
             appVersion = com.druk.lmplayground.BuildConfig.VERSION_NAME,
             createdAt = System.currentTimeMillis(),

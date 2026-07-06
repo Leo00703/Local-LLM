@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MemoryNoteEntity::class,
         BenchmarkResultEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -261,6 +261,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Benchmark: record how long each hardware's run-batch took. */
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `benchmark_results` ADD COLUMN `durationMs` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -281,7 +288,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_10_11,
                         MIGRATION_11_12,
                         MIGRATION_12_13,
-                        MIGRATION_13_14
+                        MIGRATION_13_14,
+                        MIGRATION_14_15
                     )
                     .build().also { INSTANCE = it }
             }

@@ -30,6 +30,8 @@ data class BenchmarkResultEntity(
     /** Best-effort peak app memory during the batch, MB. Null if unavailable. */
     val peakMemoryMb: Float?,
     val contextUsed: Int,
+    /** Wall-clock time the whole run-batch took for this hardware, milliseconds. */
+    val durationMs: Long,
     /** KV cache type used: 0 = F16, 1 = Q8_0, 2 = Q4_0. */
     val kvCacheType: Int,
     val appVersion: String,

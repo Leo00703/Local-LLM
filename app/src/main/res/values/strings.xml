@@ -189,6 +189,9 @@
     <string name="benchmark_hw_cpu">CPU</string>
     <string name="benchmark_hw_gpu">GPU</string>
     <string name="benchmark_hw_both">Both</string>
+    <string name="benchmark_config">Prefill / Decode / Runs</string>
+    <string name="benchmark_duration">Duration</string>
+    <string name="benchmark_context">Context used</string>
     <string name="benchmark_error_no_model">Load a model first to benchmark it.</string>
     <string name="benchmark_error_remote">Benchmarking is only available for on-device models.</string>
     <string name="benchmark_error_busy">Wait for the current response to finish.</string>

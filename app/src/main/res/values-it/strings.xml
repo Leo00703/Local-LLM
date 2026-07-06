@@ -242,6 +242,9 @@
     <string name="benchmark_hw_cpu">CPU</string>
     <string name="benchmark_hw_gpu">GPU</string>
     <string name="benchmark_hw_both">Entrambi</string>
+    <string name="benchmark_config">Prefill / Decode / Esecuzioni</string>
+    <string name="benchmark_duration">Durata</string>
+    <string name="benchmark_context">Contesto usato</string>
     <string name="benchmark_error_no_model">Carica prima un modello per farne il benchmark.</string>
     <string name="benchmark_error_remote">Il benchmark è disponibile solo per i modelli on-device.</string>
     <string name="benchmark_error_busy">Aspetta che la risposta in corso finisca.</string>

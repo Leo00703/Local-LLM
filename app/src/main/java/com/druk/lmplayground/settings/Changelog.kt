@@ -54,6 +54,11 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.65", "Benchmark detail cards", listOf(
+        Change(ChangeType.IMPROVED, "Tap a saved benchmark to open a detail card with colored score bars for prefill, decode and time-to-first-token, so you can see at a glance whether a model ran well. Each result also records how long it took."),
+        Change(ChangeType.IMPROVED, "The benchmark history shows a short CPU / GPU badge (the full accelerator name is in the detail card)."),
+        Change(ChangeType.FIX, "The model settings tabs spread evenly across the full width again."),
+    )),
     ChangelogEntry("1.9.64", "Dedicated benchmark screen", listOf(
         Change(ChangeType.NEW, "Benchmark moved to its own screen in Settings: pick any downloaded model, pick the accelerator (CPU, GPU, or both in sequence), and run a benchmark that blocks until it finishes and keeps a per-model history. The model you had loaded in chat is restored afterward."),
     )),
