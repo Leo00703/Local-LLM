@@ -7,6 +7,7 @@ import android.os.Bundle
 import com.druk.llamacpp.InferenceClient
 import com.druk.llamacpp.LlamaCpp
 import com.druk.lmplayground.data.AppDatabase
+import com.druk.lmplayground.data.BenchmarkRepository
 import com.druk.lmplayground.data.ChatRepository
 import com.druk.lmplayground.data.MemoryRepository
 import com.druk.lmplayground.data.SystemPromptRepository
@@ -30,6 +31,8 @@ class App : Application() {
     lateinit var systemPromptRepository: SystemPromptRepository
         private set
     lateinit var memoryRepository: MemoryRepository
+        private set
+    lateinit var benchmarkRepository: BenchmarkRepository
         private set
 
     /**
@@ -93,5 +96,6 @@ class App : Application() {
         chatRepository = ChatRepository(database.chatDao())
         systemPromptRepository = SystemPromptRepository(database.systemPromptDao())
         memoryRepository = MemoryRepository(database.memoryDao())
+        benchmarkRepository = BenchmarkRepository(database.benchmarkDao())
     }
 }

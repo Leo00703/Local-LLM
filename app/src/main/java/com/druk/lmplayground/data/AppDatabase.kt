@@ -14,9 +14,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SystemPromptEntity::class,
         PromptUsage::class,
         FolderEntity::class,
-        MemoryNoteEntity::class
+        MemoryNoteEntity::class,
+        BenchmarkResultEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +27,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun systemPromptDao(): SystemPromptDao
 
     abstract fun memoryDao(): MemoryDao
+
+    abstract fun benchmarkDao(): BenchmarkDao
 
     companion object {
         @Volatile
@@ -227,6 +230,37 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Benchmark results table (Edge-Gallery-style per-model perf history).
+         * The autoGenerate Long PK MUST be `INTEGER PRIMARY KEY AUTOINCREMENT
+         * NOT NULL` to match Room's generated schema (the rule that crashed
+         * v1.9.56). Nullable columns (peakMemoryMb) get no NOT NULL.
+         */
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `benchmark_results` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`modelFilename` TEXT NOT NULL, " +
+                        "`modelName` TEXT NOT NULL, " +
+                        "`accelerator` TEXT NOT NULL, " +
+                        "`prefillTokens` INTEGER NOT NULL, " +
+                        "`decodeTokens` INTEGER NOT NULL, " +
+                        "`runs` INTEGER NOT NULL, " +
+                        "`ttftMsAvg` REAL NOT NULL, " +
+                        "`prefillTokPerSecAvg` REAL NOT NULL, " +
+                        "`decodeTokPerSecAvg` REAL NOT NULL, " +
+                        "`loadTimeMs` INTEGER NOT NULL, " +
+                        "`peakMemoryMb` REAL, " +
+                        "`contextUsed` INTEGER NOT NULL, " +
+                        "`kvCacheType` INTEGER NOT NULL, " +
+                        "`appVersion` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`seriesJson` TEXT NOT NULL)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -246,7 +280,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_9_10,
                         MIGRATION_10_11,
                         MIGRATION_11_12,
-                        MIGRATION_12_13
+                        MIGRATION_12_13,
+                        MIGRATION_13_14
                     )
                     .build().also { INSTANCE = it }
             }

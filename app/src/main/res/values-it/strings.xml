@@ -223,6 +223,25 @@
     <string name="whats_new_item_2">Parametri di generazione per modello</string>
     <string name="whats_new_item_3">Controllo del budget di ragionamento</string>
 
+    <!-- Benchmark -->
+    <string name="benchmark">Benchmark</string>
+    <string name="benchmark_subtitle">Misura la velocità di questo modello</string>
+    <string name="benchmark_prefill_tokens">Token di prefill</string>
+    <string name="benchmark_decode_tokens">Token di decode</string>
+    <string name="benchmark_runs">Esecuzioni</string>
+    <string name="benchmark_run">Esegui benchmark</string>
+    <string name="benchmark_running">Esecuzione %1$d / %2$d</string>
+    <string name="benchmark_history">Storico</string>
+    <string name="benchmark_empty">Ancora nessun benchmark per questo modello.</string>
+    <string name="benchmark_metric_ttft">TTFT</string>
+    <string name="benchmark_metric_prefill">Prefill</string>
+    <string name="benchmark_metric_decode">Decode</string>
+    <string name="benchmark_unit_tps">tok/s</string>
+    <string name="benchmark_error_no_model">Carica prima un modello per farne il benchmark.</string>
+    <string name="benchmark_error_remote">Il benchmark è disponibile solo per i modelli on-device.</string>
+    <string name="benchmark_error_busy">Aspetta che la risposta in corso finisca.</string>
+    <string name="benchmark_error_generic">Benchmark fallito.</string>
+
     <!-- Memory -->
     <string name="memory">Memoria</string>
     <string name="memory_subtitle">Note che il modello ricorda tra le chat</string>

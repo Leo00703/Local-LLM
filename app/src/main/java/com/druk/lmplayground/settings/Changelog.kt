@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.61", "Benchmark your models", listOf(
+        Change(ChangeType.NEW, "New Benchmark tab in a model's settings sheet: measure the loaded model's prefill and decode speed (tokens per second) plus time-to-first-token over a few runs, and keep a per-model history. Set the prefill tokens, decode tokens and number of runs. On-device models only; comparison across models and charts are coming next."),
+    )),
     ChangelogEntry("1.9.60", "Models list refreshes on its own", listOf(
         Change(ChangeType.FIX, "Models copied into the models folder by hand now show up without re-picking the folder: the Models screen rescans every time you open it, there is a Refresh button in its top bar, and re-selecting the same folder rescans instead of doing nothing."),
     )),

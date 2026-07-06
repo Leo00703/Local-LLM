@@ -170,6 +170,25 @@
     <string name="migrating_models">Migrating Models</string>
     <string name="migration_progress">Copying %1$d of %2$d</string>
 
+    <!-- Benchmark -->
+    <string name="benchmark">Benchmark</string>
+    <string name="benchmark_subtitle">Measure this model\'s speed</string>
+    <string name="benchmark_prefill_tokens">Prefill tokens</string>
+    <string name="benchmark_decode_tokens">Decode tokens</string>
+    <string name="benchmark_runs">Runs</string>
+    <string name="benchmark_run">Run benchmark</string>
+    <string name="benchmark_running">Running %1$d / %2$d</string>
+    <string name="benchmark_history">History</string>
+    <string name="benchmark_empty">No benchmarks yet for this model.</string>
+    <string name="benchmark_metric_ttft">TTFT</string>
+    <string name="benchmark_metric_prefill">Prefill</string>
+    <string name="benchmark_metric_decode">Decode</string>
+    <string name="benchmark_unit_tps">tok/s</string>
+    <string name="benchmark_error_no_model">Load a model first to benchmark it.</string>
+    <string name="benchmark_error_remote">Benchmarking is only available for on-device models.</string>
+    <string name="benchmark_error_busy">Wait for the current response to finish.</string>
+    <string name="benchmark_error_generic">Benchmark failed.</string>
+
     <!-- Memory -->
     <string name="memory">Memory</string>
     <string name="memory_subtitle">Notes the model remembers across chats</string>

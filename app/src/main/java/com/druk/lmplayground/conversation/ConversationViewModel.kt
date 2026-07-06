@@ -23,6 +23,10 @@ import com.druk.lmplayground.remote.RemoteOpenAiModel
 import com.druk.lmplayground.remote.ServerModelDetails
 import com.druk.llamacpp.PayloadTooLargeException
 import com.druk.lmplayground.App
+import com.druk.lmplayground.benchmark.BenchmarkConfig
+import com.druk.lmplayground.benchmark.BenchmarkRunner
+import com.druk.lmplayground.benchmark.BenchmarkUiState
+import com.druk.lmplayground.data.BenchmarkResultEntity
 import com.druk.lmplayground.data.ChatMessageEntity
 import com.druk.lmplayground.data.ChatRepository
 import com.druk.lmplayground.data.ChatSessionEntity
@@ -420,10 +424,12 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         memoryNotesLive?.removeObserver(memoryObserver)
         val job = generatingJob
+        val bench = benchmarkJob
         val session = llamaSession
         val model = llamaModel
         val handle = modelFileHandle
         generatingJob = null
+        benchmarkJob = null
         llamaSession = null
         llamaModel = null
         modelFileHandle = null
@@ -431,6 +437,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         CoroutineScope(Dispatchers.Default).launch {
             job?.cancel()
             job?.join()
+            // A benchmark run holds the SAME model handle; wait for it to stop
+            // before unloading the model, or teardown races an in-flight session.
+            bench?.cancel()
+            try { bench?.join() } catch (_: Throwable) {}
             session?.destroy()
             model?.unloadModel()
             handle?.close()
@@ -2899,6 +2909,149 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             android.util.Log.w("ConversationViewModel", "getReport failed: service unavailable", e)
             null
         }
+    }
+
+    // --- Benchmark (Edge-Gallery-style, runs on the currently-loaded model) ---
+
+    private val _benchmarkState = MutableLiveData<BenchmarkUiState>(BenchmarkUiState.Idle)
+    val benchmarkState: LiveData<BenchmarkUiState> = _benchmarkState
+    private var benchmarkJob: kotlinx.coroutines.Job? = null
+
+    /** Saved benchmark results for the loaded model (newest first), reactive. */
+    val benchmarkHistory: LiveData<List<BenchmarkResultEntity>> =
+        _loadedModel.switchMap { info ->
+            val repo = (app as? App)?.benchmarkRepository
+            if (info != null && repo != null) repo.getForModelLive(info.filename)
+            else MutableLiveData(emptyList())
+        }
+
+    /**
+     * Run [config].runs benchmark passes against the loaded LOCAL model (each on
+     * a fresh session), aggregate, persist, and surface progress via
+     * [benchmarkState]. No-op if already running, no local model is loaded, the
+     * model is remote, or a chat generation is in flight.
+     */
+    fun runBenchmark(config: BenchmarkConfig) {
+        if (benchmarkJob?.isActive == true) return
+        val model = llamaModel
+        val info = _loadedModel.value
+        if (model == null || info == null) {
+            _benchmarkState.value = BenchmarkUiState.Error(
+                app.getString(com.druk.lmplayground.R.string.benchmark_error_no_model)
+            )
+            return
+        }
+        if (isRemoteModel) {
+            _benchmarkState.value = BenchmarkUiState.Error(
+                app.getString(com.druk.lmplayground.R.string.benchmark_error_remote)
+            )
+            return
+        }
+        if (_isGenerating.value == true) {
+            _benchmarkState.value = BenchmarkUiState.Error(
+                app.getString(com.druk.lmplayground.R.string.benchmark_error_busy)
+            )
+            return
+        }
+        val repo = (app as? App)?.benchmarkRepository
+        benchmarkJob = viewModelScope.launch {
+            try {
+                val runner = BenchmarkRunner(model)
+                val runs = mutableListOf<BenchmarkRunner.RunMetrics>()
+                for (i in 1..config.runs) {
+                    _benchmarkState.postValue(BenchmarkUiState.Running(i, config.runs))
+                    runs.add(runner.runOnce(config))
+                }
+                val accelerator = _computeBackend.value
+                    ?: runCatching {
+                        model.getModelReport().lineSequence()
+                            .firstOrNull { it.startsWith("Compute:") }
+                            ?.substringAfter("Compute:")?.trim()
+                    }.getOrNull()
+                    ?: "CPU"
+                val result = aggregateBenchmark(runs, config, info.filename, info.name, accelerator)
+                repo?.insert(result)
+                _benchmarkState.postValue(BenchmarkUiState.Done(result))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                _benchmarkState.postValue(BenchmarkUiState.Idle)
+                throw e
+            } catch (e: Exception) {
+                _benchmarkState.postValue(
+                    BenchmarkUiState.Error(e.message ?: app.getString(com.druk.lmplayground.R.string.benchmark_error_generic))
+                )
+            } finally {
+                benchmarkJob = null
+            }
+        }
+    }
+
+    fun cancelBenchmark() {
+        benchmarkJob?.cancel()
+    }
+
+    /** Reset the state after the user has seen a Done/Error (so it doesn't re-show). */
+    fun clearBenchmarkState() {
+        _benchmarkState.value = BenchmarkUiState.Idle
+    }
+
+    private fun aggregateBenchmark(
+        runs: List<BenchmarkRunner.RunMetrics>,
+        config: BenchmarkConfig,
+        filename: String,
+        name: String,
+        accelerator: String,
+    ): BenchmarkResultEntity {
+        val ttft = runs.map { it.ttftMs.toFloat() }
+        val prefill = runs.map { it.prefillTokPerSec }
+        val decode = runs.map { it.decodeTokPerSec }
+        val series = org.json.JSONObject()
+            .put("ttft", statsJson(ttft))
+            .put("prefill", statsJson(prefill))
+            .put("decode", statsJson(decode))
+            .put("perRun", org.json.JSONArray().apply {
+                for (r in runs) put(
+                    org.json.JSONObject()
+                        .put("ttft", r.ttftMs)
+                        .put("prefill", r.prefillTokPerSec.toDouble())
+                        .put("decode", r.decodeTokPerSec.toDouble())
+                        .put("genTokens", r.generatedTokens)
+                )
+            })
+        return BenchmarkResultEntity(
+            modelFilename = filename,
+            modelName = name,
+            accelerator = accelerator,
+            prefillTokens = config.prefillTokens,
+            decodeTokens = config.decodeTokens,
+            runs = config.runs,
+            ttftMsAvg = ttft.averageOrZero(),
+            prefillTokPerSecAvg = prefill.averageOrZero(),
+            decodeTokPerSecAvg = decode.averageOrZero(),
+            loadTimeMs = runs.firstOrNull()?.loadTimeMs ?: 0,
+            peakMemoryMb = null, // Build 2
+            contextUsed = runs.maxOfOrNull { it.contextUsed } ?: 0,
+            kvCacheType = config.kvCacheType,
+            appVersion = com.druk.lmplayground.BuildConfig.VERSION_NAME,
+            createdAt = System.currentTimeMillis(),
+            seriesJson = series.toString(),
+        )
+    }
+
+    private fun List<Float>.averageOrZero(): Float =
+        if (isEmpty()) 0f else (sum() / size)
+
+    private fun statsJson(values: List<Float>): org.json.JSONObject {
+        if (values.isEmpty()) {
+            return org.json.JSONObject().put("min", 0).put("max", 0).put("avg", 0).put("median", 0)
+        }
+        val sorted = values.sorted()
+        val median = if (sorted.size % 2 == 1) sorted[sorted.size / 2]
+            else (sorted[sorted.size / 2 - 1] + sorted[sorted.size / 2]) / 2f
+        return org.json.JSONObject()
+            .put("min", sorted.first().toDouble())
+            .put("max", sorted.last().toDouble())
+            .put("avg", (values.sum() / values.size).toDouble())
+            .put("median", median.toDouble())
     }
 
     fun unloadModel() {

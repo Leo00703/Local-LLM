@@ -48,6 +48,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import com.druk.lmplayground.benchmark.BenchmarkUiState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -899,6 +900,8 @@ class ConversationFragment : Fragment() {
                         // Parameters tab and the local-only controls are hidden.
                         if (showParamsSheet) {
                             val isRemote = modelInfo?.filename?.startsWith("remote:") == true
+                            val benchmarkState by viewModel.benchmarkState.observeAsState(BenchmarkUiState.Idle)
+                            val benchmarkHistory by viewModel.benchmarkHistory.observeAsState(emptyList())
                             GenerationParamsSheet(
                                 params = generationParams,
                                 maxContextSize = maxContextSize,
@@ -913,6 +916,10 @@ class ConversationFragment : Fragment() {
                                 isRemote = isRemote,
                                 serverDetails = if (isRemote) serverModelDetails else null,
                                 computeBackend = if (!isRemote) computeBackend else null,
+                                showBenchmarkTab = !isRemote,
+                                benchmarkState = benchmarkState,
+                                benchmarkHistory = benchmarkHistory,
+                                onRunBenchmark = { viewModel.runBenchmark(it) },
                                 savedPrompts = savedPrompts,
                                 activePromptId = systemPromptId,
                                 onSelectSavedPrompt = { id, text -> viewModel.applySystemPrompt(id, text) },
