@@ -73,6 +73,7 @@
     <string name="back">Back</string>
     <string name="version">Version %s</string>
     <string name="models_subtitle">Download and manage models</string>
+    <string name="models_refresh">Refresh</string>
     <string name="privacy_policy">Privacy Policy</string>
     <string name="privacy_policy_effective_date">Effective Date: June 2, 2026</string>
     <string name="privacy_policy_intro">Welcome to LM Playground! I am committed to maintaining the trust and confidence of everyone who uses my app. This Privacy Policy explains what the app does and does not collect, how your conversations stay on your device, and the few cases (such as the optional web tools) where information leaves your device, so you always know what to expect.</string>

@@ -85,8 +85,11 @@ class ModelsFragment : Fragment() {
             .edit().putBoolean("asked_notification_permission", true).apply()
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    override fun onResume() {
+        super.onResume()
+        // Rescan the models folder every time the screen is shown, so models
+        // added to the folder (e.g. copied in with a file manager) appear
+        // without having to re-pick the folder. Cheap (a SAF directory listing).
         viewModel.loadStorageInfo()
     }
 
@@ -122,6 +125,7 @@ class ModelsFragment : Fragment() {
                     migrationProgress = migrationProgress,
                     deviceLanguage = viewModel.deviceLanguage,
                     onBackClick = { findNavController().popBackStack() },
+                    onRefresh = { viewModel.loadStorageInfo() },
                     onChangeFolderClick = {
                         try {
                             folderPickerLauncher.launch(null)

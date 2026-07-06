@@ -205,7 +205,11 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
                     )
                 }
             } else if (oldUri == newUri) {
-                // Same folder, nothing to do
+                // Same folder re-picked: no migration, but refresh the listing so
+                // models added to the folder (e.g. copied in with a file manager)
+                // show up. This is the "re-select the folder to make them appear"
+                // path, so it must rescan rather than no-op.
+                loadStorageInfo()
                 return@launch
             } else {
                 // Changing from one folder to another - check old folder for models

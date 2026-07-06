@@ -69,6 +69,7 @@
     <string name="back">Indietro</string>
     <string name="version">Versione %s</string>
     <string name="models_subtitle">Scarica e gestisci i modelli</string>
+    <string name="models_refresh">Aggiorna</string>
     <string name="privacy_policy">Informativa sulla privacy</string>
     <string name="privacy_policy_effective_date">Data di entrata in vigore: 2 giugno 2026</string>
     <string name="privacy_policy_intro">Benvenuto su LM Playground! Mi impegno a mantenere la fiducia di tutte le persone che usano la mia app. Questa Informativa sulla Privacy spiega cosa raccoglie e cosa non raccoglie l\'app, come le tue conversazioni restano sul tuo dispositivo e i pochi casi \u2014 come gli strumenti web opzionali \u2014 in cui le informazioni lasciano il tuo dispositivo, cos\u00EC sai sempre cosa aspettarti.</string>

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -90,6 +91,7 @@ fun ModelsScreen(
     migrationProgress: MigrationProgress?,
     deviceLanguage: String,
     onBackClick: () -> Unit,
+    onRefresh: () -> Unit = {},
     onChangeFolderClick: () -> Unit,
     onDeleteModel: (ModelInfo) -> Unit,
     onDownloadModel: (ModelInfo) -> Unit,
@@ -111,6 +113,14 @@ fun ModelsScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.back)
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onRefresh) {
+                        Icon(
+                            imageVector = Icons.Outlined.Refresh,
+                            contentDescription = stringResource(R.string.models_refresh)
                         )
                     }
                 }

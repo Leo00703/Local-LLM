@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.60", "Models list refreshes on its own", listOf(
+        Change(ChangeType.FIX, "Models copied into the models folder by hand now show up without re-picking the folder: the Models screen rescans every time you open it, there is a Refresh button in its top bar, and re-selecting the same folder rescans instead of doing nothing."),
+    )),
     ChangelogEntry("1.9.59", "Memory you can manage", listOf(
         Change(ChangeType.NEW, "New Memory screen in Settings: view, add, edit and delete the notes the model remembers across chats, all in one place. The model can still save and update them on its own with the memory tool."),
         Change(ChangeType.NEW, "Saved memories can now be added to every chat automatically, so the model recalls them without being asked. This is opt-in: turn on Use memory in the Memory screen (off by default)."),
