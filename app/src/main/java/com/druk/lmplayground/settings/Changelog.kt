@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.64", "Dedicated benchmark screen", listOf(
+        Change(ChangeType.NEW, "Benchmark moved to its own screen in Settings: pick any downloaded model, pick the accelerator (CPU, GPU, or both in sequence), and run a benchmark that blocks until it finishes and keeps a per-model history. The model you had loaded in chat is restored afterward."),
+    )),
     ChangelogEntry("1.9.63", "Benchmark fixes", listOf(
         Change(ChangeType.FIX, "The benchmark now reports real prefill and decode speeds. The on-device engine doesn't expose those timings, so they are computed from wall-clock timing plus the token counts (before, both showed 0)."),
         Change(ChangeType.FIX, "The model settings tabs no longer wrap onto two lines with the Benchmark tab present."),

@@ -220,6 +220,9 @@ class SettingsFragment : Fragment() {
                     onMemoryClick = {
                         findNavController().navigateFromSettings(R.id.action_settings_to_memory)
                     },
+                    onBenchmarkClick = {
+                        findNavController().navigateFromSettings(R.id.action_settings_to_benchmark)
+                    },
                     onLanguageClick = {
                         findNavController().navigateFromSettings(R.id.action_settings_to_language)
                     },

@@ -48,7 +48,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
-import com.druk.lmplayground.benchmark.BenchmarkUiState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,6 +70,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import com.druk.lmplayground.files.AttachmentKind
 import com.druk.lmplayground.files.StagedState
@@ -91,7 +91,11 @@ import kotlinx.coroutines.launch
 
 class ConversationFragment : Fragment() {
 
-    private val viewModel: ConversationViewModel by viewModels()
+    // Activity-scoped so the dedicated Benchmark screen (a separate Settings
+    // fragment) shares the SAME model-owning VM, avoiding two owners fighting
+    // over the single loaded model. The home fragment is effectively a singleton,
+    // so activity scope changes nothing about the chat's own behavior.
+    private val viewModel: ConversationViewModel by activityViewModels()
     private val storageViewModel: StorageViewModel by viewModels()
 
     /** MIME types the document picker offers. */
@@ -900,8 +904,6 @@ class ConversationFragment : Fragment() {
                         // Parameters tab and the local-only controls are hidden.
                         if (showParamsSheet) {
                             val isRemote = modelInfo?.filename?.startsWith("remote:") == true
-                            val benchmarkState by viewModel.benchmarkState.observeAsState(BenchmarkUiState.Idle)
-                            val benchmarkHistory by viewModel.benchmarkHistory.observeAsState(emptyList())
                             GenerationParamsSheet(
                                 params = generationParams,
                                 maxContextSize = maxContextSize,
@@ -917,10 +919,6 @@ class ConversationFragment : Fragment() {
                                 modelName = modelInfo?.name.orEmpty(),
                                 serverDetails = if (isRemote) serverModelDetails else null,
                                 computeBackend = if (!isRemote) computeBackend else null,
-                                showBenchmarkTab = !isRemote,
-                                benchmarkState = benchmarkState,
-                                benchmarkHistory = benchmarkHistory,
-                                onRunBenchmark = { viewModel.runBenchmark(it) },
                                 savedPrompts = savedPrompts,
                                 activePromptId = systemPromptId,
                                 onSelectSavedPrompt = { id, text -> viewModel.applySystemPrompt(id, text) },

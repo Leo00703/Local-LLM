@@ -58,6 +58,9 @@
             android:id="@+id/action_settings_to_memory"
             app:destination="@id/nav_memory" />
         <action
+            android:id="@+id/action_settings_to_benchmark"
+            app:destination="@id/nav_benchmark" />
+        <action
             android:id="@+id/action_settings_to_language"
             app:destination="@id/nav_language" />
     </fragment>
@@ -71,6 +74,11 @@
         android:id="@+id/nav_memory"
         android:name="com.druk.lmplayground.settings.MemoryFragment"
         android:label="@string/memory" />
+
+    <fragment
+        android:id="@+id/nav_benchmark"
+        android:name="com.druk.lmplayground.settings.BenchmarkFragment"
+        android:label="@string/benchmark" />
 
     <fragment
         android:id="@+id/nav_models"

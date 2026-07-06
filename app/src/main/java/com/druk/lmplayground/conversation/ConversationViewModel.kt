@@ -24,6 +24,7 @@ import com.druk.lmplayground.remote.ServerModelDetails
 import com.druk.llamacpp.PayloadTooLargeException
 import com.druk.lmplayground.App
 import com.druk.lmplayground.benchmark.BenchmarkConfig
+import com.druk.lmplayground.benchmark.BenchmarkHardware
 import com.druk.lmplayground.benchmark.BenchmarkRunner
 import com.druk.lmplayground.benchmark.BenchmarkUiState
 import com.druk.lmplayground.data.BenchmarkResultEntity
@@ -59,11 +60,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -656,6 +660,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         val llamaCpp = llamaCpp ?: return
 
         viewModelScope.launch {
+          modelLifecycleMutex.withLock {
             // RAM-fit check. Run BEFORE we tear down the currently-loaded
             // model so the user can cancel the warning and keep their
             // existing session intact.
@@ -961,6 +966,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     progressJob.cancel()
                 }
             }
+          }
         }
     }
 
@@ -2911,67 +2917,100 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // --- Benchmark (Edge-Gallery-style, runs on the currently-loaded model) ---
+    // --- Benchmark (Edge-Gallery-style dedicated screen; loads models itself) ---
 
     private val _benchmarkState = MutableLiveData<BenchmarkUiState>(BenchmarkUiState.Idle)
     val benchmarkState: LiveData<BenchmarkUiState> = _benchmarkState
     private var benchmarkJob: kotlinx.coroutines.Job? = null
 
-    /** Saved benchmark results for the loaded model (newest first), reactive. */
-    val benchmarkHistory: LiveData<List<BenchmarkResultEntity>> =
-        _loadedModel.switchMap { info ->
-            val repo = (app as? App)?.benchmarkRepository
-            if (info != null && repo != null) repo.getForModelLive(info.filename)
-            else MutableLiveData(emptyList())
-        }
+    /**
+     * Serializes EVERY model-lifecycle operation (chat loadModel, benchmark
+     * teardown+load, and the post-benchmark restore) so that on the shared,
+     * activity-scoped VM they can never race over the single model the :llama
+     * service holds. An in-flight chat load holds this lock, so a benchmark
+     * waits for it to finish before tearing it down, and vice versa.
+     */
+    private val modelLifecycleMutex = Mutex()
 
     /**
-     * Run [config].runs benchmark passes against the loaded LOCAL model (each on
-     * a fresh session), aggregate, persist, and surface progress via
-     * [benchmarkState]. No-op if already running, no local model is loaded, the
-     * model is remote, or a chat generation is in flight.
+     * Benchmark a downloaded LOCAL [target] across the selected [hardware] (CPU /
+     * GPU / both, in sequence). The chat's current model is torn down first; the
+     * target is loaded via a CONTAINED loader (bypassing the chat's complex
+     * loadModel, which stays untouched); each hardware is measured over
+     * [config].runs fresh sessions; results are saved; and finally whatever model
+     * was loaded before is restored. Progress + results surface via
+     * [benchmarkState]. The screen blocks the user for the whole run, so nothing
+     * else touches the single shared model in the meantime.
      */
-    fun runBenchmark(config: BenchmarkConfig) {
+    fun runBenchmarkSuite(target: ModelInfo, hardware: BenchmarkHardware, config: BenchmarkConfig) {
         if (benchmarkJob?.isActive == true) return
-        val model = llamaModel
-        val info = _loadedModel.value
-        if (model == null || info == null) {
-            _benchmarkState.value = BenchmarkUiState.Error(
-                app.getString(com.druk.lmplayground.R.string.benchmark_error_no_model)
-            )
-            return
-        }
-        if (isRemoteModel) {
+        val cpp = llamaCpp
+        if (cpp == null || target.filename.startsWith("remote:")) {
             _benchmarkState.value = BenchmarkUiState.Error(
                 app.getString(com.druk.lmplayground.R.string.benchmark_error_remote)
             )
             return
         }
-        if (_isGenerating.value == true) {
-            _benchmarkState.value = BenchmarkUiState.Error(
-                app.getString(com.druk.lmplayground.R.string.benchmark_error_busy)
-            )
-            return
-        }
         val repo = (app as? App)?.benchmarkRepository
+        val gpuFlags = hardware.gpuFlags()
+        val previous = _loadedModel.value
         benchmarkJob = viewModelScope.launch {
+            val results = mutableListOf<BenchmarkResultEntity>()
             try {
-                val runner = BenchmarkRunner(model)
-                val runs = mutableListOf<BenchmarkRunner.RunMetrics>()
-                for (i in 1..config.runs) {
-                    _benchmarkState.postValue(BenchmarkUiState.Running(i, config.runs))
-                    runs.add(runner.runOnce(config))
+                // Hold the lock across teardown + every hardware load so no chat
+                // load (or a re-entered benchmark) can touch the shared model in
+                // the meantime. The restore in the finally is OUTSIDE this lock.
+                modelLifecycleMutex.withLock {
+                _isModelReady.postValue(false)
+                teardownLoadedModel()
+                val disableRepack = shouldDisableRepack(target)
+                val totalRuns = gpuFlags.size * config.runs
+                var completed = 0
+                for (gpu in gpuFlags) {
+                    val hwLabel = if (gpu) "GPU" else "CPU"
+                    val handle = withContext(Dispatchers.IO) {
+                        storageRepository.openModelFile(target.filename)
+                    } ?: throw BenchmarkRunner.BenchmarkException(
+                        app.getString(com.druk.lmplayground.R.string.benchmark_error_generic)
+                    )
+                    val model = withContext(Dispatchers.Default) {
+                        cpp.loadModel(
+                            handle.pfd,
+                            object : LlamaProgressCallback {
+                                override fun onProgress(progress: Float) {}
+                            },
+                            disableRepack = disableRepack,
+                            gpuLayers = if (gpu) 999 else 0,
+                        )
+                    }
+                    try {
+                        val accelerator = runCatching {
+                            model.getModelReport().lineSequence()
+                                .firstOrNull { it.startsWith("Compute:") }
+                                ?.substringAfter("Compute:")?.trim()
+                        }.getOrNull()?.takeIf { it.isNotEmpty() } ?: hwLabel
+                        val runner = BenchmarkRunner(model)
+                        val runs = mutableListOf<BenchmarkRunner.RunMetrics>()
+                        for (i in 1..config.runs) {
+                            _benchmarkState.postValue(
+                                BenchmarkUiState.Running(
+                                    "${target.name} · $hwLabel · $i/${config.runs}",
+                                    completed.toFloat() / totalRuns
+                                )
+                            )
+                            runs.add(runner.runOnce(config))
+                            completed++
+                        }
+                        val result = aggregateBenchmark(runs, config, target.filename, target.name, accelerator)
+                        repo?.insert(result)
+                        results.add(result)
+                    } finally {
+                        withContext(NonCancellable + Dispatchers.Default) { model.unloadModel() }
+                        handle.close()
+                    }
                 }
-                val accelerator = _computeBackend.value
-                    ?: runCatching {
-                        model.getModelReport().lineSequence()
-                            .firstOrNull { it.startsWith("Compute:") }
-                            ?.substringAfter("Compute:")?.trim()
-                    }.getOrNull()
-                    ?: "CPU"
-                val result = aggregateBenchmark(runs, config, info.filename, info.name, accelerator)
-                repo?.insert(result)
-                _benchmarkState.postValue(BenchmarkUiState.Done(result))
+                }
+                _benchmarkState.postValue(BenchmarkUiState.Done(results))
             } catch (e: kotlinx.coroutines.CancellationException) {
                 _benchmarkState.postValue(BenchmarkUiState.Idle)
                 throw e
@@ -2981,8 +3020,41 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 )
             } finally {
                 benchmarkJob = null
+                // Restore whatever chat model was loaded before the benchmark.
+                // forceLoad=true: it was already accepted (past any RAM warning)
+                // before the benchmark, so don't re-trigger the warning gate.
+                withContext(NonCancellable) {
+                    if (previous != null) loadModel(previous, forceLoad = true)
+                }
             }
         }
+    }
+
+    /** Tear down the loaded chat model (no UI posts); used before a benchmark. */
+    private suspend fun teardownLoadedModel() {
+        generatingJob?.cancel()
+        generatingJob?.join()
+        generatingJob = null
+        val s = llamaSession
+        val m = llamaModel
+        val h = modelFileHandle
+        llamaSession = null
+        llamaModel = null
+        modelFileHandle = null
+        withContext(Dispatchers.Default) {
+            s?.destroy()
+            m?.unloadModel()
+        }
+        h?.close()
+    }
+
+    /** Mirror loadModel's over-budget -> mmap decision for the contained loader. */
+    private suspend fun shouldDisableRepack(modelInfo: ModelInfo): Boolean {
+        if (storagePreferences.disableRepack) return true
+        val fileSize = withContext(Dispatchers.IO) {
+            storageRepository.getModelFiles().find { it.name == modelInfo.filename }?.sizeBytes ?: 0L
+        }
+        return DeviceCapability.exceedsRamBudget(fileSize, DeviceCapability.totalRamBytes(app))
     }
 
     fun cancelBenchmark() {

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.VolumeUp
@@ -72,6 +73,7 @@ fun SettingsScreen(
     onModelsClick: () -> Unit,
     onSystemPromptsClick: () -> Unit,
     onMemoryClick: () -> Unit,
+    onBenchmarkClick: () -> Unit,
     onLanguageClick: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
     onFaqClick: () -> Unit,
@@ -215,6 +217,7 @@ fun SettingsScreen(
                         // Memory has no inline detail pane; it always opens
                         // full-screen (phone and tablet) via navigation.
                         onMemoryClick = onMemoryClick,
+                        onBenchmarkClick = onBenchmarkClick,
                         onLanguageClick = {
                             if (languageDetailContent != null) {
                                 detail = SettingsDetail.Language
@@ -326,6 +329,7 @@ fun SettingsScreen(
                 onModelsClick = onModelsClick,
                 onSystemPromptsClick = onSystemPromptsClick,
                 onMemoryClick = onMemoryClick,
+                onBenchmarkClick = onBenchmarkClick,
                 onLanguageClick = onLanguageClick,
                 onToolsClick = onToolsClick,
                 onSoundHapticClick = onSoundHapticClick,
@@ -355,6 +359,7 @@ private fun SettingsList(
     onModelsClick: () -> Unit,
     onSystemPromptsClick: () -> Unit,
     onMemoryClick: () -> Unit,
+    onBenchmarkClick: () -> Unit,
     onLanguageClick: () -> Unit,
     onToolsClick: () -> Unit,
     onSoundHapticClick: () -> Unit,
@@ -408,6 +413,14 @@ private fun SettingsList(
             subtitle = stringResource(R.string.tools_subtitle),
             selected = selectedDetail == SettingsDetail.Tools,
             onClick = onToolsClick
+        )
+
+        // Benchmark row (opens full-screen; no inline detail pane)
+        SettingsRow(
+            icon = Icons.Outlined.Speed,
+            title = stringResource(R.string.benchmark),
+            subtitle = stringResource(R.string.benchmark_subtitle),
+            onClick = onBenchmarkClick
         )
 
         // Sound and Haptic row
@@ -574,6 +587,7 @@ private fun SettingsScreenPreview() {
             onModelsClick = {},
             onSystemPromptsClick = {},
             onMemoryClick = {},
+            onBenchmarkClick = {},
             onLanguageClick = {},
             onToolsClick = {},
             onSoundHapticClick = {},

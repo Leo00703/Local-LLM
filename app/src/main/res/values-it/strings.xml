@@ -237,6 +237,11 @@
     <string name="benchmark_metric_prefill">Prefill</string>
     <string name="benchmark_metric_decode">Decode</string>
     <string name="benchmark_unit_tps">tok/s</string>
+    <string name="benchmark_model">Modello</string>
+    <string name="benchmark_hardware">Hardware</string>
+    <string name="benchmark_hw_cpu">CPU</string>
+    <string name="benchmark_hw_gpu">GPU</string>
+    <string name="benchmark_hw_both">Entrambi</string>
     <string name="benchmark_error_no_model">Carica prima un modello per farne il benchmark.</string>
     <string name="benchmark_error_remote">Il benchmark è disponibile solo per i modelli on-device.</string>
     <string name="benchmark_error_busy">Aspetta che la risposta in corso finisca.</string>

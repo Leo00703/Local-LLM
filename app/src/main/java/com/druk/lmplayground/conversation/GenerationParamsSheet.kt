@@ -57,9 +57,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.druk.lmplayground.benchmark.BenchmarkConfig
-import com.druk.lmplayground.benchmark.BenchmarkUiState
-import com.druk.lmplayground.data.BenchmarkResultEntity
 import com.druk.lmplayground.data.SystemPromptEntity
 import com.druk.lmplayground.remote.ServerModelDetails
 import com.druk.lmplayground.settings.EditorBottomSheet
@@ -116,12 +113,6 @@ fun GenerationParamsSheet(
     // Active compute backend of a loaded local model ("GPU (OpenCL): … " or
     // "CPU"); shown atop the Parameters tab so the user can verify GPU use.
     computeBackend: String? = null,
-    // Benchmark tab: only for a loaded local model (not remote). Runs on the
-    // currently-loaded model via the conversation VM.
-    showBenchmarkTab: Boolean = false,
-    benchmarkState: BenchmarkUiState = BenchmarkUiState.Idle,
-    benchmarkHistory: List<BenchmarkResultEntity> = emptyList(),
-    onRunBenchmark: (BenchmarkConfig) -> Unit = {},
     // Saved system-prompt library, shown in the Prompt tab so the user can
     // pick / edit / delete / create prompts without leaving the sheet.
     savedPrompts: List<SystemPromptEntity> = emptyList(),
@@ -214,12 +205,11 @@ fun GenerationParamsSheet(
             // Prompt / Tools / Parameters split into tabs (Tools tab only when the
             // model supports tool calling). Default to the Parameters tab.
             val hasToolsTab = supportsToolCalling && tools.isNotEmpty()
-            val tabKeys = remember(hasToolsTab, showBenchmarkTab) {
+            val tabKeys = remember(hasToolsTab) {
                 buildList {
                     add("prompt")
                     if (hasToolsTab) add("tools")
                     add("params")
-                    if (showBenchmarkTab) add("benchmark")
                 }
             }
             var selectedTab by remember(tabKeys.size) {
@@ -247,7 +237,6 @@ fun GenerationParamsSheet(
                                     when (key) {
                                         "prompt" -> R.string.settings_tab_prompt
                                         "tools" -> R.string.tools
-                                        "benchmark" -> R.string.benchmark
                                         else -> R.string.settings_tab_params
                                     }
                                 )
@@ -659,14 +648,6 @@ fun GenerationParamsSheet(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
-            }
-
-            if (tabKey == "benchmark") {
-                BenchmarkPanel(
-                    state = benchmarkState,
-                    history = benchmarkHistory,
-                    onRun = onRunBenchmark,
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
