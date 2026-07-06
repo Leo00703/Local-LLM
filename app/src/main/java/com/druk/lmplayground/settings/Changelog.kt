@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.69", "MTP status in the benchmark", listOf(
+        Change(ChangeType.IMPROVED, "The benchmark now shows the experimental MTP outcome right on the result: \"CPU · MTP\" when the model's MTP head was built, or \"no MTP\" when the model does not support it. No more digging through logs to confirm a Qwen 3.5 model is MTP-capable, before the real speedup arrives in a later update."),
+    )),
     ChangelogEntry("1.9.68", "Experimental MTP groundwork", listOf(
         Change(ChangeType.NEW, "First step toward MTP speculative decoding on Qwen 3.5 models: an experimental toggle in the benchmark. This step only detects whether a model has an MTP head (check the logs); the actual decode speedup lands in a later update, and it does nothing on other models."),
     )),

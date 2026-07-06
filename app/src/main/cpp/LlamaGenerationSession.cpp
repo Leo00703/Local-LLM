@@ -202,6 +202,7 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     // this llama.cpp — so we detect capability by trying, and fall back to normal
     // decode (ctx_dft == null) otherwise. Increment 1: build + log only; the
     // draft->verify->accept loop lands in a later step.
+    speculative_requested = params.speculative_enabled;
     if (params.speculative_enabled) {
         llama_context_params mtp_params = ctx_params;
         mtp_params.ctx_type = LLAMA_CONTEXT_TYPE_MTP;
@@ -1424,6 +1425,12 @@ std::string LlamaGenerationSession::getReport() {
     if (sampler_timings.n_sample > 0 && sampler_timings.t_sample_ms > 0) {
         report << "  Sampling: " << sampler_timings.n_sample << " tokens, "
                << std::setprecision(1) << (1e3 / sampler_timings.t_sample_ms * sampler_timings.n_sample) << " t/s\n";
+    }
+
+    // Experimental MTP status, so the benchmark can surface whether the model's
+    // MTP head was actually built (active) or absent (unsupported) without adb.
+    if (speculative_requested) {
+        report << "  MTP: " << (ctx_dft ? "active" : "unsupported") << "\n";
     }
 
     return report.str();

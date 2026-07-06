@@ -33,6 +33,8 @@ class BenchmarkRunner(private val model: GenerationModel) {
         val loadTimeMs: Int,
         val contextUsed: Int,
         val generatedTokens: Int,
+        /** Experimental MTP status from the native report: "active", "unsupported", or "" (not requested). */
+        val mtpStatus: String = "",
     )
 
     class BenchmarkException(message: String) : Exception(message)
@@ -122,6 +124,7 @@ class BenchmarkRunner(private val model: GenerationModel) {
                 loadTimeMs = parseInt(report, "Load time:", "ms"),
                 contextUsed = parseContextUsed(report),
                 generatedTokens = genTokens,
+                mtpStatus = parseMtpStatus(report),
             )
         } finally {
             session.destroy()
@@ -162,6 +165,12 @@ class BenchmarkRunner(private val model: GenerationModel) {
     private fun parseContextUsed(report: String): Int {
         val line = report.lineSequence().firstOrNull { it.contains("Context:") } ?: return 0
         return line.substringAfter("Context:").substringBefore("/").trim().toIntOrNull() ?: 0
+    }
+
+    /** Parse "  MTP: active" -> "active" (or "unsupported"); "" when the line is absent. */
+    private fun parseMtpStatus(report: String): String {
+        val line = report.lineSequence().firstOrNull { it.contains("MTP:") } ?: return ""
+        return line.substringAfter("MTP:").trim()
     }
 
     private companion object {

@@ -364,10 +364,17 @@ private fun BenchmarkResultRow(result: BenchmarkResultEntity, onClick: () -> Uni
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 // Short, consistent badge (CPU / GPU); the full accelerator name
-                // lives in the detail dialog.
+                // lives in the detail dialog. When MTP was requested we surface its
+                // outcome inline so the user can confirm the model at a glance.
                 val isGpu = result.accelerator.startsWith("GPU")
+                val base = if (isGpu) "GPU" else "CPU"
+                val badge = when {
+                    result.accelerator.endsWith("· MTP") -> "$base · MTP"
+                    result.accelerator.contains("MTP n/a") -> "$base · no MTP"
+                    else -> base
+                }
                 Text(
-                    text = if (isGpu) "GPU" else "CPU",
+                    text = badge,
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isGpu) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant

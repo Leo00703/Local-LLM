@@ -3112,10 +3112,18 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         .put("genTokens", r.generatedTokens)
                 )
             })
+        // Surface the experimental MTP status (from the native report) next to the
+        // hardware, so the user can see in-app whether the model's MTP head built
+        // ("active") or is absent ("n/a") without reading adb logs.
+        val acceleratorLabel = when (runs.firstOrNull()?.mtpStatus) {
+            "active" -> "$accelerator · MTP"
+            "unsupported" -> "$accelerator · MTP n/a"
+            else -> accelerator
+        }
         return BenchmarkResultEntity(
             modelFilename = filename,
             modelName = name,
-            accelerator = accelerator,
+            accelerator = acceleratorLabel,
             prefillTokens = config.prefillTokens,
             decodeTokens = config.decodeTokens,
             runs = config.runs,

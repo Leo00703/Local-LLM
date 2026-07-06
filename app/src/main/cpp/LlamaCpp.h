@@ -149,6 +149,9 @@ private:
     // init() when speculative_enabled AND the model has an MTP head. Null
     // otherwise (no MTP head -> normal decode). Freed in the destructor.
     llama_context * ctx_dft = nullptr;
+    // True when the session was created with speculative_enabled, so getReport()
+    // can surface the MTP status (active vs unsupported-by-model) to the UI.
+    bool speculative_requested = false;
     llama_sampler * smpl = nullptr;
     const struct common_chat_templates * chat_tmpls = nullptr;
     bool prev_had_thinking = false;
