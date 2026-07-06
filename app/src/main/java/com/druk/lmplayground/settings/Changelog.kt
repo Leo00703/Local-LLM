@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.58", "Context ring counts active tools", listOf(
+        Change(ChangeType.FIX, "The context-usage ring now includes the tokens taken by the enabled tools' definitions, which the model always receives at the start of the prompt. With several tools on this can be a lot, so the ring now shows the real remaining space from the start instead of ignoring the tool overhead until the first reply."),
+    )),
     ChangelogEntry("1.9.57", "Fix crash on startup", listOf(
         Change(ChangeType.FIX, "The previous update could crash the app on startup, because the new Memory feature created its database table with a slightly wrong schema. Fixed so the app opens normally again; your chats and settings are untouched."),
     )),

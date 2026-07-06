@@ -862,7 +862,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     loadedModelDescription = modelDescription
                     _loadedModelStatus.postValue(modelDescription)
                     _sessionModelHint.postValue(null)
-                    _contextUsedTokens.postValue(0)
+                    // Seed the ring with the fixed preamble (system prompt + enabled
+                    // tools) so it reflects the tool overhead before the first turn.
+                    // Pass the freshly-detected capability directly: _supportsToolCalling
+                    // was just postValue'd above and its .value is not updated yet.
+                    _contextUsedTokens.postValue(preambleTokenEstimate(toolCallingSupported))
 
                     // Replay history into the new session BEFORE marking the
                     // model ready. If a persisted message exceeds the
@@ -1165,7 +1169,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
                 _currentSessionId.value = null
                 uiState.resetMessages()
-                _contextUsedTokens.postValue(0)
+                _contextUsedTokens.postValue(preambleTokenEstimate())
 
                 withContext(Dispatchers.Default) {
                     val newSession = createSessionWithParams(model, params, systemPrompt)
@@ -1584,12 +1588,31 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Rough token estimate of a whole conversation's context (system prompt + all
-     * messages, user turns incl. their attachment text). Fills the context ring
-     * when switching chats, instead of resetting it to 0 until the next turn.
+     * Fixed prompt overhead the model always carries: the composed system prompt
+     * PLUS the enabled tool definitions (rendered into the prompt by the chat
+     * template). Counting the tools here is why the context ring now reflects
+     * that "many tools = many tokens" even before the first turn. Matches what
+     * the generate loop actually sends (tools only when the model supports them
+     * and the user has some enabled).
+     */
+    private fun preambleTokenEstimate(
+        toolCallingSupported: Boolean = _supportsToolCalling.value == true
+    ): Int {
+        var tokens = estimateTokens(composeSystemPrompt(_systemPrompt.value.orEmpty()))
+        if (toolCallingSupported && toolRegistry.hasEnabledTools()) {
+            tokens += estimateTokens(toolRegistry.toOpenAIToolsJson())
+        }
+        return tokens
+    }
+
+    /**
+     * Rough token estimate of a whole conversation's context (preamble = system
+     * prompt + enabled tools, then all messages incl. their attachment text).
+     * Fills the context ring when switching chats, instead of resetting it to 0
+     * until the next turn.
      */
     private fun estimateContextTokens(messages: List<Message>): Int {
-        var tokens = estimateTokens(composeSystemPrompt(_systemPrompt.value.orEmpty()))
+        var tokens = preambleTokenEstimate()
         for (m in messages) {
             tokens += estimateTokens(if (m.author == "User") buildModelPrompt(m) else m.content)
         }
