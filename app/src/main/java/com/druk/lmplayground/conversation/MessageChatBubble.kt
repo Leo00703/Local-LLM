@@ -679,9 +679,13 @@ private fun AgentProcessCard(
     for ((toolName, ui) in TOOL_UI_CATALOG) {
         toolNames[toolName] = stringResource(ui.titleRes)
     }
-    // While generating, the still-streaming reasoning isn't a finished step yet —
-    // it's shown as the animated live tail instead, so don't fold it in here.
-    val effectiveFinalThinking = if (isGenerating) "" else finalThinking
+    // The final reasoning block (after the last tool call) is folded into the
+    // timeline as a finished step EXCEPT while it is still streaming in — in that
+    // window (generating AND the answer hasn't started) it shows as the animated
+    // live tail instead. Once the answer starts, that reasoning is closed, so it
+    // becomes a proper step immediately rather than popping in only when the whole
+    // turn finishes generating.
+    val effectiveFinalThinking = if (isGenerating && !answerStarted) "" else finalThinking
     val steps = remember(message.toolCalls, effectiveFinalThinking) {
         buildProcessSteps(message, effectiveFinalThinking, thinkingLabel, inputLabel, outputLabel, toolNames)
     }

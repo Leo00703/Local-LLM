@@ -169,6 +169,18 @@
     <string name="migrating_models">Migrating Models</string>
     <string name="migration_progress">Copying %1$d of %2$d</string>
 
+    <!-- Memory -->
+    <string name="memory">Memory</string>
+    <string name="memory_subtitle">Notes the model remembers across chats</string>
+    <string name="memory_empty">No memories yet. Add one, or let the model save notes as you chat.</string>
+    <string name="memory_new">New memory</string>
+    <string name="memory_edit">Edit memory</string>
+    <string name="memory_hint">Something to remember</string>
+    <string name="memory_enabled_title">Use memory in chats</string>
+    <string name="memory_enabled_subtitle">When on, saved memories are added to the model\'s context. The model can always read and write them with the memory tool.</string>
+    <string name="memory_clear_all">Clear all</string>
+    <string name="memory_clear_all_confirm">Delete all saved memories? This cannot be undone.</string>
+
     <!-- System prompts -->
     <string name="system_prompts">System Prompts</string>
     <string name="system_prompts_subtitle">Reusable instructions for any model</string>

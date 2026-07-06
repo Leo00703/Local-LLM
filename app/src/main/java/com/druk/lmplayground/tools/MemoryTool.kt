@@ -14,8 +14,8 @@ import org.json.JSONObject
  */
 class MemoryTool(private val context: Context) : Tool {
     override val name = "memory"
-    override val description = "Save and recall notes or facts that persist across chats. Use action \"save\" to remember something (with \"content\"), \"list\" to recall all saved notes, or \"delete\" to remove one (with its \"id\"). Notes are stored only on this device."
-    override val parametersSchema = """{"type":"object","properties":{"action":{"type":"string","description":"\"save\", \"list\", or \"delete\""},"content":{"type":"string","description":"The note text, required for \"save\""},"id":{"type":"integer","description":"The note id, required for \"delete\""}},"required":["action"]}"""
+    override val description = "Save and recall notes or facts that persist across chats. Use action \"save\" to remember something (with \"content\", optional \"category\"), \"list\" to recall all saved notes, \"update\" to edit one (with its \"id\" and new \"content\"), or \"delete\" to remove one (with its \"id\"). Notes are stored only on this device."
+    override val parametersSchema = """{"type":"object","properties":{"action":{"type":"string","description":"\"save\", \"list\", \"update\", or \"delete\""},"content":{"type":"string","description":"The note text, required for \"save\" and \"update\""},"id":{"type":"integer","description":"The note id, required for \"update\" and \"delete\""},"category":{"type":"string","description":"Optional short tag for a saved note, e.g. \"preferences\", \"projects\""}},"required":["action"]}"""
 
     private val dao get() = AppDatabase.getInstance(context).memoryDao()
 
@@ -30,7 +30,16 @@ class MemoryTool(private val context: Context) : Tool {
                     if (dao.count() >= MAX_NOTES) {
                         return errorJson("Memory is full ($MAX_NOTES notes). Delete some before saving more.")
                     }
-                    val id = dao.insert(MemoryNoteEntity(content = content, createdAt = System.currentTimeMillis()))
+                    val category = args.optString("category").trim().take(MAX_CATEGORY_LEN).ifEmpty { null }
+                    val now = System.currentTimeMillis()
+                    val id = dao.insert(
+                        MemoryNoteEntity(
+                            content = content,
+                            createdAt = now,
+                            updatedAt = now,
+                            category = category,
+                        )
+                    )
                     JSONObject().put("saved", true).put("id", id).toString()
                 }
                 "list", "recall", "get", "all" -> {
@@ -41,9 +50,28 @@ class MemoryTool(private val context: Context) : Tool {
                                 .put("id", note.id)
                                 .put("content", note.content)
                                 .put("createdAt", note.createdAt)
+                                .apply { note.category?.let { put("category", it) } }
                         )
                     }
                     JSONObject().put("notes", arr).put("count", arr.length()).toString()
+                }
+                "update", "edit", "change" -> {
+                    val id = args.optLong("id", -1L)
+                    if (id < 0L) return errorJson("Provide the numeric 'id' of the note to update (see the list action).")
+                    val content = args.optString("content").trim()
+                    if (content.isEmpty()) return errorJson("Nothing to update: 'content' is empty.")
+                    if (content.length > MAX_LEN) return errorJson("Note too long (max $MAX_LEN characters).")
+                    val existing = dao.getById(id) ?: return errorJson("No note with id $id.")
+                    val category = args.optString("category").trim().take(MAX_CATEGORY_LEN)
+                        .ifEmpty { existing.category }
+                    dao.update(
+                        existing.copy(
+                            content = content,
+                            category = category,
+                            updatedAt = System.currentTimeMillis(),
+                        )
+                    )
+                    JSONObject().put("updated", true).put("id", id).toString()
                 }
                 "delete", "remove", "forget" -> {
                     val id = args.optLong("id", -1L)
@@ -51,7 +79,7 @@ class MemoryTool(private val context: Context) : Tool {
                     val removed = dao.deleteById(id)
                     JSONObject().put("deleted", removed > 0).toString()
                 }
-                else -> errorJson("Unknown action. Use \"save\", \"list\", or \"delete\".")
+                else -> errorJson("Unknown action. Use \"save\", \"list\", \"update\", or \"delete\".")
             }
         } catch (e: Exception) {
             errorJson(e.message ?: "Memory operation failed")
@@ -63,5 +91,6 @@ class MemoryTool(private val context: Context) : Tool {
     companion object {
         private const val MAX_LEN = 2000
         private const val MAX_NOTES = 200
+        private const val MAX_CATEGORY_LEN = 40
     }
 }

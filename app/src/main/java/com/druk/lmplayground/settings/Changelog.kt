@@ -54,6 +54,11 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.59", "Memory you can manage", listOf(
+        Change(ChangeType.NEW, "New Memory screen in Settings: view, add, edit and delete the notes the model remembers across chats, all in one place. The model can still save and update them on its own with the memory tool."),
+        Change(ChangeType.NEW, "Saved memories can now be added to every chat automatically, so the model recalls them without being asked. This is opt-in: turn on Use memory in the Memory screen (off by default)."),
+        Change(ChangeType.FIX, "In a multi-step turn, the last reasoning step now appears in the process card as soon as the answer starts, instead of staying hidden until the whole response finished generating."),
+    )),
     ChangelogEntry("1.9.58", "Context ring counts active tools", listOf(
         Change(ChangeType.FIX, "The context-usage ring now includes the tokens taken by the enabled tools' definitions, which the model always receives at the start of the prompt. With several tools on this can be a lot, so the ring now shows the real remaining space from the start instead of ignoring the tool overhead until the first reply."),
     )),

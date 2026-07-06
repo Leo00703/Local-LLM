@@ -222,6 +222,18 @@
     <string name="whats_new_item_2">Parametri di generazione per modello</string>
     <string name="whats_new_item_3">Controllo del budget di ragionamento</string>
 
+    <!-- Memory -->
+    <string name="memory">Memoria</string>
+    <string name="memory_subtitle">Note che il modello ricorda tra le chat</string>
+    <string name="memory_empty">Ancora nessuna memoria. Aggiungine una, o lascia che il modello salvi note mentre chatti.</string>
+    <string name="memory_new">Nuova memoria</string>
+    <string name="memory_edit">Modifica memoria</string>
+    <string name="memory_hint">Qualcosa da ricordare</string>
+    <string name="memory_enabled_title">Usa la memoria nelle chat</string>
+    <string name="memory_enabled_subtitle">Se attiva, le memorie salvate vengono aggiunte al contesto del modello. Il modello può comunque leggerle e scriverle con lo strumento memoria.</string>
+    <string name="memory_clear_all">Cancella tutto</string>
+    <string name="memory_clear_all_confirm">Eliminare tutte le memorie salvate? L\'operazione non può essere annullata.</string>
+
     <!-- System prompts -->
     <string name="system_prompts">Prompt di sistema</string>
     <string name="system_prompts_subtitle">Istruzioni riutilizzabili per qualsiasi modello</string>

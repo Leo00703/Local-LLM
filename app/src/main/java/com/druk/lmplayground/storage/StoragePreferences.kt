@@ -53,6 +53,16 @@ class StoragePreferences(context: Context) {
         set(value) = prefs.edit { putBoolean("auto_name_chats", value) }
 
     /**
+     * Inject the user's saved memories into every chat's system prompt. OFF by
+     * default (opt-in, consistent with the app's tool convention): when off, no
+     * memory is added to the context, though the model can still read and write
+     * notes via the "memory" tool if that tool is enabled.
+     */
+    var memoryEnabled: Boolean
+        get() = prefs.getBoolean("memory_enabled", false)
+        set(value) = prefs.edit { putBoolean("memory_enabled", value) }
+
+    /**
      * Globally load every model memory-mapped (weight repacking off). Trades
      * matmul speed for a much smaller resident set; useful on tight-RAM devices.
      * Off by default — over-budget models already disable repacking automatically.

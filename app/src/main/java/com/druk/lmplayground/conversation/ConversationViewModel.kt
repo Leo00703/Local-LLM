@@ -7,6 +7,7 @@ import androidx.annotation.MainThread
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
 import androidx.lifecycle.switchMap
 import androidx.lifecycle.viewModelScope
 import com.druk.llamacpp.InferenceLimits
@@ -27,6 +28,8 @@ import com.druk.lmplayground.data.ChatRepository
 import com.druk.lmplayground.data.ChatSessionEntity
 import com.druk.lmplayground.data.FolderEntity
 import com.druk.lmplayground.data.ConversationMetadata
+import com.druk.lmplayground.data.MemoryNoteEntity
+import com.druk.lmplayground.data.MemoryRepository
 import com.druk.lmplayground.data.SystemPromptEntity
 import com.druk.lmplayground.data.SystemPromptRepository
 import com.druk.lmplayground.models.DeviceCapability
@@ -304,6 +307,26 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val savedPrompts: LiveData<List<SystemPromptEntity>> =
         systemPromptRepository?.getAll() ?: MutableLiveData(emptyList())
 
+    // --- Memory v2 injection ---
+    //
+    // Saved memories are injected into the system prompt (opt-in, gated by
+    // StoragePreferences.memoryEnabled). composeSystemPrompt runs on several
+    // threads (main + background), and Room forbids main-thread reads, so we do
+    // NOT hit the DB there. Instead we observe the notes LiveData (delivered
+    // off-main by Room) and keep a pre-formatted block cached; rebuilding it is
+    // pure string work, safe on the observer's main thread. Injection is a
+    // session-build snapshot, so a note the model saves mid-chat lands on the
+    // next session, matching the "view memory first" model.
+    private val memoryRepository: MemoryRepository? = (app as? App)?.memoryRepository
+    private val memoryNotesLive: LiveData<List<MemoryNoteEntity>>? = memoryRepository?.getAllLive()
+
+    @Volatile
+    private var memoryPromptBlock: String = ""
+
+    private val memoryObserver = Observer<List<MemoryNoteEntity>> { notes ->
+        memoryPromptBlock = buildMemoryBlock(notes)
+    }
+
     init {
         // Surface :llama process death to the UI. When the inference engine
         // crashes, the app process keeps running — we just need to tear
@@ -318,6 +341,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
         }
         sweepOrphanAttachments()
+        memoryNotesLive?.observeForever(memoryObserver)
     }
 
     private fun onInferenceCrashed() {
@@ -394,6 +418,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        memoryNotesLive?.removeObserver(memoryObserver)
         val job = generatingJob
         val session = llamaSession
         val model = llamaModel
@@ -1070,14 +1095,62 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      * cache is reused within the day and invalidates correctly at the rollover.
      */
     private fun composeSystemPrompt(userPrompt: String): String {
-        if (!storagePreferences.includeDateTimeInPrompt) return userPrompt
-        val now = java.text.DateFormat.getDateInstance(
-            java.text.DateFormat.FULL,
-            java.util.Locale.getDefault()
-        ).format(java.util.Date())
-        val line = app.getString(com.druk.lmplayground.R.string.system_prompt_datetime, now)
-        return if (userPrompt.isBlank()) line else "$line\n\n$userPrompt"
+        val parts = mutableListOf<String>()
+        if (storagePreferences.includeDateTimeInPrompt) {
+            val now = java.text.DateFormat.getDateInstance(
+                java.text.DateFormat.FULL,
+                java.util.Locale.getDefault()
+            ).format(java.util.Date())
+            parts.add(app.getString(com.druk.lmplayground.R.string.system_prompt_datetime, now))
+        }
+        // Opt-in memory injection (StoragePreferences.memoryEnabled). The block
+        // is the pre-formatted, sanitized cache maintained by [memoryObserver];
+        // reading it here is a plain field access, safe on any thread.
+        if (storagePreferences.memoryEnabled) {
+            val block = memoryPromptBlock
+            if (block.isNotEmpty()) parts.add(block)
+        }
+        if (userPrompt.isNotBlank()) parts.add(userPrompt)
+        return parts.joinToString("\n\n")
     }
+
+    /**
+     * Renders the enabled saved notes into a delimited `<user_memory>` block,
+     * bounded by note count and total characters so a large memory can't blow
+     * the context. Each note is sanitized (control chars stripped, our own
+     * delimiters removed) to keep free-text notes from injecting prompt
+     * structure. Returns "" when there is nothing to inject.
+     */
+    private fun buildMemoryBlock(notes: List<MemoryNoteEntity>): String {
+        if (notes.isEmpty()) return ""
+        val body = StringBuilder()
+        var budget = MEMORY_INJECT_CHAR_BUDGET
+        var included = 0
+        for (note in notes) {
+            if (included >= MEMORY_INJECT_MAX_NOTES) break
+            val clean = sanitizeMemory(note.content)
+            if (clean.isEmpty()) continue
+            val cat = note.category?.let { sanitizeMemory(it) }?.takeIf { it.isNotEmpty() }
+            val line = if (cat != null) "- $clean ($cat)" else "- $clean"
+            if (line.length > budget && included > 0) break
+            body.append(line).append('\n')
+            budget -= line.length
+            included++
+        }
+        if (included == 0) return ""
+        return buildString {
+            append("<user_memory>\n")
+            append("Saved notes about the user, to use when relevant:\n")
+            append(body)
+            append("</user_memory>")
+        }
+    }
+
+    private fun sanitizeMemory(s: String): String =
+        s.replace(Regex("[\\u0000-\\u001F]"), " ")     // control chars -> space
+            .replace(Regex("(?i)</?user_memory>"), "")  // strip our own delimiter
+            .replace(Regex(" {2,}"), " ")
+            .trim()
 
     private fun createSessionWithParams(
         model: GenerationModel,
@@ -3008,6 +3081,12 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         // model + tool-set combinations they use regularly" without
         // bloating /data.
         private const val KV_PREAMBLE_KEEP = 8
+
+        // Bounds on the injected <user_memory> block so a large saved memory
+        // can't crowd out the conversation. Notes past these limits are simply
+        // not injected (they remain available via the memory tool's list action).
+        private const val MEMORY_INJECT_MAX_NOTES = 40
+        private const val MEMORY_INJECT_CHAR_BUDGET = 4000
 
         private val HEX = "0123456789abcdef".toCharArray()
     }

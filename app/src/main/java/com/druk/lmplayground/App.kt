@@ -8,6 +8,7 @@ import com.druk.llamacpp.InferenceClient
 import com.druk.llamacpp.LlamaCpp
 import com.druk.lmplayground.data.AppDatabase
 import com.druk.lmplayground.data.ChatRepository
+import com.druk.lmplayground.data.MemoryRepository
 import com.druk.lmplayground.data.SystemPromptRepository
 import com.druk.lmplayground.download.DownloadNotificationManager
 import com.druk.lmplayground.inference.LlamaService
@@ -27,6 +28,8 @@ class App : Application() {
     lateinit var chatRepository: ChatRepository
         private set
     lateinit var systemPromptRepository: SystemPromptRepository
+        private set
+    lateinit var memoryRepository: MemoryRepository
         private set
 
     /**
@@ -89,5 +92,6 @@ class App : Application() {
         val database = AppDatabase.getInstance(this)
         chatRepository = ChatRepository(database.chatDao())
         systemPromptRepository = SystemPromptRepository(database.systemPromptDao())
+        memoryRepository = MemoryRepository(database.memoryDao())
     }
 }

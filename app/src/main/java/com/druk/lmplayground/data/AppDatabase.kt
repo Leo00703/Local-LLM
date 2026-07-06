@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FolderEntity::class,
         MemoryNoteEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -211,6 +211,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Memory v2: the note gains [MemoryNoteEntity.updatedAt] (last-edit
+         * ordering) and an optional [MemoryNoteEntity.category] tag. Pure
+         * ADD COLUMN, so the autoGenerate-PK CREATE rule (INTEGER PRIMARY KEY
+         * AUTOINCREMENT NOT NULL) that bit v1.9.56 does NOT apply here. The
+         * NOT NULL updatedAt carries a DEFAULT (SQLite requires it for a NOT
+         * NULL added column), matching the MIGRATION_1_2 / 7_8 precedent that
+         * Room validates without complaint.
+         */
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `memory_notes` ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `memory_notes` ADD COLUMN `category` TEXT")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -229,7 +245,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_8_9,
                         MIGRATION_9_10,
                         MIGRATION_10_11,
-                        MIGRATION_11_12
+                        MIGRATION_11_12,
+                        MIGRATION_12_13
                     )
                     .build().also { INSTANCE = it }
             }

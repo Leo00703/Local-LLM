@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Policy
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.VolumeUp
@@ -70,6 +71,7 @@ fun SettingsScreen(
     onBackClick: () -> Unit,
     onModelsClick: () -> Unit,
     onSystemPromptsClick: () -> Unit,
+    onMemoryClick: () -> Unit,
     onLanguageClick: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
     onFaqClick: () -> Unit,
@@ -210,6 +212,9 @@ fun SettingsScreen(
                                 onSystemPromptsClick()
                             }
                         },
+                        // Memory has no inline detail pane; it always opens
+                        // full-screen (phone and tablet) via navigation.
+                        onMemoryClick = onMemoryClick,
                         onLanguageClick = {
                             if (languageDetailContent != null) {
                                 detail = SettingsDetail.Language
@@ -320,6 +325,7 @@ fun SettingsScreen(
                 selectedDetail = null,
                 onModelsClick = onModelsClick,
                 onSystemPromptsClick = onSystemPromptsClick,
+                onMemoryClick = onMemoryClick,
                 onLanguageClick = onLanguageClick,
                 onToolsClick = onToolsClick,
                 onSoundHapticClick = onSoundHapticClick,
@@ -348,6 +354,7 @@ private fun SettingsList(
     selectedDetail: SettingsDetail?,
     onModelsClick: () -> Unit,
     onSystemPromptsClick: () -> Unit,
+    onMemoryClick: () -> Unit,
     onLanguageClick: () -> Unit,
     onToolsClick: () -> Unit,
     onSoundHapticClick: () -> Unit,
@@ -384,6 +391,14 @@ private fun SettingsList(
             subtitle = stringResource(R.string.system_prompts_subtitle),
             selected = selectedDetail == SettingsDetail.Prompts,
             onClick = onSystemPromptsClick
+        )
+
+        // Memory row (opens full-screen; no inline detail pane)
+        SettingsRow(
+            icon = Icons.Outlined.Psychology,
+            title = stringResource(R.string.memory),
+            subtitle = stringResource(R.string.memory_subtitle),
+            onClick = onMemoryClick
         )
 
         // Tools row
@@ -558,6 +573,7 @@ private fun SettingsScreenPreview() {
             onBackClick = {},
             onModelsClick = {},
             onSystemPromptsClick = {},
+            onMemoryClick = {},
             onLanguageClick = {},
             onToolsClick = {},
             onSoundHapticClick = {},
