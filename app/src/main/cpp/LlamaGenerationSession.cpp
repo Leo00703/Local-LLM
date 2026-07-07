@@ -194,7 +194,7 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     // exactly n_draft). Size it to n_draft + margin. Only when speculative is
     // requested, so a normal session is unchanged (n_rs_seq stays 0).
     if (params.speculative_enabled) {
-        ctx_params.n_rs_seq = (params.spec_n_draft > 0 ? params.spec_n_draft : 3) + 4;
+        ctx_params.n_rs_seq = (params.spec_n_draft > 0 ? params.spec_n_draft : 3) + 1;
     }
 
     ctx = llama_init_from_model(model, ctx_params);
@@ -1221,11 +1221,12 @@ int LlamaGenerationSession::generateSpeculativeStep(const ResponseCallback& call
 
     // 3) One target decode, then feed the same batch to the MTP head.
     if (llama_decode(ctx, vb)) {
-        LOGe("MTP: verify decode failed");
+        LOGe("MTP: verify decode failed (K=%d n_past=%d n_outputs=%d)", K, (int) n_past, K + 1);
         llama_batch_free(vb);
         finalizeResponse();
         return 1;
     }
+    LOGi("MTP: verify ok (K=%d)", K);
     common_speculative_process(spec, vb);
     llama_batch_free(vb);
 

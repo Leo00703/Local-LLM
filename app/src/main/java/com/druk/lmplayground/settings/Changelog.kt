@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.74", "MTP draft size tuning", listOf(
+        Change(ChangeType.FIX, "Another step on experimental MTP: reduced the speculative draft size so the verify step fits within what Qwen 3.5's recurrent layers support (larger drafts were failing the decode). This build helps pin down the working ceiling."),
+    )),
     ChangelogEntry("1.9.73", "MTP verify step fix", listOf(
         Change(ChangeType.FIX, "Experimental MTP speculative decoding now gets through its verify step on Qwen 3.5 (the hybrid model's recurrent state needed more rollback room for the multi-token verify pass, which was failing the decode). Speculation runs on CPU for now; the GPU path keeps normal decoding."),
     )),

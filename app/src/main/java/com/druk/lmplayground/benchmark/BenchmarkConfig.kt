@@ -13,8 +13,13 @@ data class BenchmarkConfig(
     /** Experimental: build the self-MTP draft context (Qwen3.5-class models). */
     val speculative: Boolean = false,
 ) {
-    /** Max draft tokens per MTP verify step when [speculative] is on. */
-    val specNDraft: Int get() = if (speculative) 4 else 0
+    /**
+     * Max draft tokens per MTP verify step when [speculative] is on. Kept small
+     * on purpose: Qwen3.5's Gated Delta Net recurrent layers fail the multi-output
+     * verify decode once the verify batch (seed + drafts) grows past a few output
+     * rows, so limit the drafts. Tune upward once the working ceiling is confirmed.
+     */
+    val specNDraft: Int get() = if (speculative) 2 else 0
 
     companion object {
         const val MIN_TOKENS = 32
