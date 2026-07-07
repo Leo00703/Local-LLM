@@ -35,6 +35,8 @@ class BenchmarkRunner(private val model: GenerationModel) {
         val generatedTokens: Int,
         /** Experimental MTP status from the native report: "active", "unsupported", or "" (not requested). */
         val mtpStatus: String = "",
+        /** MTP draft acceptance percentage for this run, or -1 when absent (no speculative step ran). */
+        val mtpAcceptPct: Int = -1,
     )
 
     class BenchmarkException(message: String) : Exception(message)
@@ -125,6 +127,7 @@ class BenchmarkRunner(private val model: GenerationModel) {
                 contextUsed = parseContextUsed(report),
                 generatedTokens = genTokens,
                 mtpStatus = parseMtpStatus(report),
+                mtpAcceptPct = parseMtpAccept(report),
             )
         } finally {
             session.destroy()
@@ -171,6 +174,12 @@ class BenchmarkRunner(private val model: GenerationModel) {
     private fun parseMtpStatus(report: String): String {
         val line = report.lineSequence().firstOrNull { it.contains("MTP:") } ?: return ""
         return line.substringAfter("MTP:").trim()
+    }
+
+    /** Parse "  MTP accept: 180 / 240 drafts (75%)" -> 75; -1 when the line is absent. */
+    private fun parseMtpAccept(report: String): Int {
+        val line = report.lineSequence().firstOrNull { it.contains("MTP accept:") } ?: return -1
+        return line.substringAfterLast("(").substringBefore("%").trim().toIntOrNull() ?: -1
     }
 
     private companion object {

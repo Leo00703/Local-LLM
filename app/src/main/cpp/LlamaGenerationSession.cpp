@@ -184,6 +184,16 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     LOGi("KV cache type: %d (0=F16 1=Q8_0 2=Q4_0), flash_attn forced=%d",
          params.kv_cache_type, kv_type != GGML_TYPE_F16);
 
+    // Self-MTP speculative decoding: Qwen3.5 is a HYBRID arch (its recurrent /
+    // linear-attention layers can't be partially rolled back without per-token
+    // snapshots). Size the target's recurrent-state rollback to the max draft so
+    // rejected drafts can be trimmed (common.cpp does the same via need_n_rs_seq;
+    // the arch is whitelisted in llm_arch_supports_rs_rollback). Only when
+    // speculative is requested, so a normal session is unchanged (n_rs_seq stays 0).
+    if (params.speculative_enabled) {
+        ctx_params.n_rs_seq = params.spec_n_draft > 0 ? params.spec_n_draft : 3;
+    }
+
     ctx = llama_init_from_model(model, ctx_params);
     if (!ctx && kv_type != GGML_TYPE_F16) {
         // Some model/backend combinations on this device can't do Flash
@@ -284,18 +294,25 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     prev_len = 0;
 
     // Increment 2: if the MTP draft context built, wire the speculative framework
-    // and confirm BOTH contexts support partial KV rollback (needed to trim
-    // rejected drafts). common_context_can_seq_rm is destructive (it clears the
-    // context memory and evals two dummy tokens), so it must run here, before any
-    // real prompt is decoded. Anything less than PART (FULL/RS/NO) disables
-    // speculation cleanly so we never abort mid-generation on a failed seq_rm.
+    // and confirm BOTH contexts can roll back up to n_draft rejected draft tokens.
+    // A context qualifies if it does unbounded partial removal (PART) OR bounded
+    // recurrent-state rollback (RS) deep enough for n_draft (Qwen3.5's hybrid
+    // target reports RS thanks to the n_rs_seq set above; the attention-only MTP
+    // context reports PART). common_context_can_seq_rm is destructive (clears the
+    // context memory + evals two dummy tokens), so it must run here, before any
+    // real prompt is decoded. FULL/NO disables speculation cleanly (no mid-run abort).
     if (ctx_dft != nullptr) {
+        const int n_draft = params.spec_n_draft > 0 ? params.spec_n_draft : 3;
         common_context_seq_rm_type tgt_rm = common_context_can_seq_rm(ctx);
         common_context_seq_rm_type dft_rm = common_context_can_seq_rm(ctx_dft);
-        if (tgt_rm != COMMON_CONTEXT_SEQ_RM_TYPE_PART ||
-            dft_rm != COMMON_CONTEXT_SEQ_RM_TYPE_PART) {
-            LOGe("MTP: partial KV rollback unsupported (tgt=%d dft=%d); speculation disabled",
-                 (int) tgt_rm, (int) dft_rm);
+        auto can_rollback = [&](common_context_seq_rm_type t, llama_context * c) {
+            return t == COMMON_CONTEXT_SEQ_RM_TYPE_PART ||
+                   (t == COMMON_CONTEXT_SEQ_RM_TYPE_RS && (int) llama_n_rs_seq(c) >= n_draft);
+        };
+        if (!can_rollback(tgt_rm, ctx) || !can_rollback(dft_rm, ctx_dft)) {
+            LOGe("MTP: KV rollback insufficient (tgt=%d/%d dft=%d/%d, need>=%d); speculation disabled",
+                 (int) tgt_rm, (int) llama_n_rs_seq(ctx),
+                 (int) dft_rm, (int) llama_n_rs_seq(ctx_dft), n_draft);
         } else {
             spec_params.types         = { COMMON_SPECULATIVE_TYPE_DRAFT_MTP };
             spec_params.draft.ctx_tgt = ctx;

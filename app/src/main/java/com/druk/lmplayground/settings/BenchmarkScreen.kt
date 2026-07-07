@@ -369,8 +369,8 @@ private fun BenchmarkResultRow(result: BenchmarkResultEntity, onClick: () -> Uni
                 val isGpu = result.accelerator.startsWith("GPU")
                 val base = if (isGpu) "GPU" else "CPU"
                 val badge = when {
-                    result.accelerator.endsWith("· MTP") -> "$base · MTP"
                     result.accelerator.contains("MTP n/a") -> "$base · no MTP"
+                    result.accelerator.contains("· MTP") -> "$base · " + result.accelerator.substringAfter("· ")
                     else -> base
                 }
                 Text(

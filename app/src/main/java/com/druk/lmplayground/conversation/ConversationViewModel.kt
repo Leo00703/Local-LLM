@@ -3114,9 +3114,12 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             })
         // Surface the experimental MTP status (from the native report) next to the
         // hardware, so the user can see in-app whether the model's MTP head built
-        // ("active") or is absent ("n/a") without reading adb logs.
+        // ("active", with the average draft acceptance %) or is absent ("n/a")
+        // without reading adb logs.
+        val acceptPcts = runs.map { it.mtpAcceptPct }.filter { it >= 0 }
+        val avgAccept = if (acceptPcts.isNotEmpty()) acceptPcts.sum() / acceptPcts.size else -1
         val acceleratorLabel = when (runs.firstOrNull()?.mtpStatus) {
-            "active" -> "$accelerator · MTP"
+            "active" -> if (avgAccept >= 0) "$accelerator · MTP $avgAccept%" else "$accelerator · MTP"
             "unsupported" -> "$accelerator · MTP n/a"
             else -> accelerator
         }

@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.71", "MTP now engages on Qwen 3.5", listOf(
+        Change(ChangeType.FIXED, "MTP speculative decoding was silently skipped on Qwen 3.5 (its hybrid layers need per-token rollback snapshots to trim rejected drafts, which the target context was not set up for). It now engages, and the benchmark result shows the draft acceptance percentage next to the hardware (for example \"CPU . MTP 75%\")."),
+    )),
     ChangelogEntry("1.9.70", "MTP speculative decoding (experimental)", listOf(
         Change(ChangeType.NEW, "Experimental self-MTP speculative decoding now actually runs in the benchmark on Qwen 3.5 models that have an MTP head: the model drafts several tokens ahead and verifies them in a single pass, which can speed up decoding when the drafts are accepted. Greedy only for now (benchmark), and the output stays identical to normal decoding. The result shows the draft acceptance rate so you can see whether it is helping."),
     )),
