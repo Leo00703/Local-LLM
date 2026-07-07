@@ -8,6 +8,7 @@
 #include "common.h"
 #include "chat.h"
 #include "sampling.h"
+#include "speculative.h"   // common_speculative_* (self-MTP draft/verify/accept)
 #include "mtmd.h"
 #include "mtmd-helper.h"   // mtmd_helper_bitmap_init_from_buf / _eval_chunks
 
@@ -118,6 +119,18 @@ public:
 private:
     void finalizeResponse();
 
+    // Per-token emit: convert one sampled token to text, append to `response`,
+    // run the PEG normalizer, and stream via callback. Shared by the normal
+    // decode path and the speculative step so both behave identically.
+    enum EmitResult { EMIT_CONTINUE, EMIT_STOP, EMIT_ERROR };
+    EmitResult emitToken(llama_token tok, const ResponseCallback& callback);
+
+    // One speculative decode step (self-MTP): draft K tokens from the MTP head,
+    // verify them in a single target decode, accept the greedy-matching prefix,
+    // roll back rejected drafts, and emit every accepted token. Only called when
+    // spec_active (benchmark/plain-greedy). See LlamaGenerationSession.cpp.
+    int generateSpeculativeStep(const ResponseCallback& callback);
+
     // Multimodal turn: evaluate a rendered prompt + one staged image through
     // mtmd (fresh KV; image encode + non-causal mask + M-RoPE handled inside
     // mtmd_helper_eval_chunks), leaving logits on the last token so generate()
@@ -152,6 +165,25 @@ private:
     // True when the session was created with speculative_enabled, so getReport()
     // can surface the MTP status (active vs unsupported-by-model) to the UI.
     bool speculative_requested = false;
+
+    // Increment 2: self-MTP draft/verify/accept. `spec` owns the MTP draft
+    // roll-out on ctx_dft; verify/accept is hand-rolled against the raw `smpl`
+    // chain. Everything is gated on spec_active (benchmark / plain greedy) so the
+    // normal chat path is byte-for-byte unchanged.
+    common_speculative * spec = nullptr;         // freed in the destructor BEFORE ctx/ctx_dft
+    common_params_speculative spec_params;       // must outlive spec (init stores a ref to it)
+    std::vector<llama_token> spec_draft;          // OUT buffer for common_speculative_draft (.result)
+    std::vector<llama_token> spec_prompt;         // .prompt pointer target (MTP ignores its content)
+    bool spec_supported = false;                  // spec built AND both ctx/ctx_dft do partial seq_rm
+    bool spec_active = false;                      // per-turn gate, recomputed at the top of generate()
+    bool spec_disabled_this_turn = false;          // image turns bypass our decode -> never speculate
+    bool skip_next_decode = false;                 // last accepted token is the pending verify seed (not in KV)
+    // Acceptance telemetry (surfaced in getReport): drafts proposed vs accepted
+    // across speculative steps, so the benchmark can show whether MTP is winning.
+    long spec_draft_total = 0;
+    long spec_accept_total = 0;
+    long spec_steps = 0;
+
     llama_sampler * smpl = nullptr;
     const struct common_chat_templates * chat_tmpls = nullptr;
     bool prev_had_thinking = false;

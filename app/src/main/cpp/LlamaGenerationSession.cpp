@@ -79,6 +79,11 @@ bool is_valid_utf8(const char * string) {
 LlamaGenerationSession::LlamaGenerationSession() = default;
 
 LlamaGenerationSession::~LlamaGenerationSession() {
+    // Free the speculative framework FIRST: it borrows ctx (target) and ctx_dft.
+    if (spec != nullptr) {
+        common_speculative_free(spec);
+        spec = nullptr;
+    }
     if (ctx != nullptr) {
         llama_free(ctx);
     }
@@ -204,8 +209,17 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     // draft->verify->accept loop lands in a later step.
     speculative_requested = params.speculative_enabled;
     if (params.speculative_enabled) {
+        // Match the server's self-MTP draft-context setup (server-context.cpp):
+        // MTP context type on the SAME model, forced F16 KV for the MTP head's
+        // attention cache (partial seq_rm rollback needs it), no recurrent-state
+        // rollback snapshots, a single output row per decode.
         llama_context_params mtp_params = ctx_params;
-        mtp_params.ctx_type = LLAMA_CONTEXT_TYPE_MTP;
+        mtp_params.ctx_type        = LLAMA_CONTEXT_TYPE_MTP;
+        mtp_params.type_k          = GGML_TYPE_F16;
+        mtp_params.type_v          = GGML_TYPE_F16;
+        mtp_params.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;
+        mtp_params.n_rs_seq        = 0;
+        mtp_params.n_outputs_max   = 1;
         ctx_dft = llama_init_from_model(model, mtp_params);
         if (ctx_dft) {
             LOGi("MTP: draft context created (model has an MTP head); n_draft=%d",
@@ -268,6 +282,36 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     }
 
     prev_len = 0;
+
+    // Increment 2: if the MTP draft context built, wire the speculative framework
+    // and confirm BOTH contexts support partial KV rollback (needed to trim
+    // rejected drafts). common_context_can_seq_rm is destructive (it clears the
+    // context memory and evals two dummy tokens), so it must run here, before any
+    // real prompt is decoded. Anything less than PART (FULL/RS/NO) disables
+    // speculation cleanly so we never abort mid-generation on a failed seq_rm.
+    if (ctx_dft != nullptr) {
+        common_context_seq_rm_type tgt_rm = common_context_can_seq_rm(ctx);
+        common_context_seq_rm_type dft_rm = common_context_can_seq_rm(ctx_dft);
+        if (tgt_rm != COMMON_CONTEXT_SEQ_RM_TYPE_PART ||
+            dft_rm != COMMON_CONTEXT_SEQ_RM_TYPE_PART) {
+            LOGe("MTP: partial KV rollback unsupported (tgt=%d dft=%d); speculation disabled",
+                 (int) tgt_rm, (int) dft_rm);
+        } else {
+            spec_params.types         = { COMMON_SPECULATIVE_TYPE_DRAFT_MTP };
+            spec_params.draft.ctx_tgt = ctx;
+            spec_params.draft.ctx_dft = ctx_dft;
+            spec_params.draft.n_max   = params.spec_n_draft > 0 ? params.spec_n_draft : 3;
+            spec_params.draft.n_min   = 0;
+            spec_params.draft.p_min   = 0.0f;
+            spec = common_speculative_init(spec_params, /*n_seq=*/1);
+            if (spec == nullptr) {
+                LOGe("MTP: common_speculative_init failed; speculation disabled");
+            } else {
+                spec_supported = true;
+                LOGi("MTP: speculative decoding ready (n_draft=%d)", spec_params.draft.n_max);
+            }
+        }
+    }
 }
 
 void LlamaGenerationSession::requestAbort() {
@@ -417,6 +461,10 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
     prev_len = (int) full_prompt.size();
     last_prompt_end_pos = new_n_past;
     skip_first_decode = true;
+    // Image turns prime the KV via mtmd (bypassing our decode + MTP process()),
+    // so the MTP head is never primed: never speculate on them.
+    spec_disabled_this_turn = true;
+    skip_next_decode = false;
     return 0;
 }
 
@@ -427,6 +475,10 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
     }
     // Fresh turn — clear any abort left set by a previous cancel.
     abort_requested.store(false);
+    // Fresh text turn: allow speculation (the per-turn gate still applies) and
+    // clear any stale speculative-continuation flag from a previous turn.
+    spec_disabled_this_turn = false;
+    skip_next_decode = false;
 
     // Multimodal turn: if an image was staged (setImageData) and a projector is
     // loaded, take the mtmd path (fresh KV + image encode) instead of the
@@ -761,6 +813,25 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
     int n_ctx = llama_n_ctx(ctx);
     int n_ctx_used = llama_memory_seq_pos_max(llama_get_memory(ctx), 0);
 
+    // Increment 2 per-turn gate: speculate only on plain greedy chat/benchmark.
+    // Excludes tool grammar (gsmpl), the reasoning-budget sampler, temp>0 (the
+    // greedy verify assumes an exact argmax match), and image turns (whose prompt
+    // decode bypasses our llama_decode + the MTP process() calls).
+    spec_active = spec_supported
+        && !spec_disabled_this_turn
+        && (gsmpl == nullptr)
+        && !budget_sampler_added
+        && !tools_enabled
+        && (sampler_params.temperature == 0.0f);
+
+    if (skip_next_decode) {
+        // Speculative continuation: last_token is the pending verify seed, not in
+        // the KV yet. Skip the normal prompt decode (and its process()); the seed
+        // is decoded as element 0 of the verify batch inside the step.
+        skip_next_decode = false;
+        return generateSpeculativeStep(callback);
+    }
+
     if (skip_first_decode) {
         // Image turn: mtmd_helper_eval_chunks already ran llama_decode on all
         // text + image chunks (logits on the last token), so skip the prompt
@@ -787,6 +858,9 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
                 finalizeResponse();
                 return 1;
             }
+            // Feed every target decode into the MTP head so its recurrent state
+            // tracks the prompt (required before it can draft).
+            if (spec_active) common_speculative_process(spec, chunk);
             batch = llama_batch_get_one(batch.token + n_batch_limit, batch.n_tokens - n_batch_limit);
         }
 
@@ -795,6 +869,7 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
             finalizeResponse();
             return 1;
         }
+        if (spec_active) common_speculative_process(spec, batch);
     }
 
     // Reset sampler and feed prompt tokens so the reasoning budget sampler
@@ -815,6 +890,13 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
                 llama_sampler_accept(smpl, token);
             }
         }
+        if (spec_active) {
+            // Prime the MTP head for this turn. begin() wants the prompt token
+            // vector (MTP ignores its content, but the API stores the pointer, so
+            // spec_prompt must outlive the draft calls that reference it).
+            spec_prompt = prompt_tokens;
+            common_speculative_begin(spec, /*seq_id=*/0, spec_prompt);
+        }
         prompt_tokens.clear();
         // KV cache now contains the full prompt (everything llama_decode
         // just committed). Snapshot this position — if the model emits
@@ -832,70 +914,23 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
         last_token = llama_sampler_sample(smpl, ctx, -1);
     }
 
-    bool is_eog = llama_vocab_is_eog(vocab, last_token);
-
-    if (!is_eog) {
-        char buf[256];
-        int n = llama_token_to_piece(vocab, last_token, buf, sizeof(buf), 0, true);
-        if (n < 0) {
-            LOGe("failed to convert token to piece");
-            finalizeResponse();
-            return 1;
-        }
-        std::string piece(buf, n);
-        response += piece;
-
-        for (const auto& stop : additional_stops) {
-            if (response.size() >= stop.size() &&
-                response.compare(response.size() - stop.size(), stop.size(), stop) == 0) {
-                response.erase(response.size() - stop.size());
-                is_eog = true;
-                break;
-            }
-        }
-
-        if (!is_eog) {
-            // Use PEG parser to normalize thinking format for the UI
-            if (parser_initialized) {
-                try {
-                    auto parsed = common_chat_parse(response, /*is_partial=*/true, parser_params);
-                    std::string normalized;
-                    if (!parsed.reasoning_content.empty()) {
-                        normalized = "<think>" + parsed.reasoning_content;
-                        if (!parsed.content.empty()) {
-                            normalized += "</think>" + parsed.content;
-                        }
-                    } else {
-                        // Emit only the parsed content — NOT the raw response.
-                        // During the early channel-header phase (e.g. gpt-oss
-                        // streaming "<|channel|>analysis<|message|>") the parser
-                        // has nothing to surface yet, so this is empty. Emitting
-                        // the raw response here would (a) leak control-token
-                        // markup into the UI and (b) make the streamed string
-                        // non-monotonic when it later flips to "<think>...",
-                        // which corrupts the service's append-only delta
-                        // accumulation (GenerationWorker computes
-                        // response.substring(sentLength), assuming the string
-                        // only ever grows). Keeping it monotonic — "" then
-                        // "<think>..." then "<think>...</think>content" — keeps
-                        // the deltas correct.
-                        normalized = parsed.content;
-                    }
-                    callback(normalized);
-                } catch (const std::exception &e) {
-                    LOGe("PEG parse failed in generate (partial): %s", e.what());
-                    callback(response);
-                } catch (...) {
-                    LOGe("PEG parse failed in generate (partial): unknown");
-                    callback(response);
-                }
-            } else {
-                callback(response);
-            }
-            batch = llama_batch_get_one(&last_token, 1);
-            return 0;
-        }
+    EmitResult er = emitToken(last_token, callback);
+    if (er == EMIT_ERROR) {
+        finalizeResponse();
+        return 1;
     }
+    if (er == EMIT_CONTINUE) {
+        if (spec_active) {
+            // First token of a speculative turn: sampled normally (no id_last to
+            // draft from yet). Hand off to the speculative step on the next call
+            // by leaving last_token as the pending, uncommitted verify seed.
+            skip_next_decode = true;
+        } else {
+            batch = llama_batch_get_one(&last_token, 1);
+        }
+        return 0;
+    }
+    // er == EMIT_STOP: fall through to the tool-call check + finalize below.
 
     // Check for tool calls before finalizing
     if (tools_enabled && parser_initialized) {
@@ -955,6 +990,232 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
 
     finalizeResponse();
     return 1;
+}
+
+// Convert one sampled token to text and stream it. Returns EMIT_STOP on EOG or a
+// stop-string (response already trimmed), EMIT_ERROR on a token_to_piece failure,
+// EMIT_CONTINUE otherwise. Shared by the normal decode path and the speculative
+// step so both stream identically (same PEG normalization, same monotonic
+// append-only contract the service relies on).
+LlamaGenerationSession::EmitResult
+LlamaGenerationSession::emitToken(llama_token tok, const ResponseCallback& callback) {
+    if (llama_vocab_is_eog(vocab, tok)) {
+        return EMIT_STOP;
+    }
+
+    char buf[256];
+    int n = llama_token_to_piece(vocab, tok, buf, sizeof(buf), 0, true);
+    if (n < 0) {
+        LOGe("failed to convert token to piece");
+        return EMIT_ERROR;
+    }
+    std::string piece(buf, n);
+    response += piece;
+
+    for (const auto& stop : additional_stops) {
+        if (response.size() >= stop.size() &&
+            response.compare(response.size() - stop.size(), stop.size(), stop) == 0) {
+            response.erase(response.size() - stop.size());
+            return EMIT_STOP;
+        }
+    }
+
+    // Use PEG parser to normalize thinking format for the UI. Emitting only the
+    // parsed content keeps the streamed string monotonic ("" -> "<think>..." ->
+    // "<think>...</think>content"), which the service's append-only delta
+    // accumulation (response.substring(sentLength)) depends on.
+    if (parser_initialized) {
+        try {
+            auto parsed = common_chat_parse(response, /*is_partial=*/true, parser_params);
+            std::string normalized;
+            if (!parsed.reasoning_content.empty()) {
+                normalized = "<think>" + parsed.reasoning_content;
+                if (!parsed.content.empty()) {
+                    normalized += "</think>" + parsed.content;
+                }
+            } else {
+                normalized = parsed.content;
+            }
+            callback(normalized);
+        } catch (const std::exception &e) {
+            LOGe("PEG parse failed in generate (partial): %s", e.what());
+            callback(response);
+        } catch (...) {
+            LOGe("PEG parse failed in generate (partial): unknown");
+            callback(response);
+        }
+    } else {
+        callback(response);
+    }
+    return EMIT_CONTINUE;
+}
+
+// One self-MTP speculative decode step. Invariant on entry: last_token is the
+// pending verify seed (already sampled + emitted last step, NOT yet in the KV),
+// and spec/ctx_dft are valid. Draft K tokens from the MTP head, verify them in a
+// single target decode, accept the greedy-matching prefix (+1 free token), roll
+// back the rejected drafts, and emit every accepted token. On continue, the last
+// accepted token becomes the next pending seed (skip_next_decode stays the
+// driver). All KV positions are read fresh from the memory, never counted by hand.
+int LlamaGenerationSession::generateSpeculativeStep(const ResponseCallback& callback) {
+    if (spec == nullptr || ctx_dft == nullptr) {
+        // Defensive: never expected (spec_active implies both). Decode the pending
+        // seed and sample once the normal way, then hand back to the normal path.
+        llama_batch sb = llama_batch_get_one(&last_token, 1);
+        if (llama_decode(ctx, sb)) { finalizeResponse(); return 1; }
+        last_token = llama_sampler_sample(smpl, ctx, -1);
+        EmitResult er = emitToken(last_token, callback);
+        if (er != EMIT_CONTINUE) { finalizeResponse(); return 1; }
+        batch = llama_batch_get_one(&last_token, 1);
+        return 0;
+    }
+
+    const int n_ctx  = llama_n_ctx(ctx);
+    const llama_pos n_past = llama_memory_seq_pos_max(llama_get_memory(ctx), 0) + 1;
+
+    // Context full: the pending seed no longer fits. This branch replaces the
+    // normal path's n_ctx_used overflow guard, which spec continuations skip.
+    if ((int) n_past >= n_ctx) {
+        LOGe("MTP: context full (n_past=%d, n_ctx=%d); stopping", (int) n_past, n_ctx);
+        finalizeResponse();
+        return 1;
+    }
+
+    // Cap the draft so [seed + drafts] fits the context with a 1-token margin.
+    int n_draft_max = std::min(spec_params.draft.n_max, n_ctx - (int) n_past - 1);
+
+    // Helper: no speculation this step. Decode the pending seed alone, feed the
+    // MTP head, sample one token the normal way, keep the speculative contract.
+    auto decode_seed_and_sample = [&]() -> int {
+        llama_batch sb = llama_batch_get_one(&last_token, 1);
+        if (llama_decode(ctx, sb)) { finalizeResponse(); return 1; }
+        common_speculative_process(spec, sb);
+        last_token = llama_sampler_sample(smpl, ctx, -1);
+        EmitResult er = emitToken(last_token, callback);
+        if (er != EMIT_CONTINUE) { finalizeResponse(); return 1; }
+        skip_next_decode = true;
+        return 0;
+    };
+
+    if (n_draft_max < 1) {
+        return decode_seed_and_sample();   // no room to speculate
+    }
+
+    // 1) Draft K tokens from the MTP head. The result buffer MUST be empty first.
+    spec_draft.clear();
+    common_speculative_draft_params & dp = common_speculative_get_draft_params(spec, /*seq_id=*/0);
+    dp.drafting = true;
+    dp.n_max    = n_draft_max;
+    dp.n_past   = n_past;
+    dp.id_last  = last_token;
+    dp.prompt   = &spec_prompt;
+    dp.result   = &spec_draft;
+    common_speculative_draft(spec);
+
+    // common_speculative_draft ran the MTP head autoregressively, pre-advancing
+    // ctx_dft's KV to positions n_past..n_past+K-1. Undo that now (exactly as the
+    // server does between draft and process, server-context.cpp): the verify
+    // process() below re-decodes those same positions into ctx_dft, and llama.cpp's
+    // KV cache APPENDS new cells rather than overwriting same-position ones, so
+    // without this rollback ctx_dft accumulates duplicate cells, the draft state
+    // corrupts, and acceptance collapses toward zero (no speedup). Runs before the
+    // K<1 / decode_seed_and_sample branch, which also re-decodes ctx_dft at n_past.
+    if (!llama_memory_seq_rm(llama_get_memory(ctx_dft), 0, n_past, -1)) {
+        LOGe("MTP: ctx_dft rollback after draft failed; disabling speculation");
+        spec_supported = false;
+        finalizeResponse();
+        return 1;
+    }
+
+    const int K = (int) spec_draft.size();
+    if (K < 1) {
+        return decode_seed_and_sample();   // the head declined to draft
+    }
+
+    // 2) Build the target verify batch [seed, draft0..draftK-1] at consecutive
+    //    positions from n_past, logits on every row (output row i == batch index i).
+    llama_batch vb = llama_batch_init(K + 1, /*embd=*/0, /*n_seq_max=*/1);
+    auto vb_add = [&](llama_token t, llama_pos p) {
+        const int i = vb.n_tokens;
+        vb.token[i]     = t;
+        vb.pos[i]       = p;
+        vb.n_seq_id[i]  = 1;
+        vb.seq_id[i][0] = 0;
+        vb.logits[i]    = 1;
+        vb.n_tokens++;
+    };
+    llama_pos p = n_past;
+    vb_add(last_token, p++);
+    for (llama_token d : spec_draft) vb_add(d, p++);
+
+    // 3) One target decode, then feed the same batch to the MTP head.
+    if (llama_decode(ctx, vb)) {
+        LOGe("MTP: verify decode failed");
+        llama_batch_free(vb);
+        finalizeResponse();
+        return 1;
+    }
+    common_speculative_process(spec, vb);
+    llama_batch_free(vb);
+
+    // 4) Greedy verify+accept against the raw smpl chain. llama_sampler_sample
+    //    ALREADY calls llama_sampler_accept internally, so we must not accept
+    //    again. accepted[i] is the target's own token at row i; accept while it
+    //    equals the drafted token, stop at the first mismatch (the mismatch token
+    //    is the target's correction and is kept). If all K match, take one free
+    //    bonus token from row K.
+    std::vector<llama_token> accepted;
+    accepted.reserve(K + 1);
+    int i = 0;
+    for (; i < K; i++) {
+        llama_token id = llama_sampler_sample(smpl, ctx, i);
+        accepted.push_back(id);
+        if (spec_draft[i] != id) break;
+    }
+    if (i == K) {
+        accepted.push_back(llama_sampler_sample(smpl, ctx, K));
+    }
+    const int n_accepted_drafts = (int) accepted.size() - 1;   // >= 0
+
+    // 5) Tell the MTP head how many drafts matched (updates its hidden-state
+    //    carry-over), then roll back the rejected drafts from both KV caches. We
+    //    keep [seed .. seed + n_accepted_drafts]; the last accepted token is the
+    //    next seed and is intentionally NOT committed (it re-enters as verify
+    //    element 0 next step). Positions are half-open [keep_end, -1).
+    common_speculative_accept(spec, /*seq_id=*/0, (uint16_t) n_accepted_drafts);
+    spec_draft_total  += K;
+    spec_accept_total += n_accepted_drafts;
+    spec_steps        += 1;
+    const llama_pos keep_end = n_past + (llama_pos) accepted.size();
+    bool rm_ok = llama_memory_seq_rm(llama_get_memory(ctx), 0, keep_end, -1);
+    rm_ok = llama_memory_seq_rm(llama_get_memory(ctx_dft), 0, keep_end, -1) && rm_ok;
+    if (!rm_ok) {
+        // Partial removal failed at runtime (the init probe should have caught
+        // this). Disable speculation for the rest of the session and stop this
+        // turn rather than continue from an inconsistent KV.
+        LOGe("MTP: seq_rm failed mid-generation; disabling speculation");
+        spec_supported = false;
+        finalizeResponse();
+        return 1;
+    }
+
+    // 6) Emit every accepted token in order; stop at the first EOG / stop-string.
+    for (size_t j = 0; j < accepted.size(); j++) {
+        last_token = accepted[j];
+        EmitResult er = emitToken(last_token, callback);
+        if (er == EMIT_ERROR || er == EMIT_STOP) {
+            // Keep only [seed .. accepted[j-1]] (positions n_past .. n_past+j) so a
+            // reused KV stays clean; drop this token and everything after it.
+            llama_memory_seq_rm(llama_get_memory(ctx),     0, n_past + (llama_pos) j + 1, -1);
+            llama_memory_seq_rm(llama_get_memory(ctx_dft), 0, n_past + (llama_pos) j + 1, -1);
+            finalizeResponse();
+            return 1;
+        }
+    }
+
+    // Continue: the last accepted token is the pending seed for the next step.
+    skip_next_decode = true;
+    return 0;
 }
 
 void LlamaGenerationSession::printReport() {
@@ -1280,6 +1541,10 @@ int LlamaGenerationSession::submitToolResults(const char *resultsJson, bool enab
     }
     // New decode phase — clear any abort left set by a previous cancel.
     abort_requested.store(false);
+    // Tool-result turns run with tools enabled, so the per-turn gate already
+    // excludes speculation; clear the continuation flag defensively regardless.
+    skip_next_decode = false;
+    spec_disabled_this_turn = false;
 
     try {
         auto results = nlohmann::ordered_json::parse(resultsJson);
@@ -1428,9 +1693,16 @@ std::string LlamaGenerationSession::getReport() {
     }
 
     // Experimental MTP status, so the benchmark can surface whether the model's
-    // MTP head was actually built (active) or absent (unsupported) without adb.
+    // MTP head was actually built (active) or absent (unsupported) without adb,
+    // plus the draft acceptance rate once the loop has run (higher = more speedup).
     if (speculative_requested) {
-        report << "  MTP: " << (ctx_dft ? "active" : "unsupported") << "\n";
+        report << "  MTP: " << (spec_supported ? "active" : "unsupported") << "\n";
+        if (spec_steps > 0) {
+            double rate = spec_draft_total > 0
+                ? (100.0 * (double) spec_accept_total / (double) spec_draft_total) : 0.0;
+            report << "  MTP accept: " << spec_accept_total << " / " << spec_draft_total
+                   << " drafts (" << std::fixed << std::setprecision(0) << rate << "%)\n";
+        }
     }
 
     return report.str();
