@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.75", "Accurate MTP decode measurement", listOf(
+        Change(ChangeType.FIX, "The benchmark now measures decode speed from the engine's real streamed-token count and timing instead of counting UI stream updates. With MTP on, accepted tokens arrive in bursts that the UI stream merges, which made the decode number read as ~0 even though generation completed. Applies to normal decoding too."),
+    )),
     ChangelogEntry("1.9.74", "MTP draft size tuning", listOf(
         Change(ChangeType.FIX, "Another step on experimental MTP: reduced the speculative draft size so the verify step fits within what Qwen 3.5's recurrent layers support (larger drafts were failing the decode). This build helps pin down the working ceiling."),
     )),

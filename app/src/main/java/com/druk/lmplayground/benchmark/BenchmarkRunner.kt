@@ -116,12 +116,27 @@ class BenchmarkRunner(private val model: GenerationModel) {
             val last = lastTokenMs.get()
             val ttft = if (first > 0L) (first - startMs).toInt().coerceAtLeast(0) else 0
             val promptTokens = parseTokenCount(report, "Prompt tokens:")
-            val genTokens = parseTokenCount(report, "Generated tokens:").takeIf { it > 0 } ?: count.get()
             val prefillSec = ttft / 1000f
-            val decodeSec = (last - first).coerceAtLeast(0L) / 1000f
+
+            // Decode throughput: prefer the native "Decode window" (real streamed-token
+            // count + first->last window), which measures MTP's burst emission
+            // correctly. The stream-callback count under-counts under MTP because
+            // accepted tokens are emitted in bursts that the delta stream coalesces.
+            val nativeDecTokens = parseDecodeWindow(report, "tokens")
+            val nativeDecMs = parseDecodeWindow(report, "ms")
+            val genTokens: Int
+            val decodeTps: Float
+            if (nativeDecTokens > 0 && nativeDecMs > 0) {
+                genTokens = nativeDecTokens
+                decodeTps = nativeDecTokens / (nativeDecMs / 1000f)
+            } else {
+                genTokens = parseTokenCount(report, "Generated tokens:").takeIf { it > 0 } ?: count.get()
+                val decodeSec = (last - first).coerceAtLeast(0L) / 1000f
+                decodeTps = if (decodeSec > 0f && genTokens > 0) genTokens / decodeSec else 0f
+            }
             RunMetrics(
                 prefillTokPerSec = if (prefillSec > 0f && promptTokens > 0) promptTokens / prefillSec else 0f,
-                decodeTokPerSec = if (decodeSec > 0f && genTokens > 0) genTokens / decodeSec else 0f,
+                decodeTokPerSec = decodeTps,
                 ttftMs = ttft,
                 loadTimeMs = parseInt(report, "Load time:", "ms"),
                 contextUsed = parseContextUsed(report),
@@ -174,6 +189,19 @@ class BenchmarkRunner(private val model: GenerationModel) {
     private fun parseMtpStatus(report: String): String {
         val line = report.lineSequence().firstOrNull { it.contains("MTP:") } ?: return ""
         return line.substringAfter("MTP:").trim()
+    }
+
+    /**
+     * Parse the native "  Decode window: 256 tokens, 14000 ms" line. `which` is
+     * "tokens" for the streamed-token count or "ms" for the window. -1 if absent.
+     */
+    private fun parseDecodeWindow(report: String, which: String): Int {
+        val line = report.lineSequence().firstOrNull { it.contains("Decode window:") } ?: return -1
+        return when (which) {
+            "tokens" -> line.substringAfter("Decode window:").substringBefore("tokens").trim().toIntOrNull() ?: -1
+            "ms" -> line.substringAfter("tokens,").substringBefore("ms").trim().toIntOrNull() ?: -1
+            else -> -1
+        }
     }
 
     /** Parse "  MTP accept: 180 / 240 drafts (75%)" -> 75; -1 when the line is absent. */

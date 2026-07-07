@@ -505,6 +505,10 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
     // clear any stale speculative-continuation flag from a previous turn.
     spec_disabled_this_turn = false;
     skip_next_decode = false;
+    // Reset the per-turn decode measurement (real streamed-token count + window).
+    emitted_tokens = 0;
+    decode_first_us = 0;
+    decode_last_us = 0;
 
     // Multimodal turn: if an image was staged (setImageData) and a projector is
     // loaded, take the mtmd path (fresh KV + image encode) instead of the
@@ -1087,6 +1091,12 @@ LlamaGenerationSession::emitToken(llama_token tok, const ResponseCallback& callb
     } else {
         callback(response);
     }
+    // Count the streamed token and stamp the decode window (native, so MTP bursts
+    // are measured accurately regardless of stream-callback coalescing).
+    const int64_t now_us = ggml_time_us();
+    if (emitted_tokens == 0) decode_first_us = now_us;
+    decode_last_us = now_us;
+    emitted_tokens++;
     return EMIT_CONTINUE;
 }
 
@@ -1226,7 +1236,6 @@ int LlamaGenerationSession::generateSpeculativeStep(const ResponseCallback& call
         finalizeResponse();
         return 1;
     }
-    LOGi("MTP: verify ok (K=%d)", K);
     common_speculative_process(spec, vb);
     llama_batch_free(vb);
 
@@ -1762,6 +1771,15 @@ std::string LlamaGenerationSession::getReport() {
     if (sampler_timings.n_sample > 0 && sampler_timings.t_sample_ms > 0) {
         report << "  Sampling: " << sampler_timings.n_sample << " tokens, "
                << std::setprecision(1) << (1e3 / sampler_timings.t_sample_ms * sampler_timings.n_sample) << " t/s\n";
+    }
+
+    // Authoritative decode measurement: real streamed-token count + the wall-clock
+    // window they spanned (first to last emit). The benchmark computes decode t/s
+    // from this so MTP's burst emission is measured correctly.
+    if (emitted_tokens > 0) {
+        const double dec_ms = (double) (decode_last_us - decode_first_us) / 1000.0;
+        report << "  Decode window: " << emitted_tokens << " tokens, "
+               << std::fixed << std::setprecision(0) << dec_ms << " ms\n";
     }
 
     // Experimental MTP status, so the benchmark can surface whether the model's

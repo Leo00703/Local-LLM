@@ -191,6 +191,14 @@ private:
     long spec_accept_total = 0;
     long spec_steps = 0;
 
+    // Decode measurement (surfaced in getReport): the REAL count of tokens streamed
+    // this turn and the wall-clock window they span. The benchmark uses this instead
+    // of counting stream callbacks, which under-counts with MTP because accepted
+    // tokens are emitted in bursts and the delta stream coalesces them.
+    long emitted_tokens = 0;
+    int64_t decode_first_us = 0;
+    int64_t decode_last_us = 0;
+
     llama_sampler * smpl = nullptr;
     const struct common_chat_templates * chat_tmpls = nullptr;
     bool prev_had_thinking = false;
