@@ -185,13 +185,16 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
          params.kv_cache_type, kv_type != GGML_TYPE_F16);
 
     // Self-MTP speculative decoding: Qwen3.5 is a HYBRID arch (its recurrent /
-    // linear-attention layers can't be partially rolled back without per-token
-    // snapshots). Size the target's recurrent-state rollback to the max draft so
-    // rejected drafts can be trimmed (common.cpp does the same via need_n_rs_seq;
-    // the arch is whitelisted in llm_arch_supports_rs_rollback). Only when
-    // speculative is requested, so a normal session is unchanged (n_rs_seq stays 0).
+    // linear-attention layers keep per-token state snapshots bounded by n_rs_seq).
+    // n_rs_seq must cover BOTH the KV rollback of rejected drafts AND the verify
+    // batch's output positions: the verify batch is [seed + up to n_draft drafts]
+    // with an output row on every position, and the recurrent decode needs a state
+    // snapshot per output row (a token-only prompt decode needs just one, which is
+    // why prefill works but the multi-output verify decode fails when n_rs_seq is
+    // exactly n_draft). Size it to n_draft + margin. Only when speculative is
+    // requested, so a normal session is unchanged (n_rs_seq stays 0).
     if (params.speculative_enabled) {
-        ctx_params.n_rs_seq = params.spec_n_draft > 0 ? params.spec_n_draft : 3;
+        ctx_params.n_rs_seq = (params.spec_n_draft > 0 ? params.spec_n_draft : 3) + 4;
     }
 
     ctx = llama_init_from_model(model, ctx_params);
@@ -301,7 +304,13 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     // context reports PART). common_context_can_seq_rm is destructive (clears the
     // context memory + evals two dummy tokens), so it must run here, before any
     // real prompt is decoded. FULL/NO disables speculation cleanly (no mid-run abort).
-    if (ctx_dft != nullptr) {
+    // First cut is CPU-only: the recurrent-state rollback + multi-output verify
+    // decode aren't validated on the OpenCL backend, so a GPU session keeps
+    // speculation off (ctx_dft still builds, so the MTP head is still detected).
+    if (ctx_dft != nullptr && gpu_enabled) {
+        LOGi("MTP: speculation is CPU-only for now; disabled on the GPU backend");
+    }
+    if (ctx_dft != nullptr && !gpu_enabled) {
         const int n_draft = params.spec_n_draft > 0 ? params.spec_n_draft : 3;
         common_context_seq_rm_type tgt_rm = common_context_can_seq_rm(ctx);
         common_context_seq_rm_type dft_rm = common_context_can_seq_rm(ctx_dft);
