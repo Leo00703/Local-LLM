@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.76", "MTP on GPU (experimental)", listOf(
+        Change(ChangeType.NEW, "Experimental MTP speculative decoding now also runs on the GPU, not just CPU. On CPU it turned out to slow decoding down slightly (the verify overhead outweighs the batching), but the GPU is where speculative decoding can actually pay off, so it is now worth measuring there. It stays a safe no-op if the GPU backend cannot run the verify."),
+    )),
     ChangelogEntry("1.9.75", "Accurate MTP decode measurement", listOf(
         Change(ChangeType.FIX, "The benchmark now measures decode speed from the engine's real streamed-token count and timing instead of counting UI stream updates. With MTP on, accepted tokens arrive in bursts that the UI stream merges, which made the decode number read as ~0 even though generation completed. Applies to normal decoding too."),
     )),
