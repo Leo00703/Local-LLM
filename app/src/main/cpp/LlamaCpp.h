@@ -125,6 +125,13 @@ private:
     enum EmitResult { EMIT_CONTINUE, EMIT_STOP, EMIT_ERROR };
     EmitResult emitToken(llama_token tok, const ResponseCallback& callback);
 
+    // Decode a run of prompt tokens with an output row on EVERY position
+    // (logits=1) and feed the batch to the MTP head. Self-MTP needs this because
+    // the target's nextn hidden-state tensor is sized [n_embd, n_outputs], so a
+    // per-token hidden state only exists where output was requested;
+    // llama_batch_get_one flags only the last token. Returns 0 ok, 1 on failure.
+    int decodeSpecPromptChunk(llama_token * tokens, int n_tokens);
+
     // One speculative decode step (self-MTP): draft K tokens from the MTP head,
     // verify them in a single target decode, accept the greedy-matching prefix,
     // roll back rejected drafts, and emit every accepted token. Only called when

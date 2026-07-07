@@ -868,25 +868,39 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
         // After replayHistory or context compaction the prompt can be much larger
         // than n_batch since the entire conversation is re-tokenized.
         int n_batch_limit = llama_n_batch(ctx);
-        while (batch.n_tokens > n_batch_limit) {
-            llama_batch chunk = llama_batch_get_one(batch.token, n_batch_limit);
-            if (llama_decode(ctx, chunk)) {
-                LOGe("failed to decode prompt chunk");
+        if (spec_active) {
+            // Self-MTP: decode the prompt with an output row on EVERY position so
+            // the target's per-token nextn hidden states exist, and feed each chunk
+            // to the MTP head (its recurrent state must track the whole prompt
+            // before it can draft). Chunked to stay within n_batch.
+            llama_token * toks = batch.token;
+            int remaining = batch.n_tokens;
+            while (remaining > 0) {
+                int chunk = std::min(remaining, n_batch_limit);
+                if (decodeSpecPromptChunk(toks, chunk)) {
+                    finalizeResponse();
+                    return 1;
+                }
+                toks += chunk;
+                remaining -= chunk;
+            }
+        } else {
+            // Normal path (unchanged): only the last token needs an output row.
+            while (batch.n_tokens > n_batch_limit) {
+                llama_batch chunk = llama_batch_get_one(batch.token, n_batch_limit);
+                if (llama_decode(ctx, chunk)) {
+                    LOGe("failed to decode prompt chunk");
+                    finalizeResponse();
+                    return 1;
+                }
+                batch = llama_batch_get_one(batch.token + n_batch_limit, batch.n_tokens - n_batch_limit);
+            }
+            if (llama_decode(ctx, batch)) {
+                LOGe("failed to decode the batch");
                 finalizeResponse();
                 return 1;
             }
-            // Feed every target decode into the MTP head so its recurrent state
-            // tracks the prompt (required before it can draft).
-            if (spec_active) common_speculative_process(spec, chunk);
-            batch = llama_batch_get_one(batch.token + n_batch_limit, batch.n_tokens - n_batch_limit);
         }
-
-        if (llama_decode(ctx, batch)) {
-            LOGe("failed to decode the batch");
-            finalizeResponse();
-            return 1;
-        }
-        if (spec_active) common_speculative_process(spec, batch);
     }
 
     // Reset sampler and feed prompt tokens so the reasoning budget sampler
@@ -1067,6 +1081,38 @@ LlamaGenerationSession::emitToken(llama_token tok, const ResponseCallback& callb
     return EMIT_CONTINUE;
 }
 
+// Decode one run of prompt tokens for self-MTP: every position gets an output row
+// (logits=1) so the target produces a nextn hidden state per token, then hand the
+// batch to the MTP head. Positions continue from the current KV, matching what
+// llama_batch_get_one would assign. Returns 0 ok, 1 on decode failure.
+int LlamaGenerationSession::decodeSpecPromptChunk(llama_token * tokens, int n_tokens) {
+    // A full batch is REQUIRED here: common_speculative_process reads batch.pos[k]
+    // and batch.seq_id[k][0] for every token, but llama_batch_get_one leaves those
+    // null (it relies on the context to fill positions), so feeding a get_one
+    // batch to process() null-derefs. We also only need an output row on the last
+    // token (for sampling); the MTP head reads ALL tokens' nextn hidden states in
+    // unmasked mode regardless of the logits flags (qwen35.cpp sets t_h_nextn
+    // before reducing to output rows), so we don't pay for full per-token logits.
+    const llama_pos pos0 = llama_memory_seq_pos_max(llama_get_memory(ctx), 0) + 1;
+    llama_batch b = llama_batch_init(n_tokens, /*embd=*/0, /*n_seq_max=*/1);
+    for (int i = 0; i < n_tokens; i++) {
+        b.token[i]     = tokens[i];
+        b.pos[i]       = pos0 + i;
+        b.n_seq_id[i]  = 1;
+        b.seq_id[i][0] = 0;
+        b.logits[i]    = (i == n_tokens - 1) ? 1 : 0;
+        b.n_tokens++;
+    }
+    const int rc = llama_decode(ctx, b);
+    if (rc == 0) {
+        common_speculative_process(spec, b);
+    } else {
+        LOGe("MTP: prompt chunk decode failed rc=%d", rc);
+    }
+    llama_batch_free(b);
+    return rc ? 1 : 0;
+}
+
 // One self-MTP speculative decode step. Invariant on entry: last_token is the
 // pending verify seed (already sampled + emitted last step, NOT yet in the KV),
 // and spec/ctx_dft are valid. Draft K tokens from the MTP head, verify them in a
@@ -1101,12 +1147,11 @@ int LlamaGenerationSession::generateSpeculativeStep(const ResponseCallback& call
     // Cap the draft so [seed + drafts] fits the context with a 1-token margin.
     int n_draft_max = std::min(spec_params.draft.n_max, n_ctx - (int) n_past - 1);
 
-    // Helper: no speculation this step. Decode the pending seed alone, feed the
-    // MTP head, sample one token the normal way, keep the speculative contract.
+    // Helper: no speculation this step. Decode the pending seed alone (via the
+    // full-batch path so process() gets valid pos/seq_id), feed the MTP head,
+    // sample one token the normal way, keep the speculative contract.
     auto decode_seed_and_sample = [&]() -> int {
-        llama_batch sb = llama_batch_get_one(&last_token, 1);
-        if (llama_decode(ctx, sb)) { finalizeResponse(); return 1; }
-        common_speculative_process(spec, sb);
+        if (decodeSpecPromptChunk(&last_token, 1)) { finalizeResponse(); return 1; }
         last_token = llama_sampler_sample(smpl, ctx, -1);
         EmitResult er = emitToken(last_token, callback);
         if (er != EMIT_CONTINUE) { finalizeResponse(); return 1; }

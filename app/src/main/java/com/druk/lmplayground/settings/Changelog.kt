@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.72", "MTP crash fix (now runs end to end)", listOf(
+        Change(ChangeType.FIX, "Fixed a crash that stopped experimental MTP speculative decoding from actually running in the benchmark (the MTP head was handed a batch without token positions). It now runs end to end on Qwen 3.5 models with an MTP head, and the result badge shows the draft acceptance percentage."),
+    )),
     ChangelogEntry("1.9.71", "MTP now engages on Qwen 3.5", listOf(
         Change(ChangeType.FIX, "MTP speculative decoding was silently skipped on Qwen 3.5 (its hybrid layers need per-token rollback snapshots to trim rejected drafts, which the target context was not set up for). It now engages, and the benchmark result shows the draft acceptance percentage next to the hardware (for example \"CPU . MTP 75%\")."),
     )),
