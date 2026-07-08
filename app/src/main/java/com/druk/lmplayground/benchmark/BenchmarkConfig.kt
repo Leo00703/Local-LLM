@@ -19,7 +19,7 @@ data class BenchmarkConfig(
      * verify decode once the verify batch (seed + drafts) grows past a few output
      * rows, so limit the drafts. Tune upward once the working ceiling is confirmed.
      */
-    val specNDraft: Int get() = if (speculative) 2 else 0
+    val specNDraft: Int get() = if (speculative) 3 else 0
 
     companion object {
         const val MIN_TOKENS = 32

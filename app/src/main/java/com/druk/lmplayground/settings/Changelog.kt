@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.77", "MTP larger draft test", listOf(
+        Change(ChangeType.IMPROVED, "Experimental MTP now drafts 3 tokens per step instead of 2, to check whether a larger batch pays off (especially on GPU, where speculative decoding can amortize weight loading). A diagnostic step toward finding whether MTP can ever beat normal decoding on this hardware."),
+    )),
     ChangelogEntry("1.9.76", "MTP on GPU (experimental)", listOf(
         Change(ChangeType.NEW, "Experimental MTP speculative decoding now also runs on the GPU, not just CPU. On CPU it turned out to slow decoding down slightly (the verify overhead outweighs the batching), but the GPU is where speculative decoding can actually pay off, so it is now worth measuring there. It stays a safe no-op if the GPU backend cannot run the verify."),
     )),
