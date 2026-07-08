@@ -66,6 +66,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -3083,23 +3084,38 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         val t0 = System.currentTimeMillis()
                         engine.load(model.absolutePath, app.cacheDir.path, useGpu, useMtp)
                         val loadMs = System.currentTimeMillis() - t0
-                        var count = 0
+                        // Measure by CHARACTERS, not emissions. In MTP mode the
+                        // runtime emits one Message per verify STEP (several accepted
+                        // tokens), while base emits one per token, so counting Messages
+                        // makes MTP look ~3x slower than it is. Greedy temp-0 output is
+                        // identical across configs, so chars/sec is apples-to-apples.
+                        // ch/emit exposes the emission granularity; hash of the first
+                        // TARGET chars is the greedy-parity check (must match base==MTP).
+                        val targetChars = 900
+                        var emissions = 0
+                        var chars = 0
                         var first = 0L
                         var last = 0L
                         val sb = StringBuilder()
                         engine.generate("Count from 1 to 300, one number per line.", 1, 1.0, 0.0)
-                            .take(256)
+                            .takeWhile { chars < targetChars }
                             .collect { tok ->
                                 val now = System.currentTimeMillis()
                                 if (first == 0L) first = now
                                 last = now
-                                count++
-                                if (sb.length < 60) sb.append(tok)
+                                emissions++
+                                chars += tok.length
+                                sb.append(tok)
                             }
                         val sec = (last - first) / 1000.0
-                        val tps = if (sec > 0 && count > 1) (count - 1) / sec else 0.0
-                        val line = "$label: %.1f tok/s (%d tok, load %dms)".format(tps, count, loadMs)
-                        android.util.Log.i("LiteRtTest", "$line | sample=${sb}")
+                        val chPerSec = if (sec > 0) chars / sec else 0.0
+                        val emPerSec = if (sec > 0) emissions / sec else 0.0
+                        val chPerEmit = if (emissions > 0) chars.toDouble() / emissions else 0.0
+                        val parityHash = sb.toString().take(targetChars).hashCode()
+                        val line = ("$label: %.0f ch/s (%d ch, %d emit, %.1f ch/emit, " +
+                            "%.0f emit/s, load %dms, hash %d)")
+                            .format(chPerSec, chars, emissions, chPerEmit, emPerSec, loadMs, parityHash)
+                        android.util.Log.i("LiteRtTest", "$line | head=${sb.take(40).toString().replace("\n", "\\n")}")
                         results.append(line).append("\n")
                         _liteRtTest.postValue(results.toString())
                     } catch (t: Throwable) {
