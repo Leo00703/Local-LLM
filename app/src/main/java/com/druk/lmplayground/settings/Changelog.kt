@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.83", "LiteRT MTP: GPU sampler link fix (dev)", listOf(
+        Change(ChangeType.FIX, "Second attempt at the GPU sampler fix. The previous build loaded the runtime into the shared linker scope, but Android's library isolation still kept the GPU sampler from finding the runtime's functions, so it stayed on slow CPU sampling. This build links the sampler directly against the runtime library instead, which should finally let multi-token prediction run its sampling on the GPU and speed up decoding."),
+    )),
     ChangelogEntry("1.9.82", "LiteRT MTP: GPU sampler symbol fix (dev)", listOf(
         Change(ChangeType.FIX, "Follow-up to the last build: bundling the GPU sampler was not enough on its own, because the library could not find the runtime symbols it needs, so the app quietly fell back to slow CPU sampling. This build loads the LiteRT runtime into the shared linker scope first, so the GPU sampler can resolve its symbols and stay on the GPU during multi-token prediction. If it works, MTP decode should finally beat normal decoding on this device."),
     )),

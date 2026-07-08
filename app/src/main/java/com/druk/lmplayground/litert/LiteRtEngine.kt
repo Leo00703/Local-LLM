@@ -2,7 +2,6 @@
 
 package com.druk.lmplayground.litert
 
-import android.util.Log
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
@@ -38,16 +37,6 @@ class LiteRtEngine {
      * off the main thread.
      */
     fun load(modelPath: String, cacheDir: String, useGpu: Boolean, useMtp: Boolean) {
-        // Force the AAR's libLiteRt.so into the linker's GLOBAL group BEFORE the
-        // runtime dlopens the hand-bundled libLiteRtTopKOpenClSampler.so, so the
-        // sampler's ~166 undefined LiteRt* symbols resolve and GPU sampling
-        // activates. Without this the sampler silently falls back to CPU sampling
-        // and MTP is a net decode regression (LiteRT-LM issue #2211, option 3).
-        // System.loadLibrary is RTLD_LOCAL and does NOT suffice, hence the native
-        // dlopen(RTLD_GLOBAL) shim.
-        val preload = nativePreloadGlobal("libLiteRt.so")
-        Log.i(TAG, "preload libLiteRt.so (RTLD_GLOBAL): $preload")
-
         ExperimentalFlags.enableSpeculativeDecoding = useMtp
         engine = Engine(
             EngineConfig(
@@ -80,19 +69,5 @@ class LiteRtEngine {
         conversation = null
         engine?.close()
         engine = null
-    }
-
-    /**
-     * dlopen [name] with RTLD_NOW | RTLD_GLOBAL from native code, so its symbols
-     * join the app namespace's global group. Returns "ok" or "fail: <dlerror>".
-     */
-    private external fun nativePreloadGlobal(name: String): String
-
-    companion object {
-        private const val TAG = "LiteRtEngine"
-
-        init {
-            System.loadLibrary("litert_preload")
-        }
     }
 }

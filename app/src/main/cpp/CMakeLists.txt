@@ -65,13 +65,3 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         mtmd
         android
         log)
-
-# --- litert_preload -----------------------------------------------------
-# Tiny standalone JNI shim (no llama.cpp dependency) that dlopens a library
-# with RTLD_GLOBAL. Used to promote the LiteRT-LM AAR's libLiteRt.so into the
-# linker's global group so the hand-bundled libLiteRtTopKOpenClSampler.so can
-# resolve its LiteRt* symbols and GPU sampling activates during MTP. Loaded in
-# the app's main process by LiteRtEngine (separate from the :llama process's
-# ${CMAKE_PROJECT_NAME} lib). See litert_preload.cpp for the full rationale.
-add_library(litert_preload SHARED litert_preload.cpp)
-target_link_libraries(litert_preload log)
