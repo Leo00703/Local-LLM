@@ -308,6 +308,13 @@ dependencies {
     implementation(libs.pdfbox.android)
     implementation("androidx.javascriptengine:javascriptengine:1.0.0-beta01")
 
+    // LiteRT-LM (Google AI Edge): a SECOND on-device engine beside llama.cpp, for
+    // running Gemma 4 .litertlm models with their built-in MTP speculative-decoding
+    // drafter (the real 2-3x decode speedup llama.cpp self-MTP couldn't deliver).
+    // Prebuilt AAR with native .so bundled (arm64-v8a + x86_64, 16KB-aligned),
+    // Apache-2.0, minSdk 23. Pinned: re-verify the native ABI + API before bumping.
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
+
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)

@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.78", "LiteRT engine groundwork", listOf(
+        Change(ChangeType.NEW, "First step toward a second on-device engine: added the LiteRT-LM runtime (Google AI Edge) to the app. It will run Gemma 4 models with hardware-accelerated multi-token prediction, the real decode speedup our llama.cpp experiment topped out at break-even on. No user-facing change yet; this build just integrates the runtime."),
+    )),
     ChangelogEntry("1.9.77", "MTP larger draft test", listOf(
         Change(ChangeType.IMPROVED, "Experimental MTP now drafts 3 tokens per step instead of 2, to check whether a larger batch pays off (especially on GPU, where speculative decoding can amortize weight loading). A diagnostic step toward finding whether MTP can ever beat normal decoding on this hardware."),
     )),
