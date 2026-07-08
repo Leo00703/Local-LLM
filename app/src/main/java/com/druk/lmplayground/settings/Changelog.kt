@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.80", "LiteRT speedup measurement (dev)", listOf(
+        Change(ChangeType.IMPROVED, "The developer LiteRT test now measures decode speed on both CPU and GPU, with multi-token prediction off and on, so we can see the real MTP speedup on this device (the whole reason for the new engine)."),
+    )),
     ChangelogEntry("1.9.79", "LiteRT proof-of-life (dev)", listOf(
         Change(ChangeType.NEW, "Added a temporary developer test button in the benchmark screen that loads a Gemma 4 model through the new LiteRT engine and streams a few tokens, to confirm the second engine actually runs on this device before wiring it into the app properly."),
     )),

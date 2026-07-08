@@ -3069,29 +3069,49 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 _liteRtTest.postValue("Model not found:\n${model.absolutePath}")
                 return@launch
             }
-            val engine = com.druk.lmplayground.litert.LiteRtEngine()
-            try {
-                _liteRtTest.postValue("Loading ${model.name} (CPU)...")
-                val t0 = System.currentTimeMillis()
-                engine.load(model.absolutePath, app.cacheDir.path, useGpu = false, useMtp = false)
-                val loadMs = System.currentTimeMillis() - t0
-                android.util.Log.i("LiteRtTest", "loaded in $loadMs ms; generating...")
-                _liteRtTest.postValue("Loaded in $loadMs ms. Generating...")
-                val sb = StringBuilder()
-                engine.generate("Hello! In one short sentence, who are you?", 40, 0.95, 0.8)
-                    .take(40)
-                    .collect { tok ->
-                        sb.append(tok)
-                        android.util.Log.i("LiteRtTest", "tok=[$tok]")
+            // Gate #2 matrix: measure decode tok/s across CPU/GPU x MTP off/on. The
+            // MTP-on vs off delta on the SAME hardware is the number that justifies
+            // the whole LiteRT pivot. Greedy (temp 0) + a predictable counting task
+            // for a stable, high-acceptance measurement.
+            val results = StringBuilder()
+            for (useGpu in listOf(false, true)) {
+                for (useMtp in listOf(false, true)) {
+                    val label = "${if (useGpu) "GPU" else "CPU"} ${if (useMtp) "MTP" else "base"}"
+                    _liteRtTest.postValue("${results}Running $label ...")
+                    val engine = com.druk.lmplayground.litert.LiteRtEngine()
+                    try {
+                        val t0 = System.currentTimeMillis()
+                        engine.load(model.absolutePath, app.cacheDir.path, useGpu, useMtp)
+                        val loadMs = System.currentTimeMillis() - t0
+                        var count = 0
+                        var first = 0L
+                        var last = 0L
+                        val sb = StringBuilder()
+                        engine.generate("Count from 1 to 300, one number per line.", 1, 1.0, 0.0)
+                            .take(256)
+                            .collect { tok ->
+                                val now = System.currentTimeMillis()
+                                if (first == 0L) first = now
+                                last = now
+                                count++
+                                if (sb.length < 60) sb.append(tok)
+                            }
+                        val sec = (last - first) / 1000.0
+                        val tps = if (sec > 0 && count > 1) (count - 1) / sec else 0.0
+                        val line = "$label: %.1f tok/s (%d tok, load %dms)".format(tps, count, loadMs)
+                        android.util.Log.i("LiteRtTest", "$line | sample=${sb}")
+                        results.append(line).append("\n")
+                        _liteRtTest.postValue(results.toString())
+                    } catch (t: Throwable) {
+                        android.util.Log.e("LiteRtTest", "$label FAILED", t)
+                        results.append("$label: FAILED (${t.message})\n")
+                        _liteRtTest.postValue(results.toString())
+                    } finally {
+                        engine.close()
                     }
-                android.util.Log.i("LiteRtTest", "OUTPUT: $sb")
-                _liteRtTest.postValue("OK (load $loadMs ms):\n${sb.toString().take(200)}")
-            } catch (t: Throwable) {
-                android.util.Log.e("LiteRtTest", "FAILED", t)
-                _liteRtTest.postValue("FAILED: ${t.message}")
-            } finally {
-                engine.close()
+                }
             }
+            android.util.Log.i("LiteRtTest", "MATRIX DONE:\n$results")
         }
     }
 
