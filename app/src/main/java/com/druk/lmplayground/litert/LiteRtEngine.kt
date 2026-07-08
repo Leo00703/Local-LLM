@@ -9,6 +9,7 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.SamplerConfig
+import com.google.ai.edge.litertlm.benchmark
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -76,5 +77,42 @@ class LiteRtEngine {
         conversation = null
         engine?.close()
         engine = null
+    }
+
+    companion object {
+        /**
+         * Run LiteRT-LM's built-in synthetic decode benchmark (the same API Google's
+         * Edge Gallery uses) and return real decode/prefill tokens-per-second, so we
+         * can report tok/s (not just chars/sec) and compare 1:1 with Edge Gallery.
+         *
+         * Creates and frees its OWN engine, so call it with no other engine resident
+         * (one native runtime + one OpenCL context at a time). MTP is applied via the
+         * global [ExperimentalFlags] set here before the run.
+         *
+         * Returns [decode tok/s, prefill tok/s, decode token count, TTFT seconds].
+         */
+        fun benchmarkTps(
+            modelPath: String,
+            cacheDir: String,
+            useGpu: Boolean,
+            useMtp: Boolean,
+            prefillTokens: Int = 128,
+            decodeTokens: Int = 256,
+        ): DoubleArray {
+            ExperimentalFlags.enableSpeculativeDecoding = useMtp
+            val info = benchmark(
+                modelPath,
+                if (useGpu) Backend.GPU() else Backend.CPU(),
+                prefillTokens,
+                decodeTokens,
+                cacheDir,
+            )
+            return doubleArrayOf(
+                info.lastDecodeTokensPerSecond.toDouble(),
+                info.lastPrefillTokensPerSecond.toDouble(),
+                info.lastDecodeTokenCount.toDouble(),
+                info.timeToFirstTokenInSecond.toDouble(),
+            )
+        }
     }
 }

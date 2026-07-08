@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.86", "LiteRT: real tokens/sec in the dev test", listOf(
+        Change(ChangeType.IMPROVED, "The developer LiteRT test now also reports real decode tokens per second, measured with LiteRT's built-in benchmark (the same one Google's Edge Gallery uses), next to characters per second. Makes the numbers directly recognizable and comparable to Edge Gallery."),
+    )),
     ChangelogEntry("1.9.85", "LiteRT: full-run timing to compare with Edge Gallery (dev)", listOf(
         Change(ChangeType.IMPROVED, "The developer LiteRT test now times the full response the same way Google's Edge Gallery app does (total seconds for the identical output), so we can compare our speed to Google's directly, not just the multi-token-prediction ratio. It also reports time to first token and caps generation at 4096 tokens to match."),
     )),

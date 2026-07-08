@@ -3116,8 +3116,21 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                             "%d ch, %d emit, %.1f ch/emit, %.0f ch/s, load %dms, hash %d")
                             .format(totalSec, decodeSec, ttftMs.toInt(), chars, emissions,
                                 chPerEmit, chPerSec, loadMs, parityHash)
-                        android.util.Log.i("LiteRtTest", "$line | head=${sb.take(30).toString().replace("\n", "\\n")}")
-                        results.append(line).append("\n")
+                        // Real tok/s via LiteRT-LM's built-in benchmark API (the same
+                        // one Edge Gallery uses). Free our prompt engine first so only
+                        // one native runtime + OpenCL context is resident at a time.
+                        engine.close()
+                        val benchLine = try {
+                            val b = com.druk.lmplayground.litert.LiteRtEngine.benchmarkTps(
+                                model.absolutePath, app.cacheDir.path, useGpu, useMtp)
+                            "  bench: %.1f tok/s decode, %.0f tok/s prefill".format(b[0], b[1])
+                        } catch (e: Throwable) {
+                            android.util.Log.e("LiteRtTest", "$label benchmark() failed", e)
+                            "  bench: n/a (${e.message})"
+                        }
+                        android.util.Log.i("LiteRtTest",
+                            "$line$benchLine | head=${sb.take(30).toString().replace("\n", "\\n")}")
+                        results.append(line).append(benchLine).append("\n")
                         _liteRtTest.postValue(results.toString())
                     } catch (t: Throwable) {
                         android.util.Log.e("LiteRtTest", "$label FAILED", t)
