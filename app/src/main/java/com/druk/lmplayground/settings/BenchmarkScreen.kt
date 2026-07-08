@@ -85,6 +85,8 @@ fun BenchmarkScreen(
     onRun: (ModelInfo, BenchmarkHardware, BenchmarkConfig) -> Unit,
     onCancel: () -> Unit,
     onBackClick: () -> Unit,
+    liteRtTest: String = "",
+    onTestLiteRt: () -> Unit = {},
 ) {
     val running = state is BenchmarkUiState.Running
     var detailResult by remember { mutableStateOf<BenchmarkResultEntity?>(null) }
@@ -130,6 +132,22 @@ fun BenchmarkScreen(
                         selected = compareMode,
                         onClick = { compareMode = true },
                         label = { Text(stringResource(R.string.benchmark_mode_compare)) }
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+
+                // Dev (temporary): LiteRT-LM proof-of-life. Loads the adb-pushed
+                // Gemma 4 .litertlm on the CPU backend and streams a few tokens to
+                // confirm the second engine actually runs on this device.
+                Button(onClick = onTestLiteRt, modifier = Modifier.fillMaxWidth()) {
+                    Text("Test LiteRT (dev)")
+                }
+                if (liteRtTest.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = liteRtTest,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Spacer(Modifier.height(16.dp))

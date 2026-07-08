@@ -65,6 +65,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -3048,6 +3049,48 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 withContext(NonCancellable) {
                     if (previous != null) loadModel(previous, forceLoad = true)
                 }
+            }
+        }
+    }
+
+    // --- LiteRT proof-of-life (dev, Step 2 of the LiteRT-LM pivot). Loads a Gemma 4
+    // .litertlm and streams a few tokens on the CPU backend to confirm the
+    // LiteRT-LM engine actually runs on this device. Runs IN-PROCESS for now; the
+    // crash-isolating :litert service comes later. The model is expected at
+    // getExternalFilesDir()/litert/gemma-4-E2B-it.litertlm (adb-pushed for the test). ---
+    private val _liteRtTest = MutableLiveData("")
+    val liteRtTest: LiveData<String> = _liteRtTest
+
+    fun testLiteRt() {
+        viewModelScope.launch(Dispatchers.Default) {
+            val model = File(app.getExternalFilesDir(null), "litert/gemma-4-E2B-it.litertlm")
+            if (!model.exists()) {
+                android.util.Log.e("LiteRtTest", "model not found: ${model.absolutePath}")
+                _liteRtTest.postValue("Model not found:\n${model.absolutePath}")
+                return@launch
+            }
+            val engine = com.druk.lmplayground.litert.LiteRtEngine()
+            try {
+                _liteRtTest.postValue("Loading ${model.name} (CPU)...")
+                val t0 = System.currentTimeMillis()
+                engine.load(model.absolutePath, app.cacheDir.path, useGpu = false, useMtp = false)
+                val loadMs = System.currentTimeMillis() - t0
+                android.util.Log.i("LiteRtTest", "loaded in $loadMs ms; generating...")
+                _liteRtTest.postValue("Loaded in $loadMs ms. Generating...")
+                val sb = StringBuilder()
+                engine.generate("Hello! In one short sentence, who are you?", 40, 0.95, 0.8)
+                    .take(40)
+                    .collect { tok ->
+                        sb.append(tok)
+                        android.util.Log.i("LiteRtTest", "tok=[$tok]")
+                    }
+                android.util.Log.i("LiteRtTest", "OUTPUT: $sb")
+                _liteRtTest.postValue("OK (load $loadMs ms):\n${sb.toString().take(200)}")
+            } catch (t: Throwable) {
+                android.util.Log.e("LiteRtTest", "FAILED", t)
+                _liteRtTest.postValue("FAILED: ${t.message}")
+            } finally {
+                engine.close()
             }
         }
     }

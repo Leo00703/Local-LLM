@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.79", "LiteRT proof-of-life (dev)", listOf(
+        Change(ChangeType.NEW, "Added a temporary developer test button in the benchmark screen that loads a Gemma 4 model through the new LiteRT engine and streams a few tokens, to confirm the second engine actually runs on this device before wiring it into the app properly."),
+    )),
     ChangelogEntry("1.9.78", "LiteRT engine groundwork", listOf(
         Change(ChangeType.NEW, "First step toward a second on-device engine: added the LiteRT-LM runtime (Google AI Edge) to the app. It will run Gemma 4 models with hardware-accelerated multi-token prediction, the real decode speedup our llama.cpp experiment topped out at break-even on. No user-facing change yet; this build just integrates the runtime."),
     )),
