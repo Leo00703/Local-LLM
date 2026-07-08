@@ -66,7 +66,6 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -3084,21 +3083,21 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         val t0 = System.currentTimeMillis()
                         engine.load(model.absolutePath, app.cacheDir.path, useGpu, useMtp)
                         val loadMs = System.currentTimeMillis() - t0
-                        // Measure by CHARACTERS, not emissions. In MTP mode the
-                        // runtime emits one Message per verify STEP (several accepted
-                        // tokens), while base emits one per token, so counting Messages
-                        // makes MTP look ~3x slower than it is. Greedy temp-0 output is
-                        // identical across configs, so chars/sec is apples-to-apples.
-                        // ch/emit exposes the emission granularity; hash of the first
-                        // TARGET chars is the greedy-parity check (must match base==MTP).
-                        val targetChars = 900
+                        // Full-generation timing, to compare 1:1 with Google Edge
+                        // Gallery (which reports total wall time for the same greedy
+                        // output). Run to natural EOS (maxNumTokens 4096, like Edge
+                        // Gallery's 4000). Report total s (send -> done, comparable to
+                        // Edge Gallery), decode s (first -> last token) and TTFT, plus
+                        // chars/emissions and a parity hash (base == MTP at temp 0).
+                        // ch/emit exposes the emission granularity (1 for base, ~3.7
+                        // for MTP, which is why counting Messages undercounted MTP).
                         var emissions = 0
                         var chars = 0
+                        val genStart = System.currentTimeMillis()
                         var first = 0L
-                        var last = 0L
+                        var last = genStart
                         val sb = StringBuilder()
                         engine.generate("Count from 1 to 300, one number per line.", 1, 1.0, 0.0)
-                            .takeWhile { chars < targetChars }
                             .collect { tok ->
                                 val now = System.currentTimeMillis()
                                 if (first == 0L) first = now
@@ -3107,15 +3106,17 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                                 chars += tok.length
                                 sb.append(tok)
                             }
-                        val sec = (last - first) / 1000.0
-                        val chPerSec = if (sec > 0) chars / sec else 0.0
-                        val emPerSec = if (sec > 0) emissions / sec else 0.0
+                        val totalSec = (last - genStart) / 1000.0
+                        val decodeSec = (last - first) / 1000.0
+                        val ttftMs = if (first > 0) first - genStart else 0
+                        val chPerSec = if (decodeSec > 0) chars / decodeSec else 0.0
                         val chPerEmit = if (emissions > 0) chars.toDouble() / emissions else 0.0
-                        val parityHash = sb.toString().take(targetChars).hashCode()
-                        val line = ("$label: %.0f ch/s (%d ch, %d emit, %.1f ch/emit, " +
-                            "%.0f emit/s, load %dms, hash %d)")
-                            .format(chPerSec, chars, emissions, chPerEmit, emPerSec, loadMs, parityHash)
-                        android.util.Log.i("LiteRtTest", "$line | head=${sb.take(40).toString().replace("\n", "\\n")}")
+                        val parityHash = sb.toString().take(900).hashCode()
+                        val line = ("$label: total %.1fs (decode %.1fs, ttft %dms), " +
+                            "%d ch, %d emit, %.1f ch/emit, %.0f ch/s, load %dms, hash %d")
+                            .format(totalSec, decodeSec, ttftMs.toInt(), chars, emissions,
+                                chPerEmit, chPerSec, loadMs, parityHash)
+                        android.util.Log.i("LiteRtTest", "$line | head=${sb.take(30).toString().replace("\n", "\\n")}")
                         results.append(line).append("\n")
                         _liteRtTest.postValue(results.toString())
                     } catch (t: Throwable) {

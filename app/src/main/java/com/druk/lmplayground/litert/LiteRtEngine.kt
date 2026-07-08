@@ -36,13 +36,20 @@ class LiteRtEngine {
      * BEFORE [Engine.initialize]. [initialize] blocks for up to ~10s, so call this
      * off the main thread.
      */
-    fun load(modelPath: String, cacheDir: String, useGpu: Boolean, useMtp: Boolean) {
+    fun load(
+        modelPath: String,
+        cacheDir: String,
+        useGpu: Boolean,
+        useMtp: Boolean,
+        maxNumTokens: Int = 4096,
+    ) {
         ExperimentalFlags.enableSpeculativeDecoding = useMtp
         engine = Engine(
             EngineConfig(
                 modelPath = modelPath,
                 backend = if (useGpu) Backend.GPU() else Backend.CPU(),
                 cacheDir = cacheDir,
+                maxNumTokens = maxNumTokens,
             )
         ).also { it.initialize() }
     }
