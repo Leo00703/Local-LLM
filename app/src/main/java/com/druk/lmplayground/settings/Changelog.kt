@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.81", "LiteRT GPU sampler for MTP (dev)", listOf(
+        Change(ChangeType.FIX, "The LiteRT test showed multi-token prediction running slower than normal decoding, because a GPU sampling library was missing from the runtime, so every step fell back to slow CPU sampling and copied data back and forth. This build bundles that library so sampling stays on the GPU, which should let the MTP speedup finally show up on this device."),
+    )),
     ChangelogEntry("1.9.80", "LiteRT speedup measurement (dev)", listOf(
         Change(ChangeType.IMPROVED, "The developer LiteRT test now measures decode speed on both CPU and GPU, with multi-token prediction off and on, so we can see the real MTP speedup on this device (the whole reason for the new engine)."),
     )),
