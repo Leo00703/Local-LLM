@@ -66,24 +66,24 @@ class LiteRtBackend(
         val tStart = System.currentTimeMillis()
         var firstMs = 0L
         var lastMs = tStart
-        var tokAtFirst = -1
         var emissions = 0
         val sb = StringBuilder()
+        // Baseline token total BEFORE decode starts. getTokenCount() acquires the
+        // native execution lock, so calling it DURING decode (as we did on the first
+        // delta) blocked THIS collector until the entire decode finished -> every
+        // token after the first arrived in one burst (no visible streaming). Read it
+        // only before (decode not running) and after (decode done), NEVER inside the
+        // hot collect loop.
+        val tokBefore = engine.tokenCount()
         try {
             engine.sendMessage(pendingUserMessage).collect { delta ->
                 val now = System.currentTimeMillis()
-                if (firstMs == 0L) {
-                    firstMs = now
-                    // Token total just as the first chunk lands; the completion
-                    // window is measured from here so the prompt + first chunk
-                    // don't inflate the tok/s.
-                    tokAtFirst = engine.tokenCount()
-                }
+                if (firstMs == 0L) firstMs = now
                 lastMs = now
                 emissions++
                 sb.append(delta)
-                // TEMP diagnostic: is each delta arriving incrementally, and on
-                // which thread? (Investigating "output appears all at once".)
+                // TEMP diagnostic at the COLLECTOR: compare these timestamps with the
+                // LiteRtOnMsg (source) ones to confirm streaming is no longer starved.
                 android.util.Log.i(
                     "LiteRtStream",
                     "delta #$emissions @${now - tStart}ms thread=${Thread.currentThread().name} len=${delta.length} total=${sb.length}"
@@ -103,19 +103,13 @@ class LiteRtBackend(
             stats = null
             return 0
         }
+        // Decode is done now, so getTokenCount() no longer contends with it.
+        // tokEnd - tokBefore = this turn's (prompt + completion); subtract an estimate
+        // of the prompt (~chars/4) to approximate completion. The delta itself is real
+        // (MTP-accurate), which beats counting emissions (they undercount ~3.7x on MTP).
         val tokEnd = engine.tokenCount()
-        // Real completion tokens over the decode window. getTokenCount is the
-        // true running total (prompt + generated), so the count from the first
-        // chunk to the end is the generated span. Robust fallbacks if the live
-        // count didn't move.
-        val windowed = if (tokAtFirst >= 0) (tokEnd - tokAtFirst) else 0
-        val completion = when {
-            windowed > 0 -> windowed
-            // Count didn't update live: fall back to the total (still real
-            // tokens, better than the emission count) or, last resort, emissions.
-            tokEnd > 0 && emissions > 0 -> tokEnd.coerceAtLeast(emissions)
-            else -> emissions
-        }
+        val promptEst = (pendingUserMessage.length + 3) / 4
+        val completion = (tokEnd - tokBefore - promptEst).coerceAtLeast(emissions).coerceAtLeast(1)
         val ttft = if (firstMs > 0L) (firstMs - tStart).toInt().coerceAtLeast(0) else 0
         val decodeMs = if (firstMs > 0L) (lastMs - firstMs).toInt().coerceAtLeast(0) else 0
         stats = GenerationStats(

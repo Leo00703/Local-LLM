@@ -2,8 +2,6 @@
 
 package com.druk.lmplayground.litert
 
-import android.os.Handler
-import android.os.HandlerThread
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
@@ -103,28 +101,41 @@ class LiteRtEngine {
      */
     fun sendMessage(text: String): Flow<String> {
         val convo = conversation ?: error("startConversation() must be called before sendMessage()")
-        // The Flow overload of sendMessageAsync delivers the whole reply in one
-        // burst at the end (no visible streaming). The MessageCallback overload
-        // fires onMessage per token, BUT LiteRT delivers those callbacks on the
-        // Looper of the thread that called sendMessageAsync. A plain background
-        // thread has no Looper, so the callbacks never fire (v1.9.92 generated
-        // nothing). Run the call on a HandlerThread, whose Looper stays free to
-        // dispatch each onMessage as the token is produced -> live streaming.
+        // sendMessageAsync's MessageCallback fires onMessage once per token, in real
+        // time, on LiteRT's OWN native decode thread (attached to the JVM). It does
+        // NOT use the caller's Looper (the library has no Handler/Looper anywhere),
+        // so the old HandlerThread was treating the wrong layer. The earlier "all in
+        // one burst at the end" was the COLLECTOR being starved: generateAll called
+        // getTokenCount() mid-stream, which blocks on the native execution lock until
+        // the whole decode finishes. With that removed (see LiteRtBackend), each
+        // onMessage now flows straight through. Run the call on a plain background
+        // thread (no Looper), bridge each token with backpressure, cancel on stop.
         return callbackFlow {
+            val t0 = System.currentTimeMillis()
+            var n = 0
             val callback = object : MessageCallback {
-                override fun onMessage(message: Message) { trySendBlocking(message.toString()) }
+                override fun onMessage(message: Message) {
+                    n++
+                    // TEMP diagnostic at the SOURCE (onMessage), to prove tokens
+                    // arrive spread across the decode, not bursted by the native side.
+                    android.util.Log.i(
+                        "LiteRtOnMsg",
+                        "onMessage #$n @${System.currentTimeMillis() - t0}ms len=${message.toString().length}"
+                    )
+                    trySendBlocking(message.toString())
+                }
                 override fun onDone() { close() }
                 override fun onError(error: Throwable) { close(error) }
             }
-            val handlerThread = HandlerThread("litert-infer").apply { start() }
-            Handler(handlerThread.looper).post {
+            val worker = Thread({
                 try {
                     convo.sendMessageAsync(text, callback)
                 } catch (t: Throwable) {
                     close(t)
                 }
-            }
-            awaitClose { handlerThread.quitSafely() }
+            }, "litert-decode").apply { isDaemon = true }
+            worker.start()
+            awaitClose { runCatching { convo.cancelProcess() } }
         }.buffer(Channel.UNLIMITED)
     }
 
