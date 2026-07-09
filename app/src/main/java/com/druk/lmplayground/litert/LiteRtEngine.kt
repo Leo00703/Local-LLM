@@ -121,7 +121,7 @@ class LiteRtEngine {
                 try {
                     // sendMessage's callback overloads take Contents (not String);
                     // Contents.of(text) wraps the plain text. Map = generation options.
-                    convo.sendMessage(Contents.of(text), callback, emptyMap())
+                    convo.sendMessage(Contents.of(text), callback, emptyMap<String, Any>())
                 } catch (t: Throwable) {
                     close(t)
                 }
