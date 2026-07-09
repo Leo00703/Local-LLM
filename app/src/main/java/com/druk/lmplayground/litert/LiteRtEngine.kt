@@ -9,10 +9,15 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.SamplerConfig
+import com.google.ai.edge.litertlm.Message
+import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.benchmark
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.map
 
 /**
@@ -96,13 +101,31 @@ class LiteRtEngine {
      */
     fun sendMessage(text: String): Flow<String> {
         val convo = conversation ?: error("startConversation() must be called before sendMessage()")
-        // Decouple the native producer from the UI collector. LiteRT's stream runs
-        // the native decode on the collector's coroutine and buffers/drops
-        // emissions when it can't keep up, which made the whole reply arrive in one
-        // burst at the end AND get truncated. An UNLIMITED buffer runs the upstream
-        // in its own coroutine so each token is drained as produced (true streaming,
-        // no dropped tokens).
-        return convo.sendMessageAsync(text).map { it.toString() }.buffer(Channel.UNLIMITED)
+        // TRUE streaming. The Flow API (sendMessageAsync) runs the blocking native
+        // decode on the collector's coroutine, so the per-token Messages only
+        // surface in one burst when generation finishes (no visible streaming).
+        // The callback API sendMessage(text, MessageCallback) fires onMessage per
+        // token, but is BLOCKING, so run it on a dedicated thread and bridge each
+        // onMessage into this flow with backpressure (trySendBlocking pauses the
+        // decode if the UI is briefly behind, so no token is dropped).
+        return callbackFlow {
+            val callback = object : MessageCallback {
+                override fun onMessage(message: Message) {
+                    trySendBlocking(message.toString())
+                }
+                override fun onDone() { close() }
+                override fun onError(error: Throwable) { close(error) }
+            }
+            val worker = Thread({
+                try {
+                    convo.sendMessage(text, callback)
+                } catch (t: Throwable) {
+                    close(t)
+                }
+            }, "litert-infer")
+            worker.start()
+            awaitClose { }
+        }
     }
 
     /**
