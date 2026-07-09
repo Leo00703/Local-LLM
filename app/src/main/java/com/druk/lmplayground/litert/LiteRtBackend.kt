@@ -82,6 +82,12 @@ class LiteRtBackend(
                 lastMs = now
                 emissions++
                 sb.append(delta)
+                // TEMP diagnostic: is each delta arriving incrementally, and on
+                // which thread? (Investigating "output appears all at once".)
+                android.util.Log.i(
+                    "LiteRtStream",
+                    "delta #$emissions @${now - tStart}ms thread=${Thread.currentThread().name} len=${delta.length} total=${sb.length}"
+                )
                 callback.onFullResponse(sb.toString())
             }
         } catch (e: CancellationException) {
