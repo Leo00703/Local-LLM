@@ -565,6 +565,7 @@
     </plurals>
     <string name="response_copied">Copied to clipboard</string>
     <string name="inference_engine_crashed">Whoops, something went wrong.\nPlease reload the model.</string>
+    <string name="litert_low_memory">Not enough free memory to load %1$s.\nClose other apps, or use the smaller E2B model, or turn off Speculative Decoding.</string>
     <string name="message_too_large">Message is %1$d KB, exceeds the %2$d KB limit. Try sending a shorter message.</string>
     <string name="replay_history_too_large">Conversation history is too large to reload into this model. Start a new chat to continue.</string>
     <string name="system_prompt_too_large">System prompt is %1$d KB, exceeds the %2$d KB limit. Try a shorter prompt.</string>

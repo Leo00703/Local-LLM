@@ -735,6 +735,40 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 app.getExternalFilesDir(null), "litert/" + modelInfo.filename
             ).absolutePath
 
+            // Memory guard. A .litertlm model is allocated in full at load; the
+            // heavy config (E4B ~3.66GB + GPU + speculative decoding) can exceed the
+            // free RAM on a busy device, and the system's Low Memory Killer then
+            // SIGKILLs the app (a native death we can't try/catch). Estimate the peak
+            // footprint (weights + runtime/KV + GPU buffers + MTP drafter) and refuse
+            // up front with a clear message instead of letting the app be killed.
+            run {
+                val am = app.getSystemService(android.content.Context.ACTIVITY_SERVICE)
+                    as android.app.ActivityManager
+                val memInfo = android.app.ActivityManager.MemoryInfo()
+                am.getMemoryInfo(memInfo)
+                val modelBytes = File(path).length()
+                val overhead = when {
+                    useGpu && useMtp -> 1_500_000_000L
+                    useGpu || useMtp -> 1_100_000_000L
+                    else -> 800_000_000L
+                }
+                if (modelBytes > 0 && memInfo.availMem < modelBytes + overhead) {
+                    android.util.Log.w(
+                        "ConversationViewModel",
+                        "LiteRT load refused: availMem=${memInfo.availMem} < model=$modelBytes + overhead=$overhead (gpu=$useGpu mtp=$useMtp)"
+                    )
+                    _loadedModelStatus.postValue(
+                        app.getString(
+                            com.druk.lmplayground.R.string.litert_low_memory,
+                            modelInfo.name
+                        )
+                    )
+                    _isModelReady.postValue(false)
+                    _loadedModel.postValue(null)
+                    return@launch
+                }
+            }
+
             // No real % is available during the ~10s engine.load, so animate a
             // logarithmic estimate behind the loading hairline (mirrors the
             // local/remote fallback).

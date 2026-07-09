@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.100", "Fix Gemma 4 E4B out-of-memory crash", listOf(
+        Change(ChangeType.FIX, "Loading a large model that does not fit in the phone's free memory (like Gemma 4 E4B with speculative decoding on the GPU) no longer crashes the app. It now checks free memory first and, when there is not enough, shows a clear message instead of being killed: close other apps, use the smaller E2B model, or turn off Speculative Decoding. A lighter setup (E4B on CPU, or on GPU with speculative decoding off) is allowed when it fits."),
+    )),
     ChangelogEntry("1.9.99", "Open folders, model name in settings", listOf(
         Change(ChangeType.IMPROVED, "Tap a folder to open it and see its chats. A new chat you start while inside a folder is saved into that folder, and its empty background shows the folder name so you know where it will land. Use the back arrow to leave the folder."),
         Change(ChangeType.IMPROVED, "The parameters card now shows the full name of the loaded model at the top, for all models, so a long name that gets cut off in the title bar is always readable."),
