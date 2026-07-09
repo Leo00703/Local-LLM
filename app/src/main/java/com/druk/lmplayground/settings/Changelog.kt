@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.101", "Gemma 4: image input", listOf(
+        Change(ChangeType.NEW, "Gemma 4 (LiteRT) E2B and E4B can now see images. Attach a photo or take one and ask about it, the same as the other vision models. Vision turns on automatically when there is enough free memory for the image encoder; on a tight-memory device the model still loads for text and the attach button stays hidden."),
+    )),
     ChangelogEntry("1.9.100", "Fix Gemma 4 E4B out-of-memory crash", listOf(
         Change(ChangeType.FIX, "Loading a large model that does not fit in the phone's free memory (like Gemma 4 E4B with speculative decoding on the GPU) no longer crashes the app. It now checks free memory first and, when there is not enough, shows a clear message instead of being killed: close other apps, use the smaller E2B model, or turn off Speculative Decoding. A lighter setup (E4B on CPU, or on GPU with speculative decoding off) is allowed when it fits."),
     )),

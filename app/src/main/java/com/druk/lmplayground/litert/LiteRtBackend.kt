@@ -43,6 +43,9 @@ class LiteRtBackend(
     private var pendingToolCalls: List<ToolCall> = emptyList()
     // A tool-result turn to send on the next generateAll (set by submitToolResults).
     private var pendingToolResults: Message? = null
+    // Encoded JPEG for the NEXT user turn, staged by the VM via setImageData and
+    // consumed once in generateAll (null on tool-continuation turns).
+    private var pendingImageBytes: ByteArray? = null
 
     // Authoritative stats for the last generateAll (real token count from the
     // LiteRT conversation + measured decode timing). Consumed by the ViewModel
@@ -113,6 +116,15 @@ class LiteRtBackend(
         return 0
     }
 
+    override fun setImageData(data: ByteArray) {
+        if (data.isNotEmpty()) pendingImageBytes = data
+    }
+
+    // LiteRT owns the vision encoder internally (configured at EngineConfig load); there
+    // is no per-session projector to attach. Return true so the VM's
+    // `attachProjector() && setImageData(...)` staging expression stays truthy.
+    override fun attachProjector(): Boolean = true
+
     override fun setPreambleCachePath(path: String, fingerprint: String) { /* no-op */ }
 
     override fun printReport() { /* no-op */ }
@@ -149,10 +161,14 @@ class LiteRtBackend(
         // Continue with tool results if we just ran tools; otherwise send the user turn.
         val toolResults = pendingToolResults
         pendingToolResults = null
+        // Consume any staged image on the user turn only (tool-continuation turns
+        // carry no image). engine.sendMessage(text, null, ...) is the plain text path.
+        val img = pendingImageBytes
+        pendingImageBytes = null
         val flow = if (toolResults != null)
             engine.sendToolResults(toolResults, pendingEnableThinking)
         else
-            engine.sendMessage(pendingUserMessage, pendingEnableThinking)
+            engine.sendMessage(pendingUserMessage, img, pendingEnableThinking)
         try {
             flow.collect { chunk ->
                 val now = System.currentTimeMillis()

@@ -701,6 +701,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // backend; it is applied at engine-load time.
             val useGpu = storagePreferences.gpuAccelerationEnabled
             val useMtp = storagePreferences.mtpEnabled
+            // E2B/E4B are the multimodal bundles (they carry the vision encoder); a
+            // text-only .litertlm stays vision-off. Vision is enabled at engine load.
+            val liteRtVision = modelInfo.filename.contains("E2B") ||
+                               modelInfo.filename.contains("E4B")
 
             _loadedModel.postValue(modelInfo)
             _thinkingEnabled.postValue(false)
@@ -708,7 +712,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // default off) and supports native function calling (manual tool loop).
             _supportsThinking.postValue(true)
             _supportsToolCalling.postValue(true)
-            _supportsVision.postValue(false)
+            _supportsVision.postValue(liteRtVision)
             // Compute backend is surfaced only for the llama path; keep it null.
             _computeBackend.postValue(null)
             _toolEnabledStates.postValue(emptyMap())
@@ -741,32 +745,40 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // SIGKILLs the app (a native death we can't try/catch). Estimate the peak
             // footprint (weights + runtime/KV + GPU buffers + MTP drafter) and refuse
             // up front with a clear message instead of letting the app be killed.
-            run {
-                val am = app.getSystemService(android.content.Context.ACTIVITY_SERVICE)
-                    as android.app.ActivityManager
-                val memInfo = android.app.ActivityManager.MemoryInfo()
-                am.getMemoryInfo(memInfo)
-                val modelBytes = File(path).length()
-                val overhead = when {
-                    useGpu && useMtp -> 1_500_000_000L
-                    useGpu || useMtp -> 1_100_000_000L
-                    else -> 800_000_000L
-                }
-                if (modelBytes > 0 && memInfo.availMem < modelBytes + overhead) {
-                    android.util.Log.w(
-                        "ConversationViewModel",
-                        "LiteRT load refused: availMem=${memInfo.availMem} < model=$modelBytes + overhead=$overhead (gpu=$useGpu mtp=$useMtp)"
+            val am = app.getSystemService(android.content.Context.ACTIVITY_SERVICE)
+                as android.app.ActivityManager
+            val memInfo = android.app.ActivityManager.MemoryInfo()
+            am.getMemoryInfo(memInfo)
+            val modelBytes = File(path).length()
+            val baseOverhead = when {
+                useGpu && useMtp -> 1_500_000_000L
+                useGpu || useMtp -> 1_100_000_000L
+                else -> 800_000_000L
+            }
+            // Vision loads the encoder EAGERLY at Engine.initialize() (~500MB resident).
+            // Enable it only if it fits on top of the base footprint; otherwise load the
+            // model text-only so a large model (E4B) still works for chat instead of
+            // being refused/OOM-killed just for the (unused) encoder.
+            val enableVision = liteRtVision &&
+                (modelBytes <= 0 || memInfo.availMem >= modelBytes + baseOverhead + 500_000_000L)
+            if (liteRtVision && !enableVision) {
+                _supportsVision.postValue(false) // capable, but not enough free RAM for the encoder
+            }
+            val overhead = baseOverhead + (if (enableVision) 500_000_000L else 0L)
+            if (modelBytes > 0 && memInfo.availMem < modelBytes + overhead) {
+                android.util.Log.w(
+                    "ConversationViewModel",
+                    "LiteRT load refused: availMem=${memInfo.availMem} < model=$modelBytes + overhead=$overhead (gpu=$useGpu mtp=$useMtp vision=$enableVision)"
+                )
+                _loadedModelStatus.postValue(
+                    app.getString(
+                        com.druk.lmplayground.R.string.litert_low_memory,
+                        modelInfo.name
                     )
-                    _loadedModelStatus.postValue(
-                        app.getString(
-                            com.druk.lmplayground.R.string.litert_low_memory,
-                            modelInfo.name
-                        )
-                    )
-                    _isModelReady.postValue(false)
-                    _loadedModel.postValue(null)
-                    return@launch
-                }
+                )
+                _isModelReady.postValue(false)
+                _loadedModel.postValue(null)
+                return@launch
             }
 
             // No real % is available during the ~10s engine.load, so animate a
@@ -791,7 +803,14 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             val loaded = withContext(Dispatchers.Default) {
                 try {
                     val engine = com.druk.lmplayground.litert.LiteRtEngine()
-                    engine.load(path, app.cacheDir.path, useGpu, useMtp = useMtp, maxNumTokens = ctx)
+                    engine.load(
+                        path, app.cacheDir.path, useGpu, useMtp = useMtp,
+                        maxNumTokens = ctx, enableVision = enableVision,
+                        // Image-detail cap: snap the mtmd-era slider to a Gemma-4-valid
+                        // visual-token budget (set on the experimental flag inside load).
+                        visualTokenBudget =
+                            if (enableVision) nearestGemma4Budget(params.imageMaxTokens) else null,
+                    )
                     val effectiveSystemPrompt = composeSystemPrompt("")
                     currentEffectiveSystemPrompt = effectiveSystemPrompt
                     val model = com.druk.lmplayground.litert.LiteRtModel(engine, liteRtMaxCtx)
@@ -1706,7 +1725,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         // v1.9.28→30). On failure the chips stay staged and nothing is sent,
         // matching the vision_load_failed copy. Remote models have no projector
         // (the image is base64'd straight into the request), so skip this.
-        if (hasReadyImage && _supportsVision.value == true && !projectorLoaded && !isRemoteModel) {
+        if (hasReadyImage && _supportsVision.value == true && !projectorLoaded && !isRemoteModel && !isLiteRtModel) {
             viewModelScope.launch {
                 if (!ensureProjectorLoaded()) {
                     _userError.postValue(visionLoadFailedMessage())
@@ -1771,6 +1790,17 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      */
     private val isRemoteModel: Boolean
         get() = llamaModel is RemoteOpenAiModel
+
+    /** True for the on-device LiteRT engine: no mmproj/projector; the vision encoder
+     *  is configured at engine load and the image is staged straight to
+     *  LiteRtBackend.setImageData (same no-projector shape as the remote path). */
+    private val isLiteRtModel: Boolean
+        get() = llamaModel is com.druk.lmplayground.litert.LiteRtModel
+
+    /** Snap the mtmd-era imageMaxTokens slider (64..320) to a Gemma-4 visual-token
+     *  budget (the only accepted values), for LiteRT's ExperimentalFlags.visualTokenBudget. */
+    private fun nearestGemma4Budget(v: Int): Int =
+        intArrayOf(70, 140, 280, 560, 1120).minByOrNull { kotlin.math.abs(it - v) } ?: 280
 
     /** Total device RAM in bytes, for the RAM-safe context-size recommendation. */
     private fun deviceRamBytes(): Long = try {
@@ -2100,11 +2130,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         it.kind == AttachmentKind.IMAGE && it.localPath != null
                     }
                     if (imageAtt != null) {
-                        if (isRemoteModel) {
-                            // Remote vision: no projector — stage the transcoded JPEG
-                            // bytes; RemoteOpenAiBackend base64-encodes them into an
-                            // image_url content part on the next addMessage. No native
-                            // token readback (the server owns the count).
+                        if (isRemoteModel || isLiteRtModel) {
+                            // Remote / LiteRT vision: no per-session projector — stage the
+                            // transcoded JPEG bytes; the backend attaches them on the next
+                            // turn (RemoteOpenAiBackend base64s an image_url part; LiteRT
+                            // sends Content.ImageBytes). No native token readback.
                             val staged = runCatching {
                                 File(imageAtt.localPath!!).readBytes()
                                     .takeIf { it.isNotEmpty() && it.size <= InferenceLimits.MAX_PAYLOAD_BYTES }

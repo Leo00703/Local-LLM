@@ -3,6 +3,7 @@
 package com.druk.lmplayground.litert
 
 import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
@@ -74,12 +75,24 @@ class LiteRtEngine {
         useGpu: Boolean,
         useMtp: Boolean,
         maxNumTokens: Int = 4096,
+        enableVision: Boolean = false,
+        visualTokenBudget: Int? = null,
     ) {
         ExperimentalFlags.enableSpeculativeDecoding = useMtp
+        // Read per-send by the runtime; caps image detail (Gemma 4 budgets: 70/140/
+        // 280/560/1120). null = full detail. Only affects turns that carry an image.
+        ExperimentalFlags.visualTokenBudget = visualTokenBudget
         engine = Engine(
             EngineConfig(
                 modelPath = modelPath,
                 backend = if (useGpu) Backend.GPU() else Backend.CPU(),
+                // Vision encoder is initialized EAGERLY at Engine.initialize() when
+                // visionBackend != null (and stays resident, so the memory guard must
+                // budget for it). Edge Gallery forces GPU for the Gemma encoder ("must
+                // be GPU for Gemma 3n"), so we use GPU regardless of the text backend
+                // (vision then works even when the LLM text backend is CPU).
+                visionBackend = if (enableVision) Backend.GPU() else null,
+                maxNumImages = if (enableVision) 1 else null, // one image per turn (matches UI)
                 cacheDir = cacheDir,
                 maxNumTokens = maxNumTokens,
             )
@@ -153,6 +166,28 @@ class LiteRtEngine {
     fun sendMessage(text: String, enableThinking: Boolean): Flow<LiteRtChunk> {
         val convo = conversation ?: error("startConversation() must be called before sendMessage()")
         return stream(convo, enableThinking) { cb, ctx -> convo.sendMessageAsync(text, cb, ctx) }
+    }
+
+    /**
+     * Send one user turn carrying an ENCODED image (JPEG/PNG) + optional text.
+     * The native runtime STB-decodes the bytes, so our transcoded-JPEG attach bytes
+     * go straight in (no bitmap/RGB re-encode). Image goes BEFORE text in the Contents
+     * list (Edge Gallery: "add the text after image for the accurate last token").
+     * Requires the engine to have been loaded with enableVision = true. Falls back to
+     * the plain text path when [imageBytes] is null.
+     */
+    fun sendMessage(text: String, imageBytes: ByteArray?, enableThinking: Boolean): Flow<LiteRtChunk> {
+        val convo = conversation ?: error("startConversation() must be called before sendMessage()")
+        if (imageBytes == null) {
+            return stream(convo, enableThinking) { cb, ctx -> convo.sendMessageAsync(text, cb, ctx) }
+        }
+        val contents = Contents.of(
+            buildList {
+                add(Content.ImageBytes(imageBytes))
+                if (text.isNotBlank()) add(Content.Text(text))
+            }
+        )
+        return stream(convo, enableThinking) { cb, ctx -> convo.sendMessageAsync(contents, cb, ctx) }
     }
 
     /**
