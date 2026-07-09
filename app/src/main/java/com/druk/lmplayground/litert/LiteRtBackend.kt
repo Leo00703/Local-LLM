@@ -11,21 +11,20 @@ import kotlinx.coroutines.CancellationException
  * memory), mirroring the in-process streaming adapter
  * [com.druk.lmplayground.remote.RemoteOpenAiBackend].
  *
- * The LiteRT `Conversation` config can't take a String system instruction (its
- * `systemInstruction` param is a `Content`, not a String), so the system prompt
- * is prepended once to the first user turn instead.
+ * The system prompt is set as the conversation's real `systemInstruction` (in
+ * [LiteRtEngine.startConversation]), so it is not handled here.
  *
  * The [LlamaGenerationCallback] contract is ACCUMULATED text (onFullResponse
- * gets the full string every update), but LiteRT emits DELTAS, so each delta is
- * appended into a [StringBuilder] and the running total is forwarded.
+ * gets the full string every update). LiteRT emits DELTAS split into a thought
+ * channel and an answer channel; both are accumulated and re-rendered into the
+ * app's `<think>...</think>answer` form so the thinking card can parse them.
  */
 class LiteRtBackend(
     private val engine: LiteRtEngine,
-    private val systemPrompt: String,
 ) : GenerationBackend {
 
     private var pendingUserMessage: String = ""
-    private var firstTurn = true
+    private var pendingEnableThinking: Boolean = false
 
     // Authoritative stats for the last generateAll (real token count from the
     // LiteRT conversation + measured decode timing). Consumed by the ViewModel
@@ -33,12 +32,8 @@ class LiteRtBackend(
     @Volatile private var stats: GenerationStats? = null
 
     override fun addMessage(message: String, enableThinking: Boolean) {
-        pendingUserMessage = if (firstTurn && systemPrompt.isNotBlank()) {
-            "$systemPrompt\n\n$message"
-        } else {
-            message
-        }
-        firstTurn = false
+        pendingUserMessage = message
+        pendingEnableThinking = enableThinking
     }
 
     override fun replayHistory(userMessages: Array<String>, assistantMessages: Array<String>) {
@@ -62,12 +57,21 @@ class LiteRtBackend(
 
     override fun destroy() { /* engine owns the persistent conversation lifecycle */ }
 
+    /** Combine streamed reasoning + answer into the app's `<think>…</think>answer` form. */
+    private fun render(reasoning: StringBuilder, answer: StringBuilder): String =
+        if (reasoning.isNotEmpty()) {
+            "<think>$reasoning" + (if (answer.isNotEmpty()) "</think>" else "") + answer
+        } else {
+            answer.toString()
+        }
+
     override suspend fun generateAll(callback: LlamaGenerationCallback): Int {
         val tStart = System.currentTimeMillis()
         var firstMs = 0L
         var lastMs = tStart
         var emissions = 0
-        val sb = StringBuilder()
+        val thinkSb = StringBuilder()
+        val answerSb = StringBuilder()
         // Baseline token total BEFORE decode starts. getTokenCount() acquires the
         // native execution lock, so calling it DURING decode (as we did on the first
         // delta) blocked THIS collector until the entire decode finished -> every
@@ -76,19 +80,13 @@ class LiteRtBackend(
         // hot collect loop.
         val tokBefore = engine.tokenCount()
         try {
-            engine.sendMessage(pendingUserMessage).collect { delta ->
+            engine.sendMessage(pendingUserMessage, pendingEnableThinking).collect { chunk ->
                 val now = System.currentTimeMillis()
                 if (firstMs == 0L) firstMs = now
                 lastMs = now
                 emissions++
-                sb.append(delta)
-                // TEMP diagnostic at the COLLECTOR: compare these timestamps with the
-                // LiteRtOnMsg (source) ones to confirm streaming is no longer starved.
-                android.util.Log.i(
-                    "LiteRtStream",
-                    "delta #$emissions @${now - tStart}ms thread=${Thread.currentThread().name} len=${delta.length} total=${sb.length}"
-                )
-                callback.onFullResponse(sb.toString())
+                if (chunk.isThought) thinkSb.append(chunk.text) else answerSb.append(chunk.text)
+                callback.onFullResponse(render(thinkSb, answerSb))
             }
         } catch (e: CancellationException) {
             // Cooperative cancellation (user stopped generation): rethrow so the
@@ -96,7 +94,7 @@ class LiteRtBackend(
             stats = null
             throw e
         } catch (e: Exception) {
-            val shown = sb.toString()
+            val shown = render(thinkSb, answerSb)
             val note = (if (shown.isNotEmpty()) shown + "\n\n" else "") +
                 "⚠️ " + (e.message ?: "generation failed")
             callback.onFullResponse(note)

@@ -3,6 +3,7 @@
 package com.druk.lmplayground.litert
 
 import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
@@ -19,6 +20,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.map
+
+/** One streamed piece of a LiteRT reply: a thought-channel delta or an answer delta. */
+data class LiteRtChunk(val text: String, val isThought: Boolean)
+
+/** Gemma metadata channel carrying reasoning; matches Edge Gallery's THOUGHT_CHANNEL. */
+private const val THOUGHT_CHANNEL = "thought"
 
 /**
  * Thin wrapper over the LiteRT-LM runtime (Google AI Edge), the SECOND on-device
@@ -84,11 +91,16 @@ class LiteRtEngine {
      * conversation resident so subsequent [sendMessage] turns accumulate history.
      * Closes any previous conversation first. Call after [load].
      */
-    fun startConversation(topK: Int, topP: Double, temperature: Double) {
+    fun startConversation(topK: Int, topP: Double, temperature: Double, systemPrompt: String) {
         val e = engine ?: error("LiteRtEngine.load() must be called before startConversation()")
         conversation?.close()
         conversation = e.createConversation(
             ConversationConfig(
+                // Real system instruction: LiteRT renders it as a SYSTEM message at
+                // position 0 and folds it into Gemma's own chat template (Gemma has
+                // no system role, so the template merges it into the first user turn).
+                // Cleaner + template-correct vs the old "prepend to the first turn" hack.
+                systemInstruction = systemPrompt.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
                 samplerConfig = SamplerConfig(topK = topK, topP = topP, temperature = temperature),
             )
         )
@@ -96,40 +108,45 @@ class LiteRtEngine {
 
     /**
      * Send one turn on the persistent conversation opened by [startConversation],
-     * streaming the reply. The caller collects on a background dispatcher. Turns
-     * accumulate in the same conversation (multi-turn memory).
+     * streaming the reply as [LiteRtChunk]s (thought-channel deltas tagged
+     * [LiteRtChunk.isThought], answer deltas otherwise). The caller collects on a
+     * background dispatcher. Turns accumulate in the same conversation (multi-turn).
+     *
+     * onMessage fires per token in real time on LiteRT's own native decode thread
+     * (no Looper involved), so we bridge each token with backpressure and never call
+     * a status method (e.g. getTokenCount) inside the collector, which would block on
+     * the decode lock and re-batch the whole stream (see LiteRtBackend).
+     *
+     * Thinking: enabled by the prompt-template variable `enable_thinking` passed via
+     * the 3-arg sendMessageAsync overload. It must be a real Boolean (a String
+     * "false" is truthy in the Jinja template). When on, Gemma streams its reasoning
+     * live on the model-metadata "thought" channel ([Message.channels]); the answer
+     * is [Message.toString]. 0.13.1 has no ThinkingConfig, so extraContext is the lever.
      */
-    fun sendMessage(text: String): Flow<String> {
+    fun sendMessage(text: String, enableThinking: Boolean): Flow<LiteRtChunk> {
         val convo = conversation ?: error("startConversation() must be called before sendMessage()")
-        // sendMessageAsync's MessageCallback fires onMessage once per token, in real
-        // time, on LiteRT's OWN native decode thread (attached to the JVM). It does
-        // NOT use the caller's Looper (the library has no Handler/Looper anywhere),
-        // so the old HandlerThread was treating the wrong layer. The earlier "all in
-        // one burst at the end" was the COLLECTOR being starved: generateAll called
-        // getTokenCount() mid-stream, which blocks on the native execution lock until
-        // the whole decode finishes. With that removed (see LiteRtBackend), each
-        // onMessage now flows straight through. Run the call on a plain background
-        // thread (no Looper), bridge each token with backpressure, cancel on stop.
+        val extraContext: Map<String, Any> =
+            if (enableThinking) mapOf("enable_thinking" to true) else emptyMap()
         return callbackFlow {
-            val t0 = System.currentTimeMillis()
-            var n = 0
             val callback = object : MessageCallback {
                 override fun onMessage(message: Message) {
-                    n++
-                    // TEMP diagnostic at the SOURCE (onMessage), to prove tokens
-                    // arrive spread across the decode, not bursted by the native side.
-                    android.util.Log.i(
-                        "LiteRtOnMsg",
-                        "onMessage #$n @${System.currentTimeMillis() - t0}ms len=${message.toString().length}"
-                    )
-                    trySendBlocking(message.toString())
+                    // Each callback carries EITHER a thought delta OR an answer delta;
+                    // named channels stream incrementally (not buffered), so the
+                    // thought arrives live, token by token, just like the answer.
+                    message.channels[THOUGHT_CHANNEL]?.takeIf { it.isNotEmpty() }?.let {
+                        trySendBlocking(LiteRtChunk(it, isThought = true))
+                    }
+                    val answer = message.toString()
+                    if (answer.isNotEmpty()) {
+                        trySendBlocking(LiteRtChunk(answer, isThought = false))
+                    }
                 }
                 override fun onDone() { close() }
                 override fun onError(error: Throwable) { close(error) }
             }
             val worker = Thread({
                 try {
-                    convo.sendMessageAsync(text, callback)
+                    convo.sendMessageAsync(text, callback, extraContext)
                 } catch (t: Throwable) {
                     close(t)
                 }

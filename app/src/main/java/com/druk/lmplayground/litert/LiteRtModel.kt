@@ -25,7 +25,7 @@ class LiteRtModel(
 
     override fun getContextTrainSize(): Int = contextTrainSize
 
-    override fun supportsThinking(): Boolean = false
+    override fun supportsThinking(): Boolean = true
 
     override fun supportsToolCalling(): Boolean = false
 
@@ -47,7 +47,7 @@ class LiteRtModel(
         speculativeEnabled: Boolean,
         specNDraft: Int,
     ): GenerationBackend? {
-        engine.startConversation(topK, topP.toDouble(), temperature.toDouble())
-        return LiteRtBackend(engine, systemPrompt)
+        engine.startConversation(topK, topP.toDouble(), temperature.toDouble(), systemPrompt)
+        return LiteRtBackend(engine)
     }
 }

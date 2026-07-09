@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.96", "Gemma 4: thinking and system prompt", listOf(
+        Change(ChangeType.NEW, "Gemma 4 (LiteRT) models now support thinking. Turn on the Thinking toggle and the model streams its reasoning live in the thinking card before the answer, the same as the other models."),
+        Change(ChangeType.IMPROVED, "The system prompt now reaches Gemma 4 (LiteRT) through the model's own chat template, instead of being pasted onto your first message. Set a persona or instructions and Gemma 4 follows them across the whole chat."),
+    )),
     ChangelogEntry("1.9.95", "Fix Gemma 4 streaming", listOf(
         Change(ChangeType.FIX, "Gemma 4 (LiteRT) replies now stream token by token as they are generated, instead of appearing all at once at the end. The real cause: a token-count read that ran during decoding was blocking on the engine, holding every token back until generation finished. That read now happens only before and after decoding, so tokens flow through live."),
     )),
