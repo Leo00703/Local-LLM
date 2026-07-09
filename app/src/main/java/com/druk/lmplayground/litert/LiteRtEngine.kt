@@ -2,19 +2,24 @@
 
 package com.druk.lmplayground.litert
 
+import android.os.Handler
+import android.os.HandlerThread
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.ExperimentalFlags
+import com.google.ai.edge.litertlm.Message
+import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.ai.edge.litertlm.benchmark
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.map
 
 /**
@@ -98,14 +103,29 @@ class LiteRtEngine {
      */
     fun sendMessage(text: String): Flow<String> {
         val convo = conversation ?: error("startConversation() must be called before sendMessage()")
-        // The Flow API runs the blocking native decode on the collector's
-        // coroutine, so tokens tend to arrive in one burst at the end. Push the
-        // upstream onto the IO dispatcher (a separate thread from the UI collector)
-        // and add an unlimited buffer, so the collector drains each token as
-        // produced instead of waiting for the decode to finish.
-        return convo.sendMessageAsync(text).map { it.toString() }
-            .flowOn(Dispatchers.IO)
-            .buffer(Channel.UNLIMITED)
+        // The Flow overload of sendMessageAsync delivers the whole reply in one
+        // burst at the end (no visible streaming). The MessageCallback overload
+        // fires onMessage per token, BUT LiteRT delivers those callbacks on the
+        // Looper of the thread that called sendMessageAsync. A plain background
+        // thread has no Looper, so the callbacks never fire (v1.9.92 generated
+        // nothing). Run the call on a HandlerThread, whose Looper stays free to
+        // dispatch each onMessage as the token is produced -> live streaming.
+        return callbackFlow {
+            val callback = object : MessageCallback {
+                override fun onMessage(message: Message) { trySendBlocking(message.toString()) }
+                override fun onDone() { close() }
+                override fun onError(error: Throwable) { close(error) }
+            }
+            val handlerThread = HandlerThread("litert-infer").apply { start() }
+            Handler(handlerThread.looper).post {
+                try {
+                    convo.sendMessageAsync(text, callback)
+                } catch (t: Throwable) {
+                    close(t)
+                }
+            }
+            awaitClose { handlerThread.quitSafely() }
+        }.buffer(Channel.UNLIMITED)
     }
 
     /**
