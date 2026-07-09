@@ -199,6 +199,20 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         _showGenerationStats.value = storagePreferences.showGenerationStats
     }
 
+    // MTP (speculative decoding) for the LiteRT engine. A load-time flag, so
+    // flipping it reloads the loaded .litertlm model. Exposed to the params
+    // sheet as a Switch (shown only for LiteRT models).
+    private val _liteRtMtpEnabled = MutableLiveData(storagePreferences.mtpEnabled)
+    val liteRtMtpEnabled: LiveData<Boolean> = _liteRtMtpEnabled
+
+    @MainThread
+    fun setLiteRtMtpEnabled(enabled: Boolean) {
+        storagePreferences.mtpEnabled = enabled
+        _liteRtMtpEnabled.postValue(enabled)
+        val m = _loadedModel.value
+        if (m != null && m.filename.endsWith(".litertlm")) loadModel(m, forceLoad = true)
+    }
+
     // Context-window meter: tokens currently occupying the KV cache. `used` is
     // parsed from the native session report after each turn; the total comes
     // from the session's configured context size (GenerationParams.contextSize
@@ -677,9 +691,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
             prevHandle?.close()
 
-            // GPU vs CPU backend (opt-in, default off). MTP is enabled together
-            // with the GPU path (parity-safe on this hardware).
+            // GPU vs CPU backend (opt-in, default off). MTP (speculative
+            // decoding) is an independent user toggle so it can run on either
+            // backend; it is applied at engine-load time.
             val useGpu = storagePreferences.gpuAccelerationEnabled
+            val useMtp = storagePreferences.mtpEnabled
 
             _loadedModel.postValue(modelInfo)
             _thinkingEnabled.postValue(false)
@@ -690,7 +706,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _computeBackend.postValue(null)
             _toolEnabledStates.postValue(emptyMap())
 
-            val ctx = 4096
+            val ctx = 8192
             val params = GenerationParams(contextSize = ctx)
             _generationParams.postValue(params)
             _systemPrompt.postValue("")
@@ -725,7 +741,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             val loaded = withContext(Dispatchers.Default) {
                 try {
                     val engine = com.druk.lmplayground.litert.LiteRtEngine()
-                    engine.load(path, app.cacheDir.path, useGpu, useMtp = useGpu)
+                    engine.load(path, app.cacheDir.path, useGpu, useMtp = useMtp, maxNumTokens = ctx)
                     val effectiveSystemPrompt = composeSystemPrompt("")
                     currentEffectiveSystemPrompt = effectiveSystemPrompt
                     val model = com.druk.lmplayground.litert.LiteRtModel(engine, ctx)

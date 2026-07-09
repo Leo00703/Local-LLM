@@ -505,6 +505,8 @@
     <string name="kv_cache_desc_q4">Compact: least memory, small quality cost</string>
     <string name="compute_backend_label">Compute backend</string>
     <string name="kv_cache_gpu_note">On the GPU the KV cache always runs at full precision (F16). Quantization applies on the CPU only.</string>
+    <string name="speculative_decoding_label">Speculative Decoding (MTP)</string>
+    <string name="speculative_decoding_subtitle">Drafts several tokens per step for faster decoding. Reloads the model when changed.</string>
     <!-- Per-tool copy -->
     <string name="tool_run_javascript_title">Run JavaScript</string>
     <string name="tool_run_javascript_desc">Runs JavaScript in a secure sandbox for math, dates, and text processing. No internet or file access.</string>

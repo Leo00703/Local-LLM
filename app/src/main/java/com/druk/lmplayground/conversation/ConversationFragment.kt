@@ -227,6 +227,7 @@ class ConversationFragment : Fragment() {
             val maxContextSize by viewModel.maxContextSize.observeAsState(4096)
             val serverModelDetails by viewModel.serverModelDetails.observeAsState()
             val computeBackend by viewModel.computeBackend.observeAsState()
+            val liteRtMtpEnabled by viewModel.liteRtMtpEnabled.observeAsState(true)
             val sessionModelHint by viewModel.sessionModelHint.observeAsState()
             val systemPrompt by viewModel.systemPrompt.observeAsState("")
             val systemPromptId by viewModel.systemPromptId.observeAsState()
@@ -919,6 +920,9 @@ class ConversationFragment : Fragment() {
                                 modelName = modelInfo?.name.orEmpty(),
                                 serverDetails = if (isRemote) serverModelDetails else null,
                                 computeBackend = if (!isRemote) computeBackend else null,
+                                mtpEnabled = liteRtMtpEnabled,
+                                mtpSupported = modelInfo?.filename?.endsWith(".litertlm") == true,
+                                onMtpChanged = { viewModel.setLiteRtMtpEnabled(it) },
                                 savedPrompts = savedPrompts,
                                 activePromptId = systemPromptId,
                                 onSelectSavedPrompt = { id, text -> viewModel.applySystemPrompt(id, text) },

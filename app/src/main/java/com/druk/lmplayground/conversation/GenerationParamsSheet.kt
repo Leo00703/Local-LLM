@@ -113,6 +113,11 @@ fun GenerationParamsSheet(
     // Active compute backend of a loaded local model ("GPU (OpenCL): … " or
     // "CPU"); shown atop the Parameters tab so the user can verify GPU use.
     computeBackend: String? = null,
+    // MTP (speculative decoding) for the LiteRT engine. The switch is shown only
+    // when [mtpSupported] (a loaded .litertlm model); flipping it reloads the model.
+    mtpEnabled: Boolean = false,
+    mtpSupported: Boolean = false,
+    onMtpChanged: (Boolean) -> Unit = {},
     // Saved system-prompt library, shown in the Prompt tab so the user can
     // pick / edit / delete / create prompts without leaving the sheet.
     savedPrompts: List<SystemPromptEntity> = emptyList(),
@@ -555,6 +560,34 @@ fun GenerationParamsSheet(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
+
+            // Speculative decoding (MTP) — LiteRT models only. A load-time flag,
+            // so toggling it reloads the model. Off/on works on both CPU & GPU.
+            if (mtpSupported) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            text = stringResource(R.string.speculative_decoding_label),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.speculative_decoding_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = mtpEnabled,
+                        onCheckedChange = onMtpChanged
                     )
                 }
             }

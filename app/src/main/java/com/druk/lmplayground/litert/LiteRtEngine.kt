@@ -97,6 +97,15 @@ class LiteRtEngine {
         return convo.sendMessageAsync(text).map { it.toString() }
     }
 
+    /**
+     * Running token total of the persistent conversation (prompt + generated so
+     * far), read straight from the LiteRT runtime. Used to count real completion
+     * tokens for stats: under MTP each stream emission carries ~3.7 tokens, so
+     * counting callbacks undercounts; this is the authoritative count. Returns 0
+     * before a conversation exists.
+     */
+    fun tokenCount(): Int = conversation?.tokenCount?.toInt() ?: 0
+
     /** Free the native engine + KV/VRAM. Safe to call more than once. */
     fun close() {
         conversation?.close()

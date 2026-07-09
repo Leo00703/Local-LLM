@@ -54,6 +54,11 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.89", "Gemma 4 chat: context, speed readout, MTP toggle", listOf(
+        Change(ChangeType.IMPROVED, "Gemma 4 (LiteRT) chat context raised from 4096 to 8192 tokens, so conversations can run longer before older messages drop off."),
+        Change(ChangeType.FIX, "The tokens-per-second shown under a Gemma 4 reply is now correct. It was undercounting when multi-token prediction was on, because it counted streamed chunks instead of real tokens."),
+        Change(ChangeType.NEW, "Added a Speculative Decoding (MTP) toggle in the generation settings for Gemma 4 models. You can turn multi-token prediction on or off on both CPU and GPU. Changing it reloads the model."),
+    )),
     ChangelogEntry("1.9.88", "Chat with Gemma 4 (LiteRT)", listOf(
         Change(ChangeType.NEW, "Gemma 4 models (E2B and E4B) now show up in the model picker and run in the real chat on the new LiteRT engine, with multi-token prediction on the GPU for much faster replies. Selecting a Gemma 4 model automatically unloads the llama.cpp model. Tools, thinking, and image input on LiteRT are coming next."),
     )),

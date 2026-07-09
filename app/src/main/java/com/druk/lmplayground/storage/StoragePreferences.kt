@@ -81,6 +81,15 @@ class StoragePreferences(context: Context) {
         get() = prefs.getBoolean("gpu_acceleration_enabled", false)
         set(value) = prefs.edit { putBoolean("gpu_acceleration_enabled", value) }
 
+    /**
+     * Enable the LiteRT engine's built-in MTP speculative decoding (Gemma 4
+     * .litertlm models). A load-time flag applied when the LiteRT engine is
+     * created; on by default (parity-safe, ~2-3x decode on this hardware).
+     */
+    var mtpEnabled: Boolean
+        get() = prefs.getBoolean("mtp_enabled", true)
+        set(value) = prefs.edit { putBoolean("mtp_enabled", value) }
+
     // --- Remote (OpenAI-compatible) server ---
 
     /** User-given display name for the remote server (shown in the model picker). */
