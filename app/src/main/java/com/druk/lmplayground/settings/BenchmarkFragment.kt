@@ -48,6 +48,7 @@ class BenchmarkFragment : Fragment() {
                 val allModels by viewModel.models.observeAsState(emptyList())
                 val state by viewModel.benchmarkState.observeAsState(BenchmarkUiState.Idle)
                 val liteRtTest by viewModel.liteRtTest.observeAsState("")
+                val liteRtChart by viewModel.liteRtChart.observeAsState(emptyList())
 
                 // Downloaded on-device models only (skip remote + not-downloaded).
                 val models = remember(allModels) {
@@ -83,6 +84,7 @@ class BenchmarkFragment : Fragment() {
                     onCancel = { viewModel.cancelBenchmark() },
                     onBackClick = { findNavController().popBackStack() },
                     liteRtTest = liteRtTest,
+                    liteRtChart = liteRtChart,
                     onTestLiteRt = { viewModel.testLiteRt() },
                 )
             }

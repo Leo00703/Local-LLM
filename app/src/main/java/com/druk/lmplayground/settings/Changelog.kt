@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.87", "LiteRT dev test: E4B model + decode chart", listOf(
+        Change(ChangeType.IMPROVED, "The developer LiteRT test now benchmarks every Gemma 4 model found on the device (E2B and E4B) across CPU and GPU with speculative decoding off and on, and shows the results as a bar chart of decode tokens per second, in the same style as the normal benchmarks. Each bar also checks that the output matches its base config."),
+    )),
     ChangelogEntry("1.9.86", "LiteRT: real tokens/sec in the dev test", listOf(
         Change(ChangeType.IMPROVED, "The developer LiteRT test now also reports real decode tokens per second, measured with LiteRT's built-in benchmark (the same one Google's Edge Gallery uses), next to characters per second. Makes the numbers directly recognizable and comparable to Edge Gallery."),
     )),

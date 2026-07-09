@@ -86,6 +86,7 @@ fun BenchmarkScreen(
     onCancel: () -> Unit,
     onBackClick: () -> Unit,
     liteRtTest: String = "",
+    liteRtChart: List<com.druk.lmplayground.benchmark.LiteRtBenchEntry> = emptyList(),
     onTestLiteRt: () -> Unit = {},
 ) {
     val running = state is BenchmarkUiState.Running
@@ -141,6 +142,10 @@ fun BenchmarkScreen(
                 // confirm the second engine actually runs on this device.
                 Button(onClick = onTestLiteRt, modifier = Modifier.fillMaxWidth()) {
                     Text("Test LiteRT (dev)")
+                }
+                if (liteRtChart.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    LiteRtBenchChart(liteRtChart)
                 }
                 if (liteRtTest.isNotEmpty()) {
                     Spacer(Modifier.height(6.dp))
@@ -519,6 +524,41 @@ private fun ComparisonBar(label: String, value: String, score: Score, onClick: (
                         .background(score.color)
                 )
             }
+        }
+    }
+}
+
+/**
+ * Dev chart for the "Test LiteRT" matrix: decode tok/s per (model, hardware, MTP)
+ * config, grouped by model, using the same bar style + green/yellow/red scale as
+ * the Compare view. "parity!" flags a config whose greedy output diverged from
+ * its model's base (an MTP correctness bug).
+ */
+@Composable
+private fun LiteRtBenchChart(entries: List<com.druk.lmplayground.benchmark.LiteRtBenchEntry>) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "LiteRT decode (tok/s)",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(6.dp))
+        entries.groupBy { it.model }.forEach { (model, rows) ->
+            Text(
+                model,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            rows.forEach { e ->
+                val label = e.config + when {
+                    e.failed -> " · failed"
+                    !e.parityOk -> " · parity!"
+                    else -> ""
+                }
+                val value = if (e.failed) "FAILED" else "%.0f tok/s".format(e.decodeTps)
+                ComparisonBar(label, value, scoreHigher(e.decodeTps, 90f, 15f, 40f), onClick = {})
+            }
+            Spacer(Modifier.height(8.dp))
         }
     }
 }

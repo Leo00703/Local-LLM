@@ -66,6 +66,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -3061,88 +3062,92 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     private val _liteRtTest = MutableLiveData("")
     val liteRtTest: LiveData<String> = _liteRtTest
 
+    private val _liteRtChart = MutableLiveData<List<com.druk.lmplayground.benchmark.LiteRtBenchEntry>>(emptyList())
+    val liteRtChart: LiveData<List<com.druk.lmplayground.benchmark.LiteRtBenchEntry>> = _liteRtChart
+
     fun testLiteRt() {
         viewModelScope.launch(Dispatchers.Default) {
-            val model = File(app.getExternalFilesDir(null), "litert/gemma-4-E2B-it.litertlm")
-            if (!model.exists()) {
-                android.util.Log.e("LiteRtTest", "model not found: ${model.absolutePath}")
-                _liteRtTest.postValue("Model not found:\n${model.absolutePath}")
+            val litertDir = File(app.getExternalFilesDir(null), "litert")
+            // Discover every adb-pushed .litertlm model (E2B, E4B, ...) and bench each
+            // across the CPU/GPU x MTP-off/on matrix.
+            val modelFiles = litertDir.listFiles { f -> f.name.endsWith(".litertlm") }
+                ?.sortedBy { it.name }.orEmpty()
+            if (modelFiles.isEmpty()) {
+                android.util.Log.e("LiteRtTest", "no .litertlm in ${litertDir.absolutePath}")
+                _liteRtTest.postValue("No .litertlm models in\n${litertDir.absolutePath}")
                 return@launch
             }
-            // Gate #2 matrix: measure decode tok/s across CPU/GPU x MTP off/on. The
-            // MTP-on vs off delta on the SAME hardware is the number that justifies
-            // the whole LiteRT pivot. Greedy (temp 0) + a predictable counting task
-            // for a stable, high-acceptance measurement.
+            // The chart wants the decode RATE (tok/s), not the full count, so cap the
+            // generation at a fixed char budget to keep the 8-run matrix quick. Greedy
+            // temp-0 counting prompt => each digit/newline is a 1-char token, so
+            // chars/sec == tok/s. A parity hash guards that MTP output == base output.
+            val targetChars = 500
             val results = StringBuilder()
-            for (useGpu in listOf(false, true)) {
-                for (useMtp in listOf(false, true)) {
-                    val label = "${if (useGpu) "GPU" else "CPU"} ${if (useMtp) "MTP" else "base"}"
-                    _liteRtTest.postValue("${results}Running $label ...")
-                    val engine = com.druk.lmplayground.litert.LiteRtEngine()
-                    try {
-                        val t0 = System.currentTimeMillis()
-                        engine.load(model.absolutePath, app.cacheDir.path, useGpu, useMtp)
-                        val loadMs = System.currentTimeMillis() - t0
-                        // Full-generation timing, to compare 1:1 with Google Edge
-                        // Gallery (which reports total wall time for the same greedy
-                        // output). Run to natural EOS (maxNumTokens 4096, like Edge
-                        // Gallery's 4000). Report total s (send -> done, comparable to
-                        // Edge Gallery), decode s (first -> last token) and TTFT, plus
-                        // chars/emissions and a parity hash (base == MTP at temp 0).
-                        // ch/emit exposes the emission granularity (1 for base, ~3.7
-                        // for MTP, which is why counting Messages undercounted MTP).
-                        var emissions = 0
-                        var chars = 0
-                        val genStart = System.currentTimeMillis()
-                        var first = 0L
-                        var last = genStart
-                        val sb = StringBuilder()
-                        engine.generate("Count from 1 to 300, one number per line.", 1, 1.0, 0.0)
-                            .collect { tok ->
-                                val now = System.currentTimeMillis()
-                                if (first == 0L) first = now
-                                last = now
-                                emissions++
-                                chars += tok.length
-                                sb.append(tok)
-                            }
-                        val totalSec = (last - genStart) / 1000.0
-                        val decodeSec = (last - first) / 1000.0
-                        val ttftMs = if (first > 0) first - genStart else 0
-                        val chPerSec = if (decodeSec > 0) chars / decodeSec else 0.0
-                        val chPerEmit = if (emissions > 0) chars.toDouble() / emissions else 0.0
-                        val parityHash = sb.toString().take(900).hashCode()
-                        val line = ("$label: total %.1fs (decode %.1fs, ttft %dms), " +
-                            "%d ch, %d emit, %.1f ch/emit, %.0f ch/s, load %dms, hash %d")
-                            .format(totalSec, decodeSec, ttftMs.toInt(), chars, emissions,
-                                chPerEmit, chPerSec, loadMs, parityHash)
-                        // Real tok/s via LiteRT-LM's built-in benchmark API (the same
-                        // one Edge Gallery uses). Free our prompt engine first so only
-                        // one native runtime + OpenCL context is resident at a time.
-                        engine.close()
-                        val benchLine = try {
-                            val b = com.druk.lmplayground.litert.LiteRtEngine.benchmarkTps(
-                                model.absolutePath, app.cacheDir.path, useGpu, useMtp)
-                            "  bench: %.1f tok/s decode, %.0f tok/s prefill".format(b[0], b[1])
-                        } catch (e: Throwable) {
-                            android.util.Log.e("LiteRtTest", "$label benchmark() failed", e)
-                            "  bench: n/a (${e.message})"
+            val chart = mutableListOf<com.druk.lmplayground.benchmark.LiteRtBenchEntry>()
+            for (mf in modelFiles) {
+                val modelName = shortLiteRtName(mf.name)
+                results.append("== ").append(modelName).append(" ==\n")
+                var baseHash: Int? = null
+                for (useGpu in listOf(false, true)) {
+                    for (useMtp in listOf(false, true)) {
+                        val cfg = "${if (useGpu) "GPU" else "CPU"} ${if (useMtp) "MTP" else "base"}"
+                        _liteRtTest.postValue("${results}Running $modelName $cfg ...")
+                        val engine = com.druk.lmplayground.litert.LiteRtEngine()
+                        try {
+                            val t0 = System.currentTimeMillis()
+                            engine.load(mf.absolutePath, app.cacheDir.path, useGpu, useMtp)
+                            val loadMs = System.currentTimeMillis() - t0
+                            var chars = 0
+                            var emissions = 0
+                            var first = 0L
+                            var last = 0L
+                            val sb = StringBuilder()
+                            engine.generate("Count from 1 to 300, one number per line.", 1, 1.0, 0.0)
+                                .takeWhile { chars < targetChars }
+                                .collect { tok ->
+                                    val now = System.currentTimeMillis()
+                                    if (first == 0L) first = now
+                                    last = now
+                                    emissions++
+                                    chars += tok.length
+                                    sb.append(tok)
+                                }
+                            val decodeSec = (last - first) / 1000.0
+                            val tps = if (decodeSec > 0) chars / decodeSec else 0.0
+                            val chPerEmit = if (emissions > 0) chars.toDouble() / emissions else 0.0
+                            val hash = sb.toString().take(400).hashCode()
+                            if (baseHash == null) baseHash = hash
+                            val parityOk = hash == baseHash
+                            chart.add(com.druk.lmplayground.benchmark.LiteRtBenchEntry(
+                                modelName, cfg, tps.toFloat(), parityOk))
+                            _liteRtChart.postValue(chart.toList())
+                            val line = ("$modelName $cfg: %.0f tok/s (%d ch, %.1f ch/emit, " +
+                                "load %dms, hash %d%s)").format(
+                                tps, chars, chPerEmit, loadMs, hash, if (parityOk) "" else " PARITY!")
+                            android.util.Log.i("LiteRtTest", line)
+                            results.append(line).append("\n")
+                            _liteRtTest.postValue(results.toString())
+                        } catch (t: Throwable) {
+                            android.util.Log.e("LiteRtTest", "$modelName $cfg FAILED", t)
+                            chart.add(com.druk.lmplayground.benchmark.LiteRtBenchEntry(
+                                modelName, cfg, 0f, false, failed = true))
+                            _liteRtChart.postValue(chart.toList())
+                            results.append("$modelName $cfg: FAILED (${t.message})\n")
+                            _liteRtTest.postValue(results.toString())
+                        } finally {
+                            engine.close()
                         }
-                        android.util.Log.i("LiteRtTest",
-                            "$line$benchLine | head=${sb.take(30).toString().replace("\n", "\\n")}")
-                        results.append(line).append(benchLine).append("\n")
-                        _liteRtTest.postValue(results.toString())
-                    } catch (t: Throwable) {
-                        android.util.Log.e("LiteRtTest", "$label FAILED", t)
-                        results.append("$label: FAILED (${t.message})\n")
-                        _liteRtTest.postValue(results.toString())
-                    } finally {
-                        engine.close()
                     }
                 }
             }
             android.util.Log.i("LiteRtTest", "MATRIX DONE:\n$results")
         }
+    }
+
+    private fun shortLiteRtName(filename: String): String = when {
+        filename.contains("E2B") -> "E2B"
+        filename.contains("E4B") -> "E4B"
+        else -> filename.removeSuffix(".litertlm").take(16)
     }
 
     /** Tear down the loaded chat model (no UI posts); used before a benchmark. */
