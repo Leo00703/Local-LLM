@@ -10,7 +10,9 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.ai.edge.litertlm.benchmark
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.map
 
 /**
@@ -68,7 +70,7 @@ class LiteRtEngine {
             )
         )
         conversation = convo
-        return convo.sendMessageAsync(prompt).map { it.toString() }
+        return convo.sendMessageAsync(prompt).map { it.toString() }.buffer(Channel.UNLIMITED)
     }
 
     /**
@@ -94,7 +96,13 @@ class LiteRtEngine {
      */
     fun sendMessage(text: String): Flow<String> {
         val convo = conversation ?: error("startConversation() must be called before sendMessage()")
-        return convo.sendMessageAsync(text).map { it.toString() }
+        // Decouple the native producer from the UI collector. LiteRT's stream runs
+        // the native decode on the collector's coroutine and buffers/drops
+        // emissions when it can't keep up, which made the whole reply arrive in one
+        // burst at the end AND get truncated. An UNLIMITED buffer runs the upstream
+        // in its own coroutine so each token is drained as produced (true streaming,
+        // no dropped tokens).
+        return convo.sendMessageAsync(text).map { it.toString() }.buffer(Channel.UNLIMITED)
     }
 
     /**

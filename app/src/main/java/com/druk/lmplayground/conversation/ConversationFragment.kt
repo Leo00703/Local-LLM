@@ -921,7 +921,7 @@ class ConversationFragment : Fragment() {
                                 serverDetails = if (isRemote) serverModelDetails else null,
                                 computeBackend = if (!isRemote) computeBackend else null,
                                 mtpEnabled = liteRtMtpEnabled,
-                                mtpSupported = modelInfo?.filename?.endsWith(".litertlm") == true,
+                                isLiteRt = modelInfo?.filename?.endsWith(".litertlm") == true,
                                 onMtpChanged = { viewModel.setLiteRtMtpEnabled(it) },
                                 savedPrompts = savedPrompts,
                                 activePromptId = systemPromptId,

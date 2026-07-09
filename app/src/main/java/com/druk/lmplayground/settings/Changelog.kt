@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.91", "Fix Gemma 4 streaming and truncation", listOf(
+        Change(ChangeType.FIX, "Gemma 4 (LiteRT) replies now stream token by token again, and no longer get cut off partway through. The engine's output was being buffered and dropped when the on-screen display could not keep up; it now drains each token as it is produced."),
+        Change(ChangeType.IMPROVED, "The KV cache precision selector is hidden for Gemma 4 (LiteRT) models, since the LiteRT engine keeps its KV cache at a fixed precision and does not support quantizing it."),
+    )),
     ChangelogEntry("1.9.90", "Adjustable Gemma 4 context (up to 32K)", listOf(
         Change(ChangeType.IMPROVED, "The context window for Gemma 4 (LiteRT) models is now adjustable up to 32K tokens with the context slider in the generation settings, and your context, temperature, and sampling choices are remembered per model. A larger context uses more memory (LiteRT keeps its KV cache at full precision), so the slider lets you pick the balance. Changing the context reloads the model."),
     )),

@@ -114,9 +114,12 @@ fun GenerationParamsSheet(
     // "CPU"); shown atop the Parameters tab so the user can verify GPU use.
     computeBackend: String? = null,
     // MTP (speculative decoding) for the LiteRT engine. The switch is shown only
-    // when [mtpSupported] (a loaded .litertlm model); flipping it reloads the model.
+    // when [isLiteRt] (a loaded .litertlm model); flipping it reloads the model.
     mtpEnabled: Boolean = false,
-    mtpSupported: Boolean = false,
+    // True for a loaded LiteRT (.litertlm) model. Gates LiteRT-only controls (the
+    // MTP switch) and hides controls LiteRT ignores (the KV-cache quantization
+    // selector: LiteRT's KV cache is fixed precision, not user-quantizable).
+    isLiteRt: Boolean = false,
     onMtpChanged: (Boolean) -> Unit = {},
     // Saved system-prompt library, shown in the Prompt tab so the user can
     // pick / edit / delete / create prompts without leaving the sheet.
@@ -545,9 +548,12 @@ fun GenerationParamsSheet(
                 }
             )
 
-            // KV cache — local models only (a remote server owns its own KV
-            // cache). Q8_0 default: ~half the KV memory at near-zero quality loss.
-            if (!isRemote) {
+            // KV cache — local llama.cpp models only. A remote server owns its own
+            // KV cache, and LiteRT's KV cache is a fixed precision with no user
+            // quantization knob (no int4/int8 KV in the LiteRT-LM API), so the
+            // selector doesn't apply there. Q8_0 default: ~half the KV memory at
+            // near-zero quality loss (llama.cpp).
+            if (!isRemote && !isLiteRt) {
                 KvCacheSelector(
                     selected = editedParams.kvCacheType,
                     onSelect = { editedParams = editedParams.copy(kvCacheType = it) }
@@ -566,7 +572,7 @@ fun GenerationParamsSheet(
 
             // Speculative decoding (MTP) — LiteRT models only. A load-time flag,
             // so toggling it reloads the model. Off/on works on both CPU & GPU.
-            if (mtpSupported) {
+            if (isLiteRt) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
