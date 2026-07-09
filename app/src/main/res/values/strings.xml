@@ -248,6 +248,8 @@
     <string name="move_to_folder">Move to folder</string>
     <string name="no_folder">No folder</string>
     <string name="unfiled">Unfiled</string>
+    <string name="folder_empty_hint">No chats here yet. Start a new chat to add one.</string>
+    <string name="folder_new_chat_hint">New chat in this folder</string>
     <string name="remote_server">Remote server</string>
     <string name="remote_server_subtitle">Use LM Studio / Ollama on your network</string>
     <string name="use_remote_server_title">Use remote server</string>

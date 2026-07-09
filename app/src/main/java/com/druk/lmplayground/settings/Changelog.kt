@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.99", "Open folders, model name in settings", listOf(
+        Change(ChangeType.IMPROVED, "Tap a folder to open it and see its chats. A new chat you start while inside a folder is saved into that folder, and its empty background shows the folder name so you know where it will land. Use the back arrow to leave the folder."),
+        Change(ChangeType.IMPROVED, "The parameters card now shows the full name of the loaded model at the top, for all models, so a long name that gets cut off in the title bar is always readable."),
+    )),
     ChangelogEntry("1.9.98", "Fix Gemma 4 crash during tool use", listOf(
         Change(ChangeType.FIX, "Fixed a crash that could occur when Gemma 4 (LiteRT) used a tool, especially with speculative decoding on the GPU. The engine's stop signal was being sent after a reply had already finished, which could race with the tool follow-up turn and crash the app. It now fires only when you actually stop generation."),
     )),

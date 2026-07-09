@@ -303,6 +303,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         (app as? App)?.systemPromptRepository
     private val _currentSessionId = MutableLiveData<String?>(null)
     val currentSessionId: LiveData<String?> = _currentSessionId
+    // The folder the drawer is currently "inside" (null = root). Set by entering a
+    // folder or opening a chat that lives in one; a NEW chat inherits it (see
+    // ensureSession) and the empty-chat background shows its name.
+    private val _currentFolderId = MutableLiveData<String?>(null)
+    val currentFolderId: LiveData<String?> = _currentFolderId
     val sessions: LiveData<List<ChatSessionEntity>> =
         chatRepository?.getAllSessions() ?: MutableLiveData(emptyList())
     val folders: LiveData<List<FolderEntity>> =
@@ -2650,11 +2655,26 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 minP = params.minP,
                 seed = params.seed,
                 thinkingBudget = params.thinkingBudget,
-                systemPrompt = _systemPrompt.value.orEmpty()
+                systemPrompt = _systemPrompt.value.orEmpty(),
+                // A chat created while the drawer is "inside" a folder files itself
+                // there; null (root) leaves it unfiled.
+                folderId = _currentFolderId.value
             )
         )
         _currentSessionId.postValue(id)
         return id
+    }
+
+    /** Enter a folder in the drawer: show its chats and file new chats into it. */
+    @MainThread
+    fun enterFolder(folderId: String) {
+        _currentFolderId.value = folderId
+    }
+
+    /** Leave the current folder, back to the root chat/folder list. */
+    @MainThread
+    fun exitFolder() {
+        _currentFolderId.value = null
     }
 
     /**
@@ -2711,6 +2731,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
 
             _currentSessionId.value = sessionId
+            // Follow the opened chat's folder so the drawer context + new-chat
+            // inheritance match where this chat lives (null = root / unfiled).
+            _currentFolderId.value = sessionEntity?.folderId
 
             // Drop the previous conversation's web_search references; the loaded
             // session's own references (if any) are restored just below.

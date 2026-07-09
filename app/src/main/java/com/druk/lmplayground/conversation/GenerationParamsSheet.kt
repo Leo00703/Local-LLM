@@ -253,19 +253,23 @@ fun GenerationParamsSheet(
             Spacer(modifier = Modifier.height(12.dp))
 
             if (tabKey == "params") {
-                // Remote models: show the server's metadata (quant / arch /
-                // context / capabilities) as info pills at the top, then the
-                // adjustable sliders below.
+                // Model name (all models): the top bar truncates long names, so show
+                // the full loaded-model name here at the top of the Parameters tab.
+                if (modelName.isNotBlank()) {
+                    Text(
+                        text = modelName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                // Remote models: also show the server's metadata (quant / arch /
+                // context / capabilities) as info pills under the name.
                 if (isRemote) {
-                    if (modelName.isNotBlank()) {
-                        Text(
-                            text = modelName,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
                     ServerInfoHeader(details = serverDetails, maxContext = maxContextSize)
+                }
+                // Separate the header (name + optional server pills) from the sliders.
+                if (modelName.isNotBlank() || isRemote) {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                 }
                 Row(

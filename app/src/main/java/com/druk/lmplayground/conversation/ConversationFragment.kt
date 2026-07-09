@@ -223,6 +223,10 @@ class ConversationFragment : Fragment() {
             val folders by viewModel.folders.observeAsState(emptyList())
             val stagedAttachments by viewModel.stagedAttachments.observeAsState(emptyList())
             val currentSessionId by viewModel.currentSessionId.observeAsState()
+            val currentFolderId by viewModel.currentFolderId.observeAsState()
+            // Name of the folder the drawer is currently inside (null = root),
+            // shown as the empty-chat watermark when a new chat is started in it.
+            val currentFolderName = currentFolderId?.let { id -> folders.find { it.id == id }?.name }
             val generationParams by viewModel.generationParams.observeAsState(GenerationParams())
             val maxContextSize by viewModel.maxContextSize.observeAsState(4096)
             val serverModelDetails by viewModel.serverModelDetails.observeAsState()
@@ -624,6 +628,18 @@ class ConversationFragment : Fragment() {
                                     } else null
                                 )
                             }
+                        } else if (messages.isEmpty() && currentFolderName != null) {
+                            // New chat started inside a folder: watermark its name so
+                            // it's clear the chat will be filed there.
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .hazeSource(hazeState)
+                                    .padding(top = topBarHeight, bottom = bottomBarHeight),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                FolderBackground(folderName = currentFolderName)
+                            }
                         } else {
                             Messages(
                                 messages = messages,
@@ -992,7 +1008,10 @@ class ConversationFragment : Fragment() {
                                     if (findNavController().currentDestination?.id == R.id.nav_home) {
                                         findNavController().navigate(R.id.action_home_to_settings)
                                     }
-                                }
+                                },
+                                currentFolderId = currentFolderId,
+                                onEnterFolder = { folderId -> viewModel.enterFolder(folderId) },
+                                onExitFolder = { viewModel.exitFolder() }
                             )
                         }
                     ) { mainContent() }
@@ -1037,6 +1056,9 @@ class ConversationFragment : Fragment() {
                                         }
                                     }
                                 },
+                                currentFolderId = currentFolderId,
+                                onEnterFolder = { folderId -> viewModel.enterFolder(folderId) },
+                                onExitFolder = { viewModel.exitFolder() },
                                 hazeState = hazeState,
                                 hazeStyle = hazeStyle,
                             )

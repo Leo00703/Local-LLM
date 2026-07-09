@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
@@ -69,5 +70,36 @@ fun WhatsNewText(
                 Text(stringResource(R.string.set_up_tools))
             }
         }
+    }
+}
+
+/**
+ * Watermark shown behind an empty chat that was started inside a folder: a
+ * folder icon + the folder's name, so it's clear the new chat will be filed
+ * there (see [ConversationViewModel.currentFolderId]).
+ */
+@Composable
+fun FolderBackground(
+    folderName: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Folder,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = MaterialTheme.colorScheme.outline
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = folderName,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.outline,
+            textAlign = TextAlign.Center
+        )
     }
 }

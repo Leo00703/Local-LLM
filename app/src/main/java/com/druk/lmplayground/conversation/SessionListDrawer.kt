@@ -19,8 +19,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
@@ -78,6 +78,9 @@ fun SessionListDrawer(
     onDeleteFolder: (String) -> Unit,
     onMoveSessionToFolder: (String, String?) -> Unit,
     onSettingsClicked: () -> Unit,
+    currentFolderId: String? = null,
+    onEnterFolder: (String) -> Unit = {},
+    onExitFolder: () -> Unit = {},
     hazeState: HazeState? = null,
     hazeStyle: HazeStyle = HazeStyle.Unspecified,
 ) {
@@ -116,7 +119,10 @@ fun SessionListDrawer(
                     onRenameFolder = onRenameFolder,
                     onDeleteFolder = onDeleteFolder,
                     onMoveSessionToFolder = onMoveSessionToFolder,
-                    onSettingsClicked = onSettingsClicked
+                    onSettingsClicked = onSettingsClicked,
+                    currentFolderId = currentFolderId,
+                    onEnterFolder = onEnterFolder,
+                    onExitFolder = onExitFolder
                 )
             }
         }
@@ -137,6 +143,9 @@ fun PermanentSessionList(
     onDeleteFolder: (String) -> Unit,
     onMoveSessionToFolder: (String, String?) -> Unit,
     onSettingsClicked: () -> Unit,
+    currentFolderId: String? = null,
+    onEnterFolder: (String) -> Unit = {},
+    onExitFolder: () -> Unit = {},
     width: Dp = 320.dp
 ) {
     // "Floating card" sidebar (Apple Maps / Liquid Glass style): the drawer
@@ -179,6 +188,9 @@ fun PermanentSessionList(
                 onDeleteFolder = onDeleteFolder,
                 onMoveSessionToFolder = onMoveSessionToFolder,
                 onSettingsClicked = onSettingsClicked,
+                currentFolderId = currentFolderId,
+                onEnterFolder = onEnterFolder,
+                onExitFolder = onExitFolder,
                 // Tablet path runs alongside the compact (40dp) top bar, so
                 // the sidebar header shrinks to match — "Conversations" lines
                 // up with "Select Model" and the gear icon with the new-chat
@@ -204,6 +216,12 @@ private fun SessionListContent(
     onDeleteFolder: (String) -> Unit,
     onMoveSessionToFolder: (String, String?) -> Unit,
     onSettingsClicked: () -> Unit,
+    // Folder navigation: the drawer shows the root (folders + unfiled chats) when
+    // [currentFolderId] is null, or the contents of that folder otherwise. Tapping
+    // a folder ENTERS it (onEnterFolder); the back arrow leaves it (onExitFolder).
+    currentFolderId: String? = null,
+    onEnterFolder: (String) -> Unit = {},
+    onExitFolder: () -> Unit = {},
     /**
      * When true, the header row matches the 40dp compact top bar height so
      * the "Conversations" title aligns horizontally with the chat title and
@@ -218,10 +236,6 @@ private fun SessionListContent(
     var renameFolderDialog by remember { mutableStateOf<FolderEntity?>(null) }
     var deleteFolderDialog by remember { mutableStateOf<FolderEntity?>(null) }
 
-    // Per-folder expand/collapse; absent = expanded by default.
-    val folderExpanded = remember { mutableStateMapOf<String, Boolean>() }
-    var unfiledExpanded by remember { mutableStateOf(true) }
-
     // Group sessions by folder. Sessions whose folderId no longer matches an
     // existing folder fall back to "unfiled" so nothing ever disappears.
     val folderIds = folders.map { it.id }.toSet()
@@ -230,6 +244,9 @@ private fun SessionListContent(
     }
     val unfiled = grouped[null].orEmpty()
     val hasFolders = folders.isNotEmpty()
+    // The folder we're currently inside (null = root). If it was deleted, fall
+    // back to root so the list never strands the user in a missing folder.
+    val activeFolder = currentFolderId?.let { id -> folders.find { it.id == id } }
 
     Column(
         modifier = Modifier.fillMaxHeight()
@@ -240,20 +257,38 @@ private fun SessionListContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(if (compact) 40.dp else 64.dp)
-                .padding(start = 16.dp, end = 4.dp),
+                .padding(start = if (activeFolder != null) 4.dp else 16.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = stringResource(R.string.conversations),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(onClick = { showCreateFolderDialog = true }) {
-                Icon(
-                    imageVector = Icons.Outlined.CreateNewFolder,
-                    contentDescription = stringResource(R.string.new_folder),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+            if (activeFolder != null) {
+                // Inside a folder: back arrow + the folder's name as the title.
+                IconButton(onClick = onExitFolder) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = activeFolder.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
+            } else {
+                Text(
+                    text = stringResource(R.string.conversations),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { showCreateFolderDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Outlined.CreateNewFolder,
+                        contentDescription = stringResource(R.string.new_folder),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             IconButton(onClick = onSettingsClicked) {
                 Icon(
@@ -272,59 +307,48 @@ private fun SessionListContent(
                 .weight(1f)
                 .imePadding()
         ) {
-            // Folder sections (in folder order), each collapsible.
-            folders.forEach { folder ->
-                val folderSessions = grouped[folder.id].orEmpty()
-                val expanded = folderExpanded[folder.id] ?: true
-                item(key = "folder:${folder.id}") {
-                    FolderHeaderRow(
-                        icon = Icons.Outlined.Folder,
+            if (activeFolder != null) {
+                // Inside a folder: only its chats. An empty folder shows a hint.
+                val folderSessions = grouped[activeFolder.id].orEmpty()
+                if (folderSessions.isEmpty()) {
+                    item(key = "folder-empty") {
+                        Text(
+                            text = stringResource(R.string.folder_empty_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                    }
+                }
+                items(folderSessions, key = { it.id }) { session ->
+                    SessionRow(
+                        session = session,
+                        isSelected = session.id == currentSessionId,
+                        indented = false,
+                        showMoveAction = true,
+                        onSelected = { onSessionSelected(session.id) },
+                        onPin = { pinned -> onPinSession(session.id, pinned) },
+                        onRenameRequest = { renameDialogSession = session },
+                        onDelete = { onDeleteSession(session.id) },
+                        onMoveRequest = { moveDialogSession = session }
+                    )
+                }
+            } else {
+                // Root: folders (tap to enter), then the unfiled chats.
+                items(folders, key = { "folder:${it.id}" }) { folder ->
+                    FolderRow(
                         name = folder.name,
-                        count = folderSessions.size,
-                        expanded = expanded,
-                        onToggle = { folderExpanded[folder.id] = !expanded },
+                        count = grouped[folder.id].orEmpty().size,
+                        onClick = { onEnterFolder(folder.id) },
                         onRenameRequest = { renameFolderDialog = folder },
                         onDeleteRequest = { deleteFolderDialog = folder }
                     )
                 }
-                if (expanded) {
-                    items(folderSessions, key = { it.id }) { session ->
-                        SessionRow(
-                            session = session,
-                            isSelected = session.id == currentSessionId,
-                            indented = true,
-                            showMoveAction = true,
-                            onSelected = { onSessionSelected(session.id) },
-                            onPin = { pinned -> onPinSession(session.id, pinned) },
-                            onRenameRequest = { renameDialogSession = session },
-                            onDelete = { onDeleteSession(session.id) },
-                            onMoveRequest = { moveDialogSession = session }
-                        )
-                    }
-                }
-            }
-
-            // Unfiled chats. With folders present they get their own collapsible
-            // "Unfiled" header; with no folders at all the list stays flat.
-            if (hasFolders && unfiled.isNotEmpty()) {
-                item(key = "unfiled:header") {
-                    FolderHeaderRow(
-                        icon = null,
-                        name = stringResource(R.string.unfiled),
-                        count = unfiled.size,
-                        expanded = unfiledExpanded,
-                        onToggle = { unfiledExpanded = !unfiledExpanded },
-                        onRenameRequest = null,
-                        onDeleteRequest = null
-                    )
-                }
-            }
-            if (!hasFolders || unfiledExpanded) {
                 items(unfiled, key = { it.id }) { session ->
                     SessionRow(
                         session = session,
                         isSelected = session.id == currentSessionId,
-                        indented = hasFolders,
+                        indented = false,
                         showMoveAction = hasFolders,
                         onSelected = { onSessionSelected(session.id) },
                         onPin = { pinned -> onPinSession(session.id, pinned) },
@@ -602,91 +626,90 @@ private fun SessionRow(
     }
 }
 
+/**
+ * A folder in the root list. Tapping it ENTERS the folder (shows its chats);
+ * long-press opens rename / delete. The trailing chevron signals navigation.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderHeaderRow(
-    icon: ImageVector?,
+private fun FolderRow(
     name: String,
     count: Int,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onRenameRequest: (() -> Unit)?,
-    onDeleteRequest: (() -> Unit)?
+    onClick: () -> Unit,
+    onRenameRequest: () -> Unit,
+    onDeleteRequest: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    val hasMenu = onRenameRequest != null || onDeleteRequest != null
     Box {
-        Row(
+        Surface(
+            color = Color.Transparent,
+            shape = RoundedCornerShape(24.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)
+                .clip(RoundedCornerShape(24.dp))
                 .combinedClickable(
-                    onClick = onToggle,
-                    onLongClick = { if (hasMenu) showMenu = true }
+                    onClick = onClick,
+                    onLongClick = { showMenu = true }
                 )
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (icon != null) {
-                Spacer(modifier = Modifier.width(6.dp))
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
-                    imageVector = icon,
+                    imageVector = Icons.Outlined.Folder,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = name,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = count.toString(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
 
-        if (hasMenu) {
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { showMenu = false }
-            ) {
-                onRenameRequest?.let { rename ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.rename_folder)) },
-                        onClick = {
-                            rename()
-                            showMenu = false
-                        },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Outlined.Edit, contentDescription = null)
-                        }
-                    )
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.rename_folder)) },
+                onClick = {
+                    onRenameRequest()
+                    showMenu = false
+                },
+                leadingIcon = {
+                    Icon(imageVector = Icons.Outlined.Edit, contentDescription = null)
                 }
-                onDeleteRequest?.let { delete ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.delete_folder)) },
-                        onClick = {
-                            delete()
-                            showMenu = false
-                        },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Outlined.Delete, contentDescription = null)
-                        }
-                    )
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.delete_folder)) },
+                onClick = {
+                    onDeleteRequest()
+                    showMenu = false
+                },
+                leadingIcon = {
+                    Icon(imageVector = Icons.Outlined.Delete, contentDescription = null)
                 }
-            }
+            )
         }
     }
 }
