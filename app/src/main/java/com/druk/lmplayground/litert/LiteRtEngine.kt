@@ -104,7 +104,7 @@ class LiteRtEngine {
      * counting callbacks undercounts; this is the authoritative count. Returns 0
      * before a conversation exists.
      */
-    fun tokenCount(): Int = conversation?.tokenCount?.toInt() ?: 0
+    fun tokenCount(): Int = conversation?.getTokenCount()?.toInt() ?: 0
 
     /** Free the native engine + KV/VRAM. Safe to call more than once. */
     fun close() {
