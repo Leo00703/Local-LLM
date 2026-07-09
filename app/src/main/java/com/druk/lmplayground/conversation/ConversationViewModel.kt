@@ -699,10 +699,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
             _loadedModel.postValue(modelInfo)
             _thinkingEnabled.postValue(false)
-            // Gemma 4 (LiteRT) streams reasoning on its "thought" channel; the toggle
-            // is shown (default off). Tool calling lands in a follow-up build.
+            // Gemma 4 (LiteRT) streams reasoning on its "thought" channel (toggle
+            // default off) and supports native function calling (manual tool loop).
             _supportsThinking.postValue(true)
-            _supportsToolCalling.postValue(false)
+            _supportsToolCalling.postValue(true)
             _supportsVision.postValue(false)
             // Compute backend is surfaced only for the llama path; keep it null.
             _computeBackend.postValue(null)

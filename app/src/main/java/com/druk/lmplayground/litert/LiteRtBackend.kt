@@ -3,7 +3,16 @@ package com.druk.lmplayground.litert
 import com.druk.llamacpp.GenerationBackend
 import com.druk.llamacpp.GenerationStats
 import com.druk.llamacpp.LlamaGenerationCallback
+import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.litertlm.Contents
+import com.google.ai.edge.litertlm.Message
+import com.google.ai.edge.litertlm.OpenApiTool
+import com.google.ai.edge.litertlm.ToolCall
+import com.google.ai.edge.litertlm.ToolProvider
+import com.google.ai.edge.litertlm.tool
 import kotlinx.coroutines.CancellationException
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * [GenerationBackend] backed by a persistent LiteRT-LM conversation held in
@@ -26,6 +35,15 @@ class LiteRtBackend(
     private var pendingUserMessage: String = ""
     private var pendingEnableThinking: Boolean = false
 
+    // Tools (function calling). The VM passes the enabled set as OpenAI-format JSON
+    // each turn; the conversation must be rebuilt with them (0.13.1 fixes tools at
+    // creation time), so we only re-set the engine when the JSON actually changes,
+    // to avoid dropping conversation history on every turn.
+    private var lastToolsJson: String = "[]"
+    private var pendingToolCalls: List<ToolCall> = emptyList()
+    // A tool-result turn to send on the next generateAll (set by submitToolResults).
+    private var pendingToolResults: Message? = null
+
     // Authoritative stats for the last generateAll (real token count from the
     // LiteRT conversation + measured decode timing). Consumed by the ViewModel
     // via lastStats(); the per-callback counter undercounts ~3.7x under MTP.
@@ -41,11 +59,59 @@ class LiteRtBackend(
         // non-suspend method; history is not re-injected in this slice.
     }
 
-    override fun setTools(toolsJson: String) { /* no-op: LiteRT has no tool calling */ }
+    override fun setTools(toolsJson: String) {
+        val normalized = toolsJson.takeIf { it.isNotBlank() && it.trim() != "[]" } ?: "[]"
+        if (normalized == lastToolsJson) return   // unchanged -> keep the conversation + history
+        lastToolsJson = normalized
+        val providers: List<ToolProvider> = if (normalized == "[]") emptyList() else {
+            val arr = JSONArray(normalized)
+            (0 until arr.length()).mapNotNull { i ->
+                // OpenAI tools array: [{ "type":"function", "function":{name,description,parameters} }].
+                // Hand the function schema to LiteRT as an OpenApiTool; execute() is
+                // never called in manual mode (automaticToolCalling=false), the VM runs it.
+                val fn = arr.optJSONObject(i)?.optJSONObject("function") ?: return@mapNotNull null
+                tool(object : OpenApiTool {
+                    override fun getToolDescriptionJsonString(): String = fn.toString()
+                    override fun execute(paramsJsonString: String): String = ""
+                })
+            }
+        }
+        engine.setTools(providers)   // rebuilds the conversation with these tools
+    }
 
-    override fun getToolCallsJson(): String = "[]"
+    /** Pending calls from the last [generateAll] that returned 2, as `[{id,name,arguments}]`. */
+    override fun getToolCallsJson(): String {
+        val out = JSONArray()
+        pendingToolCalls.forEachIndexed { i, c ->
+            // The model gives no call id; synthesize one (results pair back by name/order).
+            out.put(
+                JSONObject()
+                    .put("id", "call_$i")
+                    .put("name", c.name)
+                    .put("arguments", JSONObject(c.arguments).toString())
+            )
+        }
+        return out.toString()
+    }
 
-    override fun submitToolResults(resultsJson: String, enableThinking: Boolean): Int = 0
+    /**
+     * Feed tool results (from ToolRegistry: `[{id,name,content}]`) back as a single
+     * TOOL message so the next [generateAll] continues the turn with them in context.
+     * Returns 0; the VM's loop re-invokes generateAll for the continuation.
+     */
+    override fun submitToolResults(resultsJson: String, enableThinking: Boolean): Int {
+        pendingEnableThinking = enableThinking
+        val results = try { JSONArray(resultsJson) } catch (_: Exception) { JSONArray() }
+        val contents: List<Content> = (0 until results.length()).mapNotNull { i ->
+            val r = results.optJSONObject(i) ?: return@mapNotNull null
+            Content.ToolResponse(r.optString("name"), r.optString("content"))
+        }
+        // Always non-null once results are submitted, so generateAll routes to the
+        // tool-continuation turn (never falls back to re-sending the original question).
+        pendingToolResults = Message.tool(Contents.of(contents))
+        pendingToolCalls = emptyList()
+        return 0
+    }
 
     override fun setPreambleCachePath(path: String, fingerprint: String) { /* no-op */ }
 
@@ -72,6 +138,7 @@ class LiteRtBackend(
         var emissions = 0
         val thinkSb = StringBuilder()
         val answerSb = StringBuilder()
+        val toolCalls = mutableListOf<ToolCall>()
         // Baseline token total BEFORE decode starts. getTokenCount() acquires the
         // native execution lock, so calling it DURING decode (as we did on the first
         // delta) blocked THIS collector until the entire decode finished -> every
@@ -79,13 +146,24 @@ class LiteRtBackend(
         // only before (decode not running) and after (decode done), NEVER inside the
         // hot collect loop.
         val tokBefore = engine.tokenCount()
+        // Continue with tool results if we just ran tools; otherwise send the user turn.
+        val toolResults = pendingToolResults
+        pendingToolResults = null
+        val flow = if (toolResults != null)
+            engine.sendToolResults(toolResults, pendingEnableThinking)
+        else
+            engine.sendMessage(pendingUserMessage, pendingEnableThinking)
         try {
-            engine.sendMessage(pendingUserMessage, pendingEnableThinking).collect { chunk ->
+            flow.collect { chunk ->
                 val now = System.currentTimeMillis()
                 if (firstMs == 0L) firstMs = now
                 lastMs = now
                 emissions++
-                if (chunk.isThought) thinkSb.append(chunk.text) else answerSb.append(chunk.text)
+                when {
+                    chunk.toolCalls.isNotEmpty() -> toolCalls.addAll(chunk.toolCalls)
+                    chunk.isThought -> thinkSb.append(chunk.text)
+                    else -> answerSb.append(chunk.text)
+                }
                 callback.onFullResponse(render(thinkSb, answerSb))
             }
         } catch (e: CancellationException) {
@@ -115,6 +193,12 @@ class LiteRtBackend(
             ttftMs = ttft,
             decodeMs = decodeMs,
         )
+        // Model requested tool calls: hand them to the VM's tool loop (it runs each,
+        // calls submitToolResults, then re-invokes generateAll for the continuation).
+        if (toolCalls.isNotEmpty()) {
+            pendingToolCalls = toolCalls
+            return 2
+        }
         return 0
     }
 }

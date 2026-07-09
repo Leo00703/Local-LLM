@@ -27,7 +27,7 @@ class LiteRtModel(
 
     override fun supportsThinking(): Boolean = true
 
-    override fun supportsToolCalling(): Boolean = false
+    override fun supportsToolCalling(): Boolean = true
 
     override fun unloadModel() {
         engine.close()

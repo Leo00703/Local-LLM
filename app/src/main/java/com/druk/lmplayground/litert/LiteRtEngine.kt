@@ -12,6 +12,8 @@ import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.SamplerConfig
+import com.google.ai.edge.litertlm.ToolCall
+import com.google.ai.edge.litertlm.ToolProvider
 import com.google.ai.edge.litertlm.benchmark
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
@@ -21,8 +23,15 @@ import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.map
 
-/** One streamed piece of a LiteRT reply: a thought-channel delta or an answer delta. */
-data class LiteRtChunk(val text: String, val isThought: Boolean)
+/**
+ * One streamed piece of a LiteRT reply: a thought-channel delta ([isThought]),
+ * an answer delta, or a batch of [toolCalls] the model requested (native-parsed).
+ */
+data class LiteRtChunk(
+    val text: String = "",
+    val isThought: Boolean = false,
+    val toolCalls: List<ToolCall> = emptyList(),
+)
 
 /** Gemma metadata channel carrying reasoning; matches Edge Gallery's THOUGHT_CHANNEL. */
 private const val THOUGHT_CHANNEL = "thought"
@@ -45,6 +54,14 @@ class LiteRtEngine {
 
     private var engine: Engine? = null
     private var conversation: Conversation? = null
+
+    // Conversation-creation params, remembered so the conversation can be rebuilt
+    // when the enabled tool set changes (tools are fixed at createConversation time).
+    private var convoTopK = 64
+    private var convoTopP = 0.95
+    private var convoTemp = 1.0
+    private var convoSystemPrompt = ""
+    private var convoTools: List<ToolProvider> = emptyList()
 
     /**
      * Load a `.litertlm` model. MTP is a global experimental flag that must be set
@@ -92,6 +109,27 @@ class LiteRtEngine {
      * Closes any previous conversation first. Call after [load].
      */
     fun startConversation(topK: Int, topP: Double, temperature: Double, systemPrompt: String) {
+        convoTopK = topK
+        convoTopP = topP
+        convoTemp = temperature
+        convoSystemPrompt = systemPrompt
+        convoTools = emptyList()   // a fresh session starts toolless; setTools re-adds them
+        rebuildConversation()
+    }
+
+    /**
+     * Replace the enabled tool set. Tools are fixed at createConversation time in
+     * 0.13.1, so this rebuilds the conversation with the new tools (losing native KV
+     * / history). The caller (LiteRtBackend) only invokes this when the set actually
+     * changes, so a stable-tools chat keeps its history. automaticToolCalling stays
+     * false, so the runtime returns tool calls to us instead of executing them.
+     */
+    fun setTools(tools: List<ToolProvider>) {
+        convoTools = tools
+        rebuildConversation()
+    }
+
+    private fun rebuildConversation() {
         val e = engine ?: error("LiteRtEngine.load() must be called before startConversation()")
         conversation?.close()
         conversation = e.createConversation(
@@ -99,46 +137,67 @@ class LiteRtEngine {
                 // Real system instruction: LiteRT renders it as a SYSTEM message at
                 // position 0 and folds it into Gemma's own chat template (Gemma has
                 // no system role, so the template merges it into the first user turn).
-                // Cleaner + template-correct vs the old "prepend to the first turn" hack.
-                systemInstruction = systemPrompt.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
-                samplerConfig = SamplerConfig(topK = topK, topP = topP, temperature = temperature),
+                systemInstruction = convoSystemPrompt.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
+                tools = convoTools,
+                automaticToolCalling = false,
+                samplerConfig = SamplerConfig(topK = convoTopK, topP = convoTopP, temperature = convoTemp),
             )
         )
     }
 
     /**
-     * Send one turn on the persistent conversation opened by [startConversation],
-     * streaming the reply as [LiteRtChunk]s (thought-channel deltas tagged
-     * [LiteRtChunk.isThought], answer deltas otherwise). The caller collects on a
-     * background dispatcher. Turns accumulate in the same conversation (multi-turn).
-     *
-     * onMessage fires per token in real time on LiteRT's own native decode thread
-     * (no Looper involved), so we bridge each token with backpressure and never call
-     * a status method (e.g. getTokenCount) inside the collector, which would block on
-     * the decode lock and re-batch the whole stream (see LiteRtBackend).
-     *
-     * Thinking: enabled by the prompt-template variable `enable_thinking` passed via
-     * the 3-arg sendMessageAsync overload. It must be a real Boolean (a String
-     * "false" is truthy in the Jinja template). When on, Gemma streams its reasoning
-     * live on the model-metadata "thought" channel ([Message.channels]); the answer
-     * is [Message.toString]. 0.13.1 has no ThinkingConfig, so extraContext is the lever.
+     * Send one user turn on the persistent conversation, streaming the reply as
+     * [LiteRtChunk]s (thought / answer / tool-call). Turns accumulate in the same
+     * conversation (multi-turn memory).
      */
     fun sendMessage(text: String, enableThinking: Boolean): Flow<LiteRtChunk> {
         val convo = conversation ?: error("startConversation() must be called before sendMessage()")
+        return stream(convo, enableThinking) { cb, ctx -> convo.sendMessageAsync(text, cb, ctx) }
+    }
+
+    /**
+     * Continue the turn after tool execution: send the tool-result [message] (a TOOL
+     * Message built from Content.ToolResponse) on the same conversation so the model
+     * produces its final answer with the tool output in context.
+     */
+    fun sendToolResults(message: Message, enableThinking: Boolean): Flow<LiteRtChunk> {
+        val convo = conversation ?: error("startConversation() must be called before sendToolResults()")
+        return stream(convo, enableThinking) { cb, ctx -> convo.sendMessageAsync(message, cb, ctx) }
+    }
+
+    /**
+     * Shared streaming bridge. [send] invokes the right sendMessageAsync overload
+     * (user text or tool-result Message) on a dedicated daemon thread; each onMessage
+     * is split into thought / answer / tool-call [LiteRtChunk]s with backpressure.
+     *
+     * onMessage fires per token in real time on LiteRT's own native decode thread
+     * (no Looper involved). Never call a status method (e.g. getTokenCount) inside the
+     * collector: it blocks on the decode lock and re-batches the whole stream (see
+     * LiteRtBackend). Thinking is driven by the `enable_thinking` template variable
+     * passed via extraContext as a real Boolean (a String "false" is truthy in Jinja).
+     */
+    private fun stream(
+        convo: Conversation,
+        enableThinking: Boolean,
+        send: (MessageCallback, Map<String, Any>) -> Unit,
+    ): Flow<LiteRtChunk> {
         val extraContext: Map<String, Any> =
             if (enableThinking) mapOf("enable_thinking" to true) else emptyMap()
         return callbackFlow {
             val callback = object : MessageCallback {
                 override fun onMessage(message: Message) {
-                    // Each callback carries EITHER a thought delta OR an answer delta;
-                    // named channels stream incrementally (not buffered), so the
-                    // thought arrives live, token by token, just like the answer.
+                    // A message may carry tool calls (native-parsed) and/or a thought
+                    // delta and/or an answer delta. Named channels stream live (not
+                    // buffered), so the thought arrives token by token like the answer.
+                    if (message.toolCalls.isNotEmpty()) {
+                        trySendBlocking(LiteRtChunk(toolCalls = message.toolCalls))
+                    }
                     message.channels[THOUGHT_CHANNEL]?.takeIf { it.isNotEmpty() }?.let {
-                        trySendBlocking(LiteRtChunk(it, isThought = true))
+                        trySendBlocking(LiteRtChunk(text = it, isThought = true))
                     }
                     val answer = message.toString()
                     if (answer.isNotEmpty()) {
-                        trySendBlocking(LiteRtChunk(answer, isThought = false))
+                        trySendBlocking(LiteRtChunk(text = answer))
                     }
                 }
                 override fun onDone() { close() }
@@ -146,7 +205,7 @@ class LiteRtEngine {
             }
             val worker = Thread({
                 try {
-                    convo.sendMessageAsync(text, callback, extraContext)
+                    send(callback, extraContext)
                 } catch (t: Throwable) {
                     close(t)
                 }

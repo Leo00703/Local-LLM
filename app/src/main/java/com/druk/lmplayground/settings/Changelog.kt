@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.97", "Gemma 4: tool calling", listOf(
+        Change(ChangeType.NEW, "Gemma 4 (LiteRT) models can now call tools. Turn on tools in Settings and Gemma 4 uses them (calculator, date and time, web search, and so on) with the same permission prompts and reasoning card as the other models. Changing the enabled tools partway through a chat restarts that conversation."),
+    )),
     ChangelogEntry("1.9.96", "Gemma 4: thinking and system prompt", listOf(
         Change(ChangeType.NEW, "Gemma 4 (LiteRT) models now support thinking. Turn on the Thinking toggle and the model streams its reasoning live in the thinking card before the answer, the same as the other models."),
         Change(ChangeType.IMPROVED, "The system prompt now reaches Gemma 4 (LiteRT) through the model's own chat template, instead of being pasted onto your first message. Set a persona or instructions and Gemma 4 follows them across the whole chat."),
