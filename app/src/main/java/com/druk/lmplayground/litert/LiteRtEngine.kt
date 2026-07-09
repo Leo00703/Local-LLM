@@ -3,6 +3,7 @@
 package com.druk.lmplayground.litert
 
 import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
@@ -118,7 +119,9 @@ class LiteRtEngine {
             }
             val worker = Thread({
                 try {
-                    convo.sendMessage(text, callback)
+                    // sendMessage's callback overloads take Contents (not String);
+                    // Contents.of(text) wraps the plain text. Map = generation options.
+                    convo.sendMessage(Contents.of(text), callback, emptyMap())
                 } catch (t: Throwable) {
                     close(t)
                 }
