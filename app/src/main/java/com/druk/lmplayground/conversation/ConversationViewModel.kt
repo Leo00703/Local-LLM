@@ -472,9 +472,28 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         val mmproj = MmprojPairing.findMmprojFor(file.name, mmprojNames)
                         ModelInfoProvider.createCustomModelInfo(file.name, cached.first, file.sizeBytes, mmproj)
                     }
+                // Sideloaded LiteRT-LM models (Gemma 4 E2B/E4B) live in a
+                // separate folder and aren't tracked by the GGUF catalog, so
+                // synthesize selectable entries for them. Their `.litertlm`
+                // filename drives the router in [loadModel].
+                val liteRtModels = (
+                    File(app.getExternalFilesDir(null), "litert")
+                        .listFiles { f -> f.name.endsWith(".litertlm") } ?: emptyArray()
+                    ).map { f ->
+                        ModelWithStatus(
+                            model = ModelInfo(
+                                name = "Gemma 4 " + shortLiteRtName(f.name) + " (LiteRT)",
+                                filename = f.name,
+                                remoteUri = null,
+                                description = "Google · LiteRT-LM · MTP",
+                                logoRes = ModelInfoProvider.logoForModelId("gemma"),
+                            ),
+                            isDownloaded = true,
+                        )
+                    }
                 _models.postValue(
                     ModelInfoProvider.getModelsWithStatus(downloadedFilenames, customModels, mmprojNames)
-                        .map { it.copy(model = it.model.resolveCapabilities(storagePreferences)) }
+                        .map { it.copy(model = it.model.resolveCapabilities(storagePreferences)) } + liteRtModels
                 )
                 val remoteUrl = storagePreferences.remoteServerUrl
                 _remoteServerAvailable.postValue(
@@ -630,6 +649,128 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Load a local LiteRT-LM model (Gemma 4 `.litertlm`) as the active engine.
+     * Mirrors [loadRemoteModel]'s in-process adapter flow: tears down any loaded
+     * model/session, builds a [com.druk.lmplayground.litert.LiteRtEngine] +
+     * [com.druk.lmplayground.litert.LiteRtModel] session behind the shared
+     * GenerationModel/GenerationBackend abstraction, then replays on-screen
+     * history. Routed here from [loadModel] by the `.litertlm` extension.
+     */
+    private fun loadLiteRtModel(modelInfo: ModelInfo) {
+        viewModelScope.launch {
+            _models.postValue(emptyList())
+            _isModelReady.postValue(false)
+
+            generatingJob?.cancel()
+            generatingJob?.join()
+            generatingJob = null
+
+            val prevSession = llamaSession
+            val prevModel = llamaModel
+            val prevHandle = modelFileHandle
+            llamaSession = null
+            llamaModel = null
+            modelFileHandle = null
+            withContext(Dispatchers.Default) {
+                prevSession?.destroy()
+                prevModel?.unloadModel()
+            }
+            prevHandle?.close()
+
+            // GPU vs CPU backend (opt-in, default off). MTP is enabled together
+            // with the GPU path (parity-safe on this hardware).
+            val useGpu = storagePreferences.gpuAccelerationEnabled
+
+            _loadedModel.postValue(modelInfo)
+            _thinkingEnabled.postValue(false)
+            _supportsThinking.postValue(false)
+            _supportsToolCalling.postValue(false)
+            _supportsVision.postValue(false)
+            // Compute backend is surfaced only for the llama path; keep it null.
+            _computeBackend.postValue(null)
+            _toolEnabledStates.postValue(emptyMap())
+
+            val ctx = 4096
+            val params = GenerationParams(contextSize = ctx)
+            _generationParams.postValue(params)
+            _systemPrompt.postValue("")
+            _systemPromptId.postValue(null)
+            _maxContextSize.postValue(ctx)
+            _contextUsedTokens.postValue(0)
+            _sessionModelHint.postValue(null)
+
+            val path = File(
+                app.getExternalFilesDir(null), "litert/" + modelInfo.filename
+            ).absolutePath
+
+            // No real % is available during the ~10s engine.load, so animate a
+            // logarithmic estimate behind the loading hairline (mirrors the
+            // local/remote fallback).
+            _loadedModelStatus.postValue(
+                app.getString(com.druk.lmplayground.R.string.remote_loading)
+            )
+            val progressJob = launch {
+                val start = System.currentTimeMillis()
+                while (isActive) {
+                    val elapsed = (System.currentTimeMillis() - start) / 1000f
+                    _modelLoadingProgress.postValue(
+                        minOf(0.9f, kotlin.math.ln(1f + elapsed) / kotlin.math.ln(31f))
+                    )
+                    kotlinx.coroutines.delay(100)
+                }
+            }
+
+            // engine.load() blocks ~10s and touches native runtime; keep it off
+            // the main thread.
+            val loaded = withContext(Dispatchers.Default) {
+                try {
+                    val engine = com.druk.lmplayground.litert.LiteRtEngine()
+                    engine.load(path, app.cacheDir.path, useGpu, useMtp = useGpu)
+                    val effectiveSystemPrompt = composeSystemPrompt("")
+                    currentEffectiveSystemPrompt = effectiveSystemPrompt
+                    val model = com.druk.lmplayground.litert.LiteRtModel(engine, ctx)
+                    val session = model.createSession(
+                        params.contextSize, params.temperature, params.topP,
+                        params.repetitionPenalty, params.topK, params.minP, params.seed,
+                        params.thinkingBudget, effectiveSystemPrompt, params.kvCacheType
+                    )
+                    llamaModel = model
+                    llamaSession = session
+                    true
+                } catch (t: Throwable) {
+                    android.util.Log.e("ConversationViewModel", "LiteRT load failed", t)
+                    false
+                }
+            }
+
+            progressJob.cancel()
+            _modelLoadingProgress.postValue(0f)
+
+            if (!loaded) {
+                _loadedModelStatus.postValue(
+                    app.getString(com.druk.lmplayground.R.string.inference_engine_crashed)
+                )
+                _isModelReady.postValue(false)
+                return@launch
+            }
+
+            val session = llamaSession
+            val messages = uiState.messages.toList()
+            if (session != null && messages.isNotEmpty()) {
+                try { replayHistoryToSession(session, messages) } catch (_: Throwable) {}
+            }
+
+            _loadedModelStatus.postValue(shortLiteRtName(modelInfo.filename) + " · LiteRT")
+            _isModelReady.postValue(true)
+
+            val sessionId = _currentSessionId.value
+            if (sessionId != null) {
+                chatRepository?.updateSessionModel(sessionId, modelInfo.filename, modelInfo.name)
+            }
+        }
+    }
+
+    /**
      * Silently flip the foreground-service notification to reflect the
      * current inference state (loaded / generating / ready). [text]
      * defaults to the cached "<name> - <size>" line used by the loaded
@@ -659,6 +800,12 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
     @MainThread
     fun loadModel(modelInfo: ModelInfo, forceLoad: Boolean = false) {
+        // LiteRT-LM models route to the separate on-device engine (Gemma 4
+        // .litertlm). It launches its own coroutine, so return immediately.
+        if (modelInfo.filename.endsWith(".litertlm")) {
+            loadLiteRtModel(modelInfo)
+            return
+        }
         val llamaCpp = llamaCpp ?: return
 
         viewModelScope.launch {

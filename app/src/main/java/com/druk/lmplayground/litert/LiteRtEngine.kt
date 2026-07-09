@@ -71,6 +71,32 @@ class LiteRtEngine {
         return convo.sendMessageAsync(prompt).map { it.toString() }
     }
 
+    /**
+     * Open a PERSISTENT conversation for multi-turn chat. Unlike [generate]
+     * (which makes a fresh, single-shot conversation each call), this keeps the
+     * conversation resident so subsequent [sendMessage] turns accumulate history.
+     * Closes any previous conversation first. Call after [load].
+     */
+    fun startConversation(topK: Int, topP: Double, temperature: Double) {
+        val e = engine ?: error("LiteRtEngine.load() must be called before startConversation()")
+        conversation?.close()
+        conversation = e.createConversation(
+            ConversationConfig(
+                samplerConfig = SamplerConfig(topK = topK, topP = topP, temperature = temperature),
+            )
+        )
+    }
+
+    /**
+     * Send one turn on the persistent conversation opened by [startConversation],
+     * streaming the reply. The caller collects on a background dispatcher. Turns
+     * accumulate in the same conversation (multi-turn memory).
+     */
+    fun sendMessage(text: String): Flow<String> {
+        val convo = conversation ?: error("startConversation() must be called before sendMessage()")
+        return convo.sendMessageAsync(text).map { it.toString() }
+    }
+
     /** Free the native engine + KV/VRAM. Safe to call more than once. */
     fun close() {
         conversation?.close()

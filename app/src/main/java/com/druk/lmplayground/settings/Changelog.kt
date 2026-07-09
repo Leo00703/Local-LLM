@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.88", "Chat with Gemma 4 (LiteRT)", listOf(
+        Change(ChangeType.NEW, "Gemma 4 models (E2B and E4B) now show up in the model picker and run in the real chat on the new LiteRT engine, with multi-token prediction on the GPU for much faster replies. Selecting a Gemma 4 model automatically unloads the llama.cpp model. Tools, thinking, and image input on LiteRT are coming next."),
+    )),
     ChangelogEntry("1.9.87", "LiteRT dev test: E4B model + decode chart", listOf(
         Change(ChangeType.IMPROVED, "The developer LiteRT test now benchmarks every Gemma 4 model found on the device (E2B and E4B) across CPU and GPU with speculative decoding off and on, and shows the results as a bar chart of decode tokens per second, in the same style as the normal benchmarks. Each bar also checks that the output matches its base config."),
     )),
