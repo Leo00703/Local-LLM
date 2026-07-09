@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.93", "Restore Gemma 4 generation", listOf(
+        Change(ChangeType.FIX, "Restored Gemma 4 (LiteRT) generation. A streaming change in the previous build stopped it from producing any output. The decode now runs on a background thread with an unlimited buffer, so the reply drains progressively rather than blocking the display."),
+    )),
     ChangelogEntry("1.9.92", "Real token-by-token streaming for Gemma 4", listOf(
         Change(ChangeType.FIX, "Gemma 4 (LiteRT) replies now truly stream token by token as they are generated. The earlier fix stopped the reply from being cut off, but the text still appeared all at once because the streaming API delivered it in one burst at the end. This switches to LiteRT's per-token callback, run on a dedicated thread, so the answer types out live."),
     )),

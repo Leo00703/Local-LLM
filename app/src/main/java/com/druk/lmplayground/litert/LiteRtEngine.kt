@@ -9,15 +9,12 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.SamplerConfig
-import com.google.ai.edge.litertlm.Message
-import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.benchmark
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 /**
@@ -101,35 +98,14 @@ class LiteRtEngine {
      */
     fun sendMessage(text: String): Flow<String> {
         val convo = conversation ?: error("startConversation() must be called before sendMessage()")
-        // TRUE streaming. The Flow API (sendMessageAsync) runs the blocking native
-        // decode on the collector's coroutine, so the per-token Messages only
-        // surface in one burst when generation finishes (no visible streaming).
-        // The callback API sendMessage(text, MessageCallback) fires onMessage per
-        // token, but is BLOCKING, so run it on a dedicated thread and bridge each
-        // onMessage into this flow with backpressure (trySendBlocking pauses the
-        // decode if the UI is briefly behind, so no token is dropped).
-        return callbackFlow {
-            val callback = object : MessageCallback {
-                override fun onMessage(message: Message) {
-                    trySendBlocking(message.toString())
-                }
-                override fun onDone() { close() }
-                override fun onError(error: Throwable) { close(error) }
-            }
-            val worker = Thread({
-                try {
-                    // The callback overload of sendMessageAsync streams per token via
-                    // MessageCallback.onMessage (per the LiteRT-LM Android docs:
-                    // conversation.sendMessageAsync(text, callback)). Run on a
-                    // dedicated thread in case it blocks, so the collector stays free.
-                    convo.sendMessageAsync(text, callback)
-                } catch (t: Throwable) {
-                    close(t)
-                }
-            }, "litert-infer")
-            worker.start()
-            awaitClose { }
-        }
+        // The Flow API runs the blocking native decode on the collector's
+        // coroutine, so tokens tend to arrive in one burst at the end. Push the
+        // upstream onto the IO dispatcher (a separate thread from the UI collector)
+        // and add an unlimited buffer, so the collector drains each token as
+        // produced instead of waiting for the decode to finish.
+        return convo.sendMessageAsync(text).map { it.toString() }
+            .flowOn(Dispatchers.IO)
+            .buffer(Channel.UNLIMITED)
     }
 
     /**
