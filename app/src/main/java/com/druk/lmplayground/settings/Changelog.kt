@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.98", "Fix Gemma 4 crash during tool use", listOf(
+        Change(ChangeType.FIX, "Fixed a crash that could occur when Gemma 4 (LiteRT) used a tool, especially with speculative decoding on the GPU. The engine's stop signal was being sent after a reply had already finished, which could race with the tool follow-up turn and crash the app. It now fires only when you actually stop generation."),
+    )),
     ChangelogEntry("1.9.97", "Gemma 4: tool calling", listOf(
         Change(ChangeType.NEW, "Gemma 4 (LiteRT) models can now call tools. Turn on tools in Settings and Gemma 4 uses them (calculator, date and time, web search, and so on) with the same permission prompts and reasoning card as the other models. Changing the enabled tools partway through a chat restarts that conversation."),
     )),

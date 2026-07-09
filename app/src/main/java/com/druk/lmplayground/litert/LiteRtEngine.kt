@@ -184,6 +184,13 @@ class LiteRtEngine {
         val extraContext: Map<String, Any> =
             if (enableThinking) mapOf("enable_thinking" to true) else emptyMap()
         return callbackFlow {
+            // True once the generation finished on its own (onDone/onError). Used so
+            // awaitClose only cancels the native decode on a REAL cancellation (Stop /
+            // scope cancel). Calling cancelProcess() after a normal onDone races with
+            // the native decode thread still tearing down the same sendMessageAsync and
+            // can crash the runtime -- and the tool loop fires two generations back to
+            // back (call + continuation), which made that race hit mid tool search.
+            val finished = java.util.concurrent.atomic.AtomicBoolean(false)
             val callback = object : MessageCallback {
                 override fun onMessage(message: Message) {
                     // A message may carry tool calls (native-parsed) and/or a thought
@@ -200,18 +207,21 @@ class LiteRtEngine {
                         trySendBlocking(LiteRtChunk(text = answer))
                     }
                 }
-                override fun onDone() { close() }
-                override fun onError(error: Throwable) { close(error) }
+                override fun onDone() { finished.set(true); close() }
+                override fun onError(error: Throwable) { finished.set(true); close(error) }
             }
             val worker = Thread({
                 try {
                     send(callback, extraContext)
                 } catch (t: Throwable) {
+                    finished.set(true)
                     close(t)
                 }
             }, "litert-decode").apply { isDaemon = true }
             worker.start()
-            awaitClose { runCatching { convo.cancelProcess() } }
+            awaitClose {
+                if (!finished.get()) runCatching { convo.cancelProcess() }
+            }
         }.buffer(Channel.UNLIMITED)
     }
 
