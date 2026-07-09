@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.90", "Adjustable Gemma 4 context (up to 32K)", listOf(
+        Change(ChangeType.IMPROVED, "The context window for Gemma 4 (LiteRT) models is now adjustable up to 32K tokens with the context slider in the generation settings, and your context, temperature, and sampling choices are remembered per model. A larger context uses more memory (LiteRT keeps its KV cache at full precision), so the slider lets you pick the balance. Changing the context reloads the model."),
+    )),
     ChangelogEntry("1.9.89", "Gemma 4 chat: context, speed readout, MTP toggle", listOf(
         Change(ChangeType.IMPROVED, "Gemma 4 (LiteRT) chat context raised from 4096 to 8192 tokens, so conversations can run longer before older messages drop off."),
         Change(ChangeType.FIX, "The tokens-per-second shown under a Gemma 4 reply is now correct. It was undercounting when multi-token prediction was on, because it counted streamed chunks instead of real tokens."),

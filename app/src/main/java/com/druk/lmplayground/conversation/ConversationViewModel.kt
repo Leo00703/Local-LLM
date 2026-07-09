@@ -706,12 +706,21 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _computeBackend.postValue(null)
             _toolEnabledStates.postValue(emptyMap())
 
-            val ctx = 8192
-            val params = GenerationParams(contextSize = ctx)
+            // Gemma 4 E2B/E4B support up to a 32k context. Load the user's saved
+            // params (context/temp/topK persist per model); a fresh model defaults
+            // to 8192. LiteRT's context (maxNumTokens) is fixed at engine load, so
+            // the context slider triggers a full reload (see updateGenerationParams).
+            // Bigger context = more KV-cache RAM (LiteRT can't quantize the KV), so
+            // the slider lets the user pick the context/RAM trade-off directly.
+            val liteRtMaxCtx = 32768
+            val savedMap = storagePreferences.getModelGenerationParams(modelInfo.filename)
+            val params = if (savedMap != null) GenerationParams.fromMap(savedMap)
+                         else GenerationParams(contextSize = 8192)
+            val ctx = params.contextSize.coerceIn(512, liteRtMaxCtx)
             _generationParams.postValue(params)
             _systemPrompt.postValue("")
             _systemPromptId.postValue(null)
-            _maxContextSize.postValue(ctx)
+            _maxContextSize.postValue(liteRtMaxCtx)
             _contextUsedTokens.postValue(0)
             _sessionModelHint.postValue(null)
 
@@ -744,7 +753,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     engine.load(path, app.cacheDir.path, useGpu, useMtp = useMtp, maxNumTokens = ctx)
                     val effectiveSystemPrompt = composeSystemPrompt("")
                     currentEffectiveSystemPrompt = effectiveSystemPrompt
-                    val model = com.druk.lmplayground.litert.LiteRtModel(engine, ctx)
+                    val model = com.druk.lmplayground.litert.LiteRtModel(engine, liteRtMaxCtx)
                     val session = model.createSession(
                         params.contextSize, params.temperature, params.topP,
                         params.repetitionPenalty, params.topK, params.minP, params.seed,
@@ -1413,6 +1422,17 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
         // If context size changed, must recreate session (resets conversation)
         if (oldParams.contextSize != params.contextSize) {
+            // LiteRT's context (maxNumTokens) is baked in at engine load, so a
+            // context change needs a full engine RELOAD (which re-reads the saved
+            // params we just persisted), not just a session rebuild.
+            val loaded = _loadedModel.value
+            if (loaded != null && loaded.filename.endsWith(".litertlm")) {
+                _currentSessionId.value = null
+                uiState.resetMessages()
+                _contextUsedTokens.postValue(0)
+                loadModel(loaded, forceLoad = true)
+                return
+            }
             val model = llamaModel ?: return
             viewModelScope.launch {
                 generatingJob?.cancel()
