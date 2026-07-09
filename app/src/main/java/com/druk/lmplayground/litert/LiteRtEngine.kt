@@ -3,7 +3,6 @@
 package com.druk.lmplayground.litert
 
 import com.google.ai.edge.litertlm.Backend
-import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
@@ -119,9 +118,11 @@ class LiteRtEngine {
             }
             val worker = Thread({
                 try {
-                    // sendMessage's callback overloads take Contents (not String);
-                    // Contents.of(text) wraps the plain text. Map = generation options.
-                    convo.sendMessage(Contents.of(text), callback, emptyMap<String, Any>())
+                    // The callback overload of sendMessageAsync streams per token via
+                    // MessageCallback.onMessage (per the LiteRT-LM Android docs:
+                    // conversation.sendMessageAsync(text, callback)). Run on a
+                    // dedicated thread in case it blocks, so the collector stays free.
+                    convo.sendMessageAsync(text, callback)
                 } catch (t: Throwable) {
                     close(t)
                 }
