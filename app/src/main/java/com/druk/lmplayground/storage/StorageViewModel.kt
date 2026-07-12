@@ -309,6 +309,13 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
                             return@forEachIndexed
                         }
 
+                        // createFile may have appended an extension (e.g. ".bin")
+                        // to the requested name, which would hide the model from the
+                        // ".gguf" listing filter. Rename it back so it stays visible.
+                        if (destFile.name != modelFile.name) {
+                            destFile.renameTo(modelFile.name)
+                        }
+
                         successCount++
                     } catch (e: Exception) {
                         failCount++

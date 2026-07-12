@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.104", "Better Gemma 4 downloads, storage fix", listOf(
+        Change(ChangeType.IMPROVED, "The built-in Gemma 4 models (E2B, E4B, 12B) now download Google's official QAT builds, which keep near-full quality at the same size. Versions you already downloaded keep working; the QAT builds are offered for new downloads."),
+        Change(ChangeType.FIX, "Fixed a case where moving your models to a new folder could make one vanish from the list: if the system storage appended a file extension during the copy, the model is now renamed back so it stays visible."),
+    )),
     ChangelogEntry("1.9.103", "More stability and security hardening", listOf(
         Change(ChangeType.FIX, "Gemma 4 (LiteRT) chats no longer lose their context after the first reply. Auto-naming a new chat was quietly rebuilding the model's single shared conversation, which erased the running history and could crash the app if you sent the next message at the same moment. LiteRT chats now keep their full context (they keep the placeholder title instead of an auto-generated one)."),
         Change(ChangeType.FIX, "The calculator tool can no longer crash the app on a pathological expression (thousands of nested parentheses); it returns a clean error instead."),

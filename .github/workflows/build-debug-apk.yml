@@ -145,3 +145,18 @@ jobs:
         name: lmplayground-debug-apk
         path: app/build/outputs/apk/debug/*.apk
         if-no-files-found: error
+
+    # Native debug symbols for the arm64 libs we build (llama.cpp + JNI), so a
+    # native tombstone can be symbolicated locally with ndk-stack. Broad globs so
+    # this survives AGP output-path differences; unstripped merged_native_libs are
+    # the reliable ndk-stack input. The prebuilt LiteRT .so is stripped upstream
+    # and won't appear here. Never fails the build (symbols are a convenience).
+    - name: Upload native debug symbols (arm64)
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-debug-symbols-arm64
+        path: |
+          app/build/outputs/native-debug-symbols/**/*.zip
+          app/build/intermediates/merged_native_libs/**/arm64-v8a/*.so
+        if-no-files-found: warn

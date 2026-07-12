@@ -271,32 +271,68 @@ object ModelInfoProvider {
             logoRes = R.drawable.logo_google,
             supportedLanguages = MULTILINGUAL_BROAD
         ),
+        // Google's official QAT Q4_0 builds preserve near-bf16 quality, unlike the
+        // community Q4_K_M post-training quant. These repos are ungated (verified:
+        // resolve URL 302s to a public CDN), so they download anonymously.
         ModelInfo(
             name = "Gemma 4 E2B",
-            filename = "gemma-4-E2B-it-Q4_K_M.gguf",
-            remoteUri = Uri.parse("https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf"),
+            filename = "gemma-4-E2B_q4_0-it.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/google/gemma-4-E2B-it-qat-q4_0-gguf/resolve/main/gemma-4-E2B_q4_0-it.gguf"),
             releaseDate = LocalDate.parse("2026-03-25"),
-            description = "Google \u00B7 Efficient on-device model \u00B7 3.11Gb",
+            description = "Google \u00B7 QAT on-device model \u00B7 3.35Gb",
             logoRes = R.drawable.logo_google,
             supportedLanguages = MULTILINGUAL_BROAD
         ),
         ModelInfo(
             name = "Gemma 4 E4B",
-            filename = "gemma-4-E4B-it-Q4_K_M.gguf",
-            remoteUri = Uri.parse("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf"),
+            filename = "gemma-4-E4B_q4_0-it.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf/resolve/main/gemma-4-E4B_q4_0-it.gguf"),
             releaseDate = LocalDate.parse("2026-03-25"),
-            description = "Google \u00B7 Efficient on-device model \u00B7 4.98Gb",
+            description = "Google \u00B7 QAT on-device model \u00B7 5.15Gb",
             logoRes = R.drawable.logo_google,
             supportedLanguages = MULTILINGUAL_BROAD
         ),
         ModelInfo(
             name = "Gemma 4 12B",
+            filename = "gemma-4-12b-it-qat-q4_0.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/google/gemma-4-12B-it-qat-q4_0-gguf/resolve/main/gemma-4-12b-it-qat-q4_0.gguf"),
+            releaseDate = LocalDate.parse("2026-06-03"),
+            description = "Google \u00B7 QAT advanced chat model \u00B7 6.98Gb",
+            logoRes = R.drawable.logo_google,
+            supportedLanguages = MULTILINGUAL_BROAD
+        ),
+        // Legacy Q4_K_M builds, superseded by the official QAT Q4_0 above. Kept so
+        // previously-downloaded files keep their identity; not offered for download
+        // (hidden unless present on disk via the `deprecated` flag).
+        ModelInfo(
+            name = "Gemma 4 E2B (Q4_K_M)",
+            filename = "gemma-4-E2B-it-Q4_K_M.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-03-25"),
+            description = "Google \u00B7 Efficient on-device model \u00B7 3.11Gb",
+            logoRes = R.drawable.logo_google,
+            supportedLanguages = MULTILINGUAL_BROAD,
+            deprecated = true
+        ),
+        ModelInfo(
+            name = "Gemma 4 E4B (Q4_K_M)",
+            filename = "gemma-4-E4B-it-Q4_K_M.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-03-25"),
+            description = "Google \u00B7 Efficient on-device model \u00B7 4.98Gb",
+            logoRes = R.drawable.logo_google,
+            supportedLanguages = MULTILINGUAL_BROAD,
+            deprecated = true
+        ),
+        ModelInfo(
+            name = "Gemma 4 12B (Q4_K_M)",
             filename = "gemma-4-12B-it-Q4_K_M.gguf",
             remoteUri = Uri.parse("https://huggingface.co/ggml-org/gemma-4-12B-it-GGUF/resolve/main/gemma-4-12B-it-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-06-03"),
             description = "Google \u00B7 Advanced chat model \u00B7 7.38Gb",
             logoRes = R.drawable.logo_google,
-            supportedLanguages = MULTILINGUAL_BROAD
+            supportedLanguages = MULTILINGUAL_BROAD,
+            deprecated = true
         ),
         ModelInfo(
             name = "Qwen2.5 0.5B",
@@ -390,6 +426,9 @@ object ModelInfoProvider {
         "granite-4.1-3b-Q4_K_M.gguf",
         "granite-4.1-8b-Q4_K_M.gguf",
         "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf",
+        "gemma-4-E2B_q4_0-it.gguf",
+        "gemma-4-E4B_q4_0-it.gguf",
+        "gemma-4-12b-it-qat-q4_0.gguf",
         "gemma-4-E2B-it-Q4_K_M.gguf",
         "gemma-4-E4B-it-Q4_K_M.gguf",
         "gemma-4-12B-it-Q4_K_M.gguf",
@@ -413,6 +452,9 @@ object ModelInfoProvider {
         "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf",
         "Ministral-3-8B-Reasoning-2512-Q4_K_M.gguf",
         "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf",
+        "gemma-4-E2B_q4_0-it.gguf",
+        "gemma-4-E4B_q4_0-it.gguf",
+        "gemma-4-12b-it-qat-q4_0.gguf",
         "gemma-4-E2B-it-Q4_K_M.gguf",
         "gemma-4-E4B-it-Q4_K_M.gguf",
         "gemma-4-12B-it-Q4_K_M.gguf",
@@ -660,6 +702,9 @@ object ModelInfoProvider {
     ): List<ModelWithStatus> {
         val knownModels = allModels
             .sortedByDescending { it.releaseDate }
+            // Deprecated entries are recognized but never offered for download:
+            // only surface them when the file is actually present on disk.
+            .filter { !it.deprecated || it.filename in downloadedFilenames }
             .map { model ->
                 val downloaded = model.filename in downloadedFilenames
                 // Only pair once the model file exists (it must load), and only

@@ -31,6 +31,11 @@ data class ModelInfo(
     // to this model in the storage folder, if one was found. When set, the model
     // can accept images once loaded (the projector is attached at load time).
     val mmprojFilename: String? = null,
+    // Legacy catalog entry kept only so an already-downloaded file is still
+    // recognized (name/logo/description) instead of falling back to a nameless
+    // custom model. Never offered for download: hidden from the list unless the
+    // file is present on disk (see getModelsWithStatus).
+    val deprecated: Boolean = false,
 ) {
     val isCustom: Boolean get() = remoteUri == null
     val isVision: Boolean get() = mmprojFilename != null

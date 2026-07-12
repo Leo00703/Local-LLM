@@ -69,6 +69,11 @@ android {
 
         ndk {
             abiFilters += setOf("arm64-v8a", "x86_64")
+            // Emit a symbol table for our own native libs (llama.cpp + JNI) so a
+            // native tombstone can be symbolicated with ndk-stack. CI uploads the
+            // symbols next to the APK. Note: the prebuilt LiteRT .so from the AAR
+            // is already stripped upstream and won't gain symbols this way.
+            debugSymbolLevel = "SYMBOL_TABLE"
         }
     }
 
@@ -281,6 +286,9 @@ dependencies {
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
+    // Used directly across storage/download (SAF DocumentFile); declared
+    // explicitly instead of relying on a transitive resolution.
+    implementation(libs.androidx.documentfile)
     implementation(libs.androidx.compose.runtime.livedata)
     implementation(libs.androidx.lifecycle.viewModelCompose)
     implementation(libs.androidx.lifecycle.runtime.compose)
