@@ -57,12 +57,12 @@ class WebFetchTool(
             val contentType = (response.header("Content-Type") ?: mediaType?.toString() ?: "").lowercase()
             // Read the body once as bytes (so binary documents can be decoded), but cap
             // it so a huge or hostile response can't OOM the app.
-            val body = response.body ?: return errorJson("Empty response")
-            if (body.contentLength() > MAX_FETCH_BYTES) {
-                body.close()
+            val responseBody = response.body ?: return errorJson("Empty response")
+            if (responseBody.contentLength() > MAX_FETCH_BYTES) {
+                responseBody.close()
                 return errorJson("Response too large")
             }
-            val bytes = body.byteStream().use { readCapped(it, MAX_FETCH_BYTES.toInt()) }
+            val bytes = responseBody.byteStream().use { readCapped(it, MAX_FETCH_BYTES.toInt()) }
 
             val result = JSONObject().put("url", url)
 
