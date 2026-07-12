@@ -24,6 +24,10 @@ class WebFetchTool(
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
         .followRedirects(true)
+        // SSRF guard: added as a NETWORK interceptor so it runs once per hop
+        // (the initial request and every redirect), re-validating the actual
+        // connected address each time.
+        .addNetworkInterceptor(BlockInternalHosts)
         .build()
 
     override fun cancelInFlight() {
@@ -169,5 +173,24 @@ class WebFetchTool(
         private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
         // Cap on the web_fetch response bytes held in memory (docs decode from these).
         private const val MAX_FETCH_BYTES = 16L * 1024 * 1024
+
+        /**
+         * SSRF guard: refuse loopback / any-local / link-local / private-range /
+         * multicast targets on every hop (the first request and each redirect), so
+         * a model driving web_fetch (or an injected instruction inside a fetched
+         * page) cannot reach the device's own services or the LAN. Public web
+         * fetches are unaffected; the remote LAN-server feature uses a separate
+         * OkHttpClient (RemoteOpenAiClient) that is intentionally not filtered.
+         * Checking the connected socket address catches literal-IP hosts and
+         * redirect hops that a hostname-based check would miss.
+         */
+        private val BlockInternalHosts = okhttp3.Interceptor { chain ->
+            val ip = chain.connection()?.socket()?.inetAddress
+            if (ip != null && (ip.isLoopbackAddress || ip.isAnyLocalAddress ||
+                    ip.isLinkLocalAddress || ip.isSiteLocalAddress || ip.isMulticastAddress)) {
+                throw java.io.IOException("Refusing to fetch internal address " + ip.hostAddress)
+            }
+            chain.proceed(chain.request())
+        }
     }
 }

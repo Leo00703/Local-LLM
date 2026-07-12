@@ -49,7 +49,12 @@ class CalculatorTool : Tool {
                 .put("expression", expr)
                 .put("result", format(value))
                 .toString()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Throwable, not Exception: a pathologically nested expression (thousands
+            // of parens / unary minuses) overflows the recursive-descent parser's
+            // stack with a StackOverflowError, which is an Error, not an Exception.
+            // Catching it here returns a clean error instead of crashing the app.
+            // execute() has no suspension points, so this can't swallow cancellation.
             // JSONObject escapes quotes/backslashes/control chars in the parser message.
             JSONObject().put("error", e.message ?: "Could not evaluate the expression").toString()
         }

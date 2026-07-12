@@ -558,6 +558,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             return
         }
         viewModelScope.launch {
+          // Serialize teardown+load under the same lock as the GGUF path so two
+          // model switches can't run concurrently and leave two engines resident.
+          modelLifecycleMutex.withLock {
             _models.postValue(emptyList())
             _isModelReady.postValue(false)
 
@@ -664,6 +667,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             if (sessionId != null) {
                 chatRepository?.updateSessionModel(sessionId, modelInfo.filename, modelInfo.name)
             }
+          }
         }
     }
 
@@ -677,6 +681,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      */
     private fun loadLiteRtModel(modelInfo: ModelInfo) {
         viewModelScope.launch {
+          // Serialize teardown+load under the same lock as the GGUF path so two
+          // reloads (e.g. flipping MTP and context-size during the ~10s load)
+          // can't run concurrently and leave two multi-GB engines resident.
+          modelLifecycleMutex.withLock {
             _models.postValue(emptyList())
             _isModelReady.postValue(false)
 
@@ -852,6 +860,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             if (sessionId != null) {
                 chatRepository?.updateSessionModel(sessionId, modelInfo.filename, modelInfo.name)
             }
+          }
         }
     }
 
@@ -1973,6 +1982,14 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     private fun maybeAutoNameChat(sessionId: String) {
         if (!storagePreferences.autoNameChats) return
         if (_isGenerating.value == true) return
+        // The LiteRT engine holds ONE shared conversation, so the throwaway
+        // createSession() below is NOT independent (unlike the local separate
+        // native session and the stateless remote backend): naming would rebuild
+        // and wipe the live chat's conversation (KV + multi-turn history), and can
+        // race a concurrent user turn on the same engine (two sendMessageAsync, or
+        // a close() during decode -> native crash). Skip auto-naming for LiteRT;
+        // the placeholder title stays.
+        if (isLiteRtModel) return
         val msgs = uiState.messages
         if (msgs.count { it.author == "Assistant" } != 1) return
         val firstUser = msgs.firstOrNull { it.author == "User" }?.content
@@ -3267,15 +3284,24 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     } ?: throw BenchmarkRunner.BenchmarkException(
                         app.getString(com.druk.lmplayground.R.string.benchmark_error_generic)
                     )
-                    val model = withContext(Dispatchers.Default) {
-                        cpp.loadModel(
-                            handle.pfd,
-                            object : LlamaProgressCallback {
-                                override fun onProgress(progress: Float) {}
-                            },
-                            disableRepack = disableRepack,
-                            gpuLayers = if (gpu) 999 else 0,
-                        )
+                    // Close the fd if the native load throws (OOM on a GPU load,
+                    // a corrupt GGUF, or a dead :llama service): loadModel is
+                    // outside the try/finally below, so without this the
+                    // ParcelFileDescriptor would leak until the GC finalizer.
+                    val model = try {
+                        withContext(Dispatchers.Default) {
+                            cpp.loadModel(
+                                handle.pfd,
+                                object : LlamaProgressCallback {
+                                    override fun onProgress(progress: Float) {}
+                                },
+                                disableRepack = disableRepack,
+                                gpuLayers = if (gpu) 999 else 0,
+                            )
+                        }
+                    } catch (t: Throwable) {
+                        handle.close()
+                        throw t
                     }
                     try {
                         val accelerator = runCatching {

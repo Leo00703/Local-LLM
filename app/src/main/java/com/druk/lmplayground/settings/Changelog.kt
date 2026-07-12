@@ -54,6 +54,13 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.103", "More stability and security hardening", listOf(
+        Change(ChangeType.FIX, "Gemma 4 (LiteRT) chats no longer lose their context after the first reply. Auto-naming a new chat was quietly rebuilding the model's single shared conversation, which erased the running history and could crash the app if you sent the next message at the same moment. LiteRT chats now keep their full context (they keep the placeholder title instead of an auto-generated one)."),
+        Change(ChangeType.FIX, "The calculator tool can no longer crash the app on a pathological expression (thousands of nested parentheses); it returns a clean error instead."),
+        Change(ChangeType.FIX, "Switching or reloading a remote or Gemma 4 model is now serialized, so changing two settings in quick succession during a load can no longer leave two models in memory at once and trigger a low-memory kill."),
+        Change(ChangeType.IMPROVED, "Web page fetching now refuses to reach the phone itself or the local network, so a tool-driven model, or an instruction hidden inside a fetched page, cannot be steered at your router or private services."),
+        Change(ChangeType.IMPROVED, "Lighter response rendering: the text-cleanup patterns are now built once instead of on every streamed token."),
+    )),
     ChangelogEntry("1.9.102", "Stability, security and cleanup", listOf(
         Change(ChangeType.FIX, "Hardened file and web-page reading: a malformed or hostile document (a zip-bomb Office file, an oversized spreadsheet, or a huge page a tool fetches) can no longer run the app out of memory."),
         Change(ChangeType.FIX, "Tool results are now always valid JSON, so a calculator error or a search query containing quotes no longer confuses the model."),

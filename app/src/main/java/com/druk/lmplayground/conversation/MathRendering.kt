@@ -137,6 +137,23 @@ private fun toScript(text: String, map: Map<Char, Char>): String {
     return if (map === SUPERSCRIPTS) "^$text" else "_$text"
 }
 
+// Constant patterns for cleanupLatexToText, hoisted out of the function body.
+// MarkdownContent re-parses the whole growing response on every streamed token,
+// invoking cleanupLatexToText for each inline math span, so compiling these
+// inline recompiled ~11 identical Patterns per call, purely as GC churn on the
+// main thread during rendering. Compile them once.
+private val LTX_FONT_WRAPPER = Regex("""\\(?:text|textbf|textit|textrm|texttt|mathrm|mathbf|mathit|mathsf|mathtt|mathcal|mathbb|boldsymbol|operatorname)\s*\{([^{}]*)\}""")
+private val LTX_FRAC = Regex("""\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}""")
+private val LTX_SQRT = Regex("""\\sqrt\s*\{([^{}]*)\}""")
+private val LTX_DELIMS = Regex("""\\(?:left|right|bigl|bigr|biggl|biggr|big|Big|bigg|Bigg)\b""")
+private val LTX_SPACING = Regex("""\\[,;:!]""")
+private val LTX_SUP_BRACE = Regex("""\^\{([^{}]*)\}""")
+private val LTX_SUP_CHAR = Regex("""\^(\w)""")
+private val LTX_SUB_BRACE = Regex("""_\{([^{}]*)\}""")
+private val LTX_SUB_CHAR = Regex("""_(\w)""")
+private val LTX_NAMED_CMD = Regex("""\\([a-zA-Z]+)""")
+private val LTX_MULTI_SPACE = Regex("""[ \t]{2,}""")
+
 /**
  * Best-effort conversion of a LaTeX fragment to readable Unicode text. Used both as
  * the fallback when jlatexmath fails and for inline `$...$` snippets (which read fine
@@ -151,27 +168,26 @@ fun cleanupLatexToText(input: String): String {
     if (s.startsWith("\\(") && s.endsWith("\\)")) s = s.substring(2, s.length - 2)
 
     // Font/format wrappers -> their contents.
-    s = Regex("""\\(?:text|textbf|textit|textrm|texttt|mathrm|mathbf|mathit|mathsf|mathtt|mathcal|mathbb|boldsymbol|operatorname)\s*\{([^{}]*)\}""")
-        .replace(s) { it.groupValues[1] }
+    s = LTX_FONT_WRAPPER.replace(s) { it.groupValues[1] }
     // Fractions and roots.
-    s = Regex("""\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}""").replace(s) { "(${it.groupValues[1]})/(${it.groupValues[2]})" }
-    s = Regex("""\\sqrt\s*\{([^{}]*)\}""").replace(s) { "√(${it.groupValues[1]})" }
+    s = LTX_FRAC.replace(s) { "(${it.groupValues[1]})/(${it.groupValues[2]})" }
+    s = LTX_SQRT.replace(s) { "√(${it.groupValues[1]})" }
     // Delimiters / spacing commands.
-    s = s.replace(Regex("""\\(?:left|right|bigl|bigr|biggl|biggr|big|Big|bigg|Bigg)\b"""), "")
-    s = s.replace(Regex("""\\[,;:!]"""), " ")
+    s = s.replace(LTX_DELIMS, "")
+    s = s.replace(LTX_SPACING, " ")
     s = s.replace("\\\\", " ")
     // Super/sub-scripts.
-    s = Regex("""\^\{([^{}]*)\}""").replace(s) { toScript(it.groupValues[1], SUPERSCRIPTS) }
-    s = Regex("""\^(\w)""").replace(s) { toScript(it.groupValues[1], SUPERSCRIPTS) }
-    s = Regex("""_\{([^{}]*)\}""").replace(s) { toScript(it.groupValues[1], SUBSCRIPTS) }
-    s = Regex("""_(\w)""").replace(s) { toScript(it.groupValues[1], SUBSCRIPTS) }
+    s = LTX_SUP_BRACE.replace(s) { toScript(it.groupValues[1], SUPERSCRIPTS) }
+    s = LTX_SUP_CHAR.replace(s) { toScript(it.groupValues[1], SUPERSCRIPTS) }
+    s = LTX_SUB_BRACE.replace(s) { toScript(it.groupValues[1], SUBSCRIPTS) }
+    s = LTX_SUB_CHAR.replace(s) { toScript(it.groupValues[1], SUBSCRIPTS) }
     // Named commands -> Greek letters / symbols (unknown ones just lose the backslash).
-    s = Regex("""\\([a-zA-Z]+)""").replace(s) { m ->
+    s = LTX_NAMED_CMD.replace(s) { m ->
         val w = m.groupValues[1]
         GREEK[w] ?: SYMBOLS[w] ?: w
     }
     // Leftover grouping braces and tidy whitespace.
     s = s.replace("{", "").replace("}", "")
-    s = s.replace(Regex("""[ \t]{2,}"""), " ").trim()
+    s = s.replace(LTX_MULTI_SPACE, " ").trim()
     return s
 }
