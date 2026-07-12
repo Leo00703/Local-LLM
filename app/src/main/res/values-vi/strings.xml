@@ -125,7 +125,6 @@
     <string name="download_notification_channel">T\u1EA3i m\u00F4 h\u00ECnh</string>
     <string name="download_notification_channel_description">Hi\u1EC3n th\u1ECB ti\u1EBFn tr\u00ECnh t\u1EA3i t\u1EC7p m\u00F4 h\u00ECnh</string>
     <string name="download_complete">T\u1EA3i xu\u1ED1ng ho\u00E0n t\u1EA5t</string>
-    <string name="moving_to_storage">\u0110ang chuy\u1EC3n v\u00E0o b\u1ED9 nh\u1EDB\u2026</string>
     <string name="starting_download">\u0110ang b\u1EAFt \u0111\u1EA7u t\u1EA3i\u2026</string>
     <string name="download_failed">T\u1EA3i xu\u1ED1ng th\u1EA5t b\u1EA1i</string>
     <string name="download_cancelled">\u0110\u00E3 h\u1EE7y t\u1EA3i xu\u1ED1ng</string>

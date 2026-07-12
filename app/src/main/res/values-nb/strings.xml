@@ -144,7 +144,6 @@
     <string name="download_notification_channel">Modellnedlastinger</string>
     <string name="download_notification_channel_description">Viser fremgang for nedlastinger av modellfiler</string>
     <string name="download_complete">Nedlasting fullført</string>
-    <string name="moving_to_storage">Flytter til lagring\u2026</string>
     <string name="starting_download">Starter nedlasting\u2026</string>
     <string name="download_failed">Nedlasting mislyktes</string>
     <string name="download_cancelled">Nedlasting avbrutt</string>

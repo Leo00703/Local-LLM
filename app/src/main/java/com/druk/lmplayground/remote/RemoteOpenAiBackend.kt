@@ -269,7 +269,13 @@ class RemoteOpenAiBackend(
                 val call = client.chatCompletionCall(bodyJson)
                 currentCall = call
                 call.execute().use { response ->
-                    if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+                    if (!response.isSuccessful) {
+                        // Surface the server's error body (OpenAI-compatible JSON:
+                        // bad model id, context length, vision unsupported, ...) so the
+                        // user sees why instead of a bare "HTTP 400". Stream is abandoned.
+                        val err = response.body?.string()?.take(500).orEmpty()
+                        throw IOException("HTTP ${response.code}" + if (err.isNotBlank()) ": $err" else "")
+                    }
                     val source = response.body?.source() ?: throw IOException("empty response body")
                     while (!source.exhausted()) {
                         ensureActive()

@@ -144,7 +144,6 @@
     <string name="download_notification_channel">Modellnedladdningar</string>
     <string name="download_notification_channel_description">Visar förlopp för nedladdning av modellfiler</string>
     <string name="download_complete">Nedladdning klar</string>
-    <string name="moving_to_storage">Flyttar till lagring\u2026</string>
     <string name="starting_download">Startar nedladdning\u2026</string>
     <string name="download_failed">Nedladdning misslyckades</string>
     <string name="download_cancelled">Nedladdning avbruten</string>

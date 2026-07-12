@@ -144,7 +144,6 @@
     <string name="download_notification_channel">Modeldownloads</string>
     <string name="download_notification_channel_description">Viser fremskridt for download af modelfiler</string>
     <string name="download_complete">Download fuldført</string>
-    <string name="moving_to_storage">Flytter til lager\u2026</string>
     <string name="starting_download">Starter download\u2026</string>
     <string name="download_failed">Download mislykkedes</string>
     <string name="download_cancelled">Download annulleret</string>

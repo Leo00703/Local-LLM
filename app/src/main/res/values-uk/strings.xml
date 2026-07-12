@@ -125,7 +125,6 @@
     <string name="download_notification_channel">Завантаження моделей</string>
     <string name="download_notification_channel_description">Показує прогрес завантаження файлів моделей</string>
     <string name="download_complete">Завантаження завершено</string>
-    <string name="moving_to_storage">Переміщення до сховища\u2026</string>
     <string name="starting_download">Початок завантаження\u2026</string>
     <string name="download_failed">Завантаження не вдалося</string>
     <string name="download_cancelled">Завантаження скасовано</string>

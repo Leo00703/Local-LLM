@@ -144,7 +144,6 @@
     <string name="download_notification_channel">הורדות מודלים</string>
     <string name="download_notification_channel_description">מציג את התקדמות הורדת קבצי המודלים</string>
     <string name="download_complete">ההורדה הושלמה</string>
-    <string name="moving_to_storage">מעביר לאחסון\u2026</string>
     <string name="starting_download">מתחיל הורדה\u2026</string>
     <string name="download_failed">ההורדה נכשלה</string>
     <string name="download_cancelled">ההורדה בוטלה</string>

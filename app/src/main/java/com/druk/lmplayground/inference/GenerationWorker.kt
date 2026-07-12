@@ -139,13 +139,6 @@ internal class GenerationWorker(
     }
 
     /**
-     * True until the worker thread has actually returned from its run().
-     * Used by [LlamaService] to refuse to destroy the underlying native
-     * session while it might still be in use.
-     */
-    fun isAlive(): Boolean = thread.isAlive
-
-    /**
      * Wait for the worker thread to exit. Returns `true` if it exited
      * within [timeoutMs], `false` if it's still running.
      *

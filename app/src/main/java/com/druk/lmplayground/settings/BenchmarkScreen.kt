@@ -137,25 +137,27 @@ fun BenchmarkScreen(
                 }
                 Spacer(Modifier.height(16.dp))
 
-                // Dev (temporary): LiteRT-LM proof-of-life. Loads the adb-pushed
-                // Gemma 4 .litertlm on the CPU backend and streams a few tokens to
-                // confirm the second engine actually runs on this device.
-                Button(onClick = onTestLiteRt, modifier = Modifier.fillMaxWidth()) {
-                    Text("Test LiteRT (dev)")
+                // Dev-only (debug builds): LiteRT-LM proof-of-life harness. Loads the
+                // adb-pushed Gemma .litertlm and streams a few tokens. Hidden in release
+                // (it needs an adb push and shows non-localized dev strings).
+                if (com.druk.lmplayground.BuildConfig.DEBUG) {
+                    Button(onClick = onTestLiteRt, modifier = Modifier.fillMaxWidth()) {
+                        Text("Test LiteRT (dev)")
+                    }
+                    if (liteRtChart.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        LiteRtBenchChart(liteRtChart)
+                    }
+                    if (liteRtTest.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = liteRtTest,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
                 }
-                if (liteRtChart.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    LiteRtBenchChart(liteRtChart)
-                }
-                if (liteRtTest.isNotEmpty()) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = liteRtTest,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
 
                 if (compareMode) {
                     BenchmarkComparison(allResults, onSelect = { detailResult = it })

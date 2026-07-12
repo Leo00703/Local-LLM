@@ -125,7 +125,6 @@
     <string name="download_notification_channel">Unduhan Model</string>
     <string name="download_notification_channel_description">Menampilkan progres unduhan file model</string>
     <string name="download_complete">Unduhan selesai</string>
-    <string name="moving_to_storage">Memindahkan ke penyimpanan\u2026</string>
     <string name="starting_download">Memulai unduhan\u2026</string>
     <string name="download_failed">Unduhan gagal</string>
     <string name="download_cancelled">Unduhan dibatalkan</string>

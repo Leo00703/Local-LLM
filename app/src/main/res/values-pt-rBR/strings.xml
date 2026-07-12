@@ -125,7 +125,6 @@
     <string name="download_notification_channel">Downloads de modelos</string>
     <string name="download_notification_channel_description">Mostra o progresso dos downloads de modelos</string>
     <string name="download_complete">Download conclu\u00EDdo</string>
-    <string name="moving_to_storage">Movendo para o armazenamento\u2026</string>
     <string name="starting_download">Iniciando download\u2026</string>
     <string name="download_failed">Falha no download</string>
     <string name="download_cancelled">Download cancelado</string>

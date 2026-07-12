@@ -125,7 +125,6 @@
     <string name="download_notification_channel">モデルのダウンロード</string>
     <string name="download_notification_channel_description">モデルファイルのダウンロード進捗を表示します</string>
     <string name="download_complete">ダウンロード完了</string>
-    <string name="moving_to_storage">ストレージに移動中\u2026</string>
     <string name="starting_download">ダウンロードを開始中\u2026</string>
     <string name="download_failed">ダウンロード失敗</string>
     <string name="download_cancelled">ダウンロードがキャンセルされました</string>

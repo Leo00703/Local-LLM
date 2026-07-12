@@ -50,7 +50,8 @@ class CalculatorTool : Tool {
                 .put("result", format(value))
                 .toString()
         } catch (e: Exception) {
-            """{"error":"${(e.message ?: "Could not evaluate the expression").replace("\"", "'")}"}"""
+            // JSONObject escapes quotes/backslashes/control chars in the parser message.
+            JSONObject().put("error", e.message ?: "Could not evaluate the expression").toString()
         }
     }
 

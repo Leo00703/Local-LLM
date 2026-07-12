@@ -145,7 +145,6 @@
     <string name="download_notification_channel">Model-downloads</string>
     <string name="download_notification_channel_description">Toont voortgang voor downloads van modelbestanden</string>
     <string name="download_complete">Download voltooid</string>
-    <string name="moving_to_storage">Verplaatsen naar opslag\u2026</string>
     <string name="starting_download">Download starten\u2026</string>
     <string name="download_failed">Download mislukt</string>
     <string name="download_cancelled">Download geannuleerd</string>

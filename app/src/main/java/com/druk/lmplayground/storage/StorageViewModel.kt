@@ -287,13 +287,28 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
                             return@forEachIndexed
                         }
                         
-                        // Copy content
-                        context.contentResolver.openOutputStream(destFile.uri)?.use { outputStream ->
+                        // Copy content. A null output stream, a short/truncated copy,
+                        // or an exception must NOT count as success: verify the copied
+                        // size and delete a partial destination so a corrupt model can't
+                        // be counted migrated and go active.
+                        val out = context.contentResolver.openOutputStream(destFile.uri)
+                        if (out == null) {
+                            inputStream.close()
+                            destFile.delete()
+                            failCount++
+                            return@forEachIndexed
+                        }
+                        out.use { outputStream ->
                             inputStream.use { input ->
-                                input.copyTo(outputStream, bufferSize = 8192)
+                                input.copyTo(outputStream, bufferSize = 1 shl 20)
                             }
                         }
-                        
+                        if (destFile.length() != modelFile.sizeBytes) {
+                            destFile.delete()
+                            failCount++
+                            return@forEachIndexed
+                        }
+
                         successCount++
                     } catch (e: Exception) {
                         failCount++
@@ -391,8 +406,6 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
     fun hasValidPermission(): Boolean {
         return repository.hasValidPermission()
     }
-
-    fun getRepository(): StorageRepository = repository
 
     fun downloadModel(model: ModelInfo) {
         if (model.remoteUri == null) return

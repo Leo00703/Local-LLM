@@ -90,18 +90,6 @@ class DownloadNotificationManager(private val context: Context) {
         return builder.build()
     }
 
-    fun buildCopyingNotification(modelName: String): android.app.Notification {
-        return NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle(modelName)
-            .setContentText(context.getString(R.string.moving_to_storage))
-            .setProgress(0, 0, true)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setSilent(true)
-            .build()
-    }
-
     fun buildCompleteNotification(modelName: String): android.app.Notification {
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)

@@ -125,7 +125,6 @@
     <string name="download_notification_channel">T\u00E9l\u00E9chargements de mod\u00E8les</string>
     <string name="download_notification_channel_description">Affiche la progression des t\u00E9l\u00E9chargements de mod\u00E8les</string>
     <string name="download_complete">T\u00E9l\u00E9chargement termin\u00E9</string>
-    <string name="moving_to_storage">D\u00E9placement vers le stockage\u2026</string>
     <string name="starting_download">D\u00E9marrage du t\u00E9l\u00E9chargement\u2026</string>
     <string name="download_failed">\u00C9chec du t\u00E9l\u00E9chargement</string>
     <string name="download_cancelled">T\u00E9l\u00E9chargement annul\u00E9</string>

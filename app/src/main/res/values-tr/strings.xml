@@ -125,7 +125,6 @@
     <string name="download_notification_channel">Model \u0130ndirmeleri</string>
     <string name="download_notification_channel_description">Model dosyalar\u0131n\u0131n indirme ilerlemesini g\u00F6sterir</string>
     <string name="download_complete">\u0130ndirme tamamland\u0131</string>
-    <string name="moving_to_storage">Depolamaya ta\u015F\u0131n\u0131yor\u2026</string>
     <string name="starting_download">\u0130ndirme ba\u015Flat\u0131l\u0131yor\u2026</string>
     <string name="download_failed">\u0130ndirme ba\u015Far\u0131s\u0131z oldu</string>
     <string name="download_cancelled">\u0130ndirme iptal edildi</string>

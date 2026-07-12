@@ -20,7 +20,7 @@ class LlamaModel internal constructor(
 
     override fun supportsThinking(): Boolean = client.withService { it.supportsThinking(modelId) }
 
-    override fun supportsToolCalling(): Boolean = client.requireConnected().supportsToolCalling(modelId)
+    override fun supportsToolCalling(): Boolean = client.withService { it.supportsToolCalling(modelId) }
 
     override fun supportsVision(): Boolean = client.withService { it.supportsVision(modelId) }
 

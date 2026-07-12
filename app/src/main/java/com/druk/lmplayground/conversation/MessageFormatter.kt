@@ -45,11 +45,8 @@ val thinkPattern by lazy {
 }
 
 enum class SymbolAnnotationType {
-    PERSON, LINK
+    LINK
 }
-
-typealias StringAnnotation = AnnotatedString.Range<String>
-typealias SymbolAnnotation = Pair<AnnotatedString, StringAnnotation?>
 
 private val markdownParser by lazy {
     Parser.builder()

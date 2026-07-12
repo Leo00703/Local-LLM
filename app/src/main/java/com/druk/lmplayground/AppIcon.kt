@@ -1,8 +1,6 @@
 package com.druk.lmplayground
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -14,32 +12,10 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.PathParser
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-
-@Composable
-fun AppIcon(
-    contentDescription: String?,
-    modifier: Modifier = Modifier
-) {
-    val semantics = if (contentDescription != null) {
-        Modifier.semantics {
-            this.contentDescription = contentDescription
-            this.role = Role.Image
-        }
-    } else {
-        Modifier
-    }
-    Box(modifier = modifier.then(semantics)) {
-        Image(
-            painter = painterResource(id = R.drawable.penrose_triangle),
-            contentDescription = null
-        )
-    }
-}
 
 // The three Penrose-triangle facets and the group transform, taken verbatim
 // from res/drawable/penrose_triangle.xml (viewport 700×700). Drawn lightest →

@@ -200,7 +200,9 @@ class LiteRtBackend(
         // of the prompt (~chars/4) to approximate completion. The delta itself is real
         // (MTP-accurate), which beats counting emissions (they undercount ~3.7x on MTP).
         val tokEnd = engine.tokenCount()
-        val promptEst = (pendingUserMessage.length + 3) / 4
+        // On a tool-continuation turn the content sent was the tool results, not
+        // pendingUserMessage, so don't subtract a bogus prompt estimate from the count.
+        val promptEst = if (toolResults != null) 0 else (pendingUserMessage.length + 3) / 4
         val completion = (tokEnd - tokBefore - promptEst).coerceAtLeast(emissions).coerceAtLeast(1)
         val ttft = if (firstMs > 0L) (firstMs - tStart).toInt().coerceAtLeast(0) else 0
         val decodeMs = if (firstMs > 0L) (lastMs - firstMs).toInt().coerceAtLeast(0) else 0

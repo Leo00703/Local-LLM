@@ -125,7 +125,6 @@
     <string name="download_notification_channel">Pobieranie modeli</string>
     <string name="download_notification_channel_description">Pokazuje postęp pobierania plików modeli</string>
     <string name="download_complete">Pobieranie zakończone</string>
-    <string name="moving_to_storage">Przenoszenie do pamięci\u2026</string>
     <string name="starting_download">Rozpoczynanie pobierania\u2026</string>
     <string name="download_failed">Pobieranie nie powiodło się</string>
     <string name="download_cancelled">Pobieranie anulowane</string>

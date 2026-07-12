@@ -95,7 +95,7 @@ class DownloadRepository(private val context: Context) {
             if (modelName == null) {
                 val tags = workInfo.tags
                 val nameTag = tags.firstOrNull {
-                    it != DownloadWorker.TAG_MODEL_DOWNLOAD && !it.startsWith("download_")
+                    it != DownloadWorker.TAG_MODEL_DOWNLOAD && it != DownloadWorker::class.java.name
                 }
                 if (nameTag != null) {
                     val status = when (workInfo.state) {

@@ -144,7 +144,6 @@
     <string name="download_notification_channel">Mallien lataukset</string>
     <string name="download_notification_channel_description">Näyttää mallitiedostojen latauksen edistymisen</string>
     <string name="download_complete">Lataus valmis</string>
-    <string name="moving_to_storage">Siirretään tallennustilaan\u2026</string>
     <string name="starting_download">Aloitetaan lataus\u2026</string>
     <string name="download_failed">Lataus epäonnistui</string>
     <string name="download_cancelled">Lataus peruutettu</string>

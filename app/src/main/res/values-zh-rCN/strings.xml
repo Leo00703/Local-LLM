@@ -125,7 +125,6 @@
     <string name="download_notification_channel">模型下载</string>
     <string name="download_notification_channel_description">显示模型文件的下载进度</string>
     <string name="download_complete">下载完成</string>
-    <string name="moving_to_storage">正在移动到存储\u2026</string>
     <string name="starting_download">正在开始下载\u2026</string>
     <string name="download_failed">下载失败</string>
     <string name="download_cancelled">下载已取消</string>

@@ -54,6 +54,12 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.102", "Stability, security and cleanup", listOf(
+        Change(ChangeType.FIX, "Hardened file and web-page reading: a malformed or hostile document (a zip-bomb Office file, an oversized spreadsheet, or a huge page a tool fetches) can no longer run the app out of memory."),
+        Change(ChangeType.FIX, "Tool results are now always valid JSON, so a calculator error or a search query containing quotes no longer confuses the model."),
+        Change(ChangeType.FIX, "Remote server: listing models and warm-up now time out instead of freezing the loading screen if a server accepts the connection but never replies, and the server's own error message is shown instead of a bare HTTP code."),
+        Change(ChangeType.IMPROVED, "Internal cleanup: removed leftover template code and unused resources to slim the app, with no change to how it works."),
+    )),
     ChangelogEntry("1.9.101", "Gemma 4: image input", listOf(
         Change(ChangeType.NEW, "Gemma 4 (LiteRT) E2B and E4B can now see images. Attach a photo or take one and ask about it, the same as the other vision models. Vision turns on automatically when there is enough free memory for the image encoder; on a tight-memory device the model still loads for text and the attach button stays hidden."),
     )),

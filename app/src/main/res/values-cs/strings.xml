@@ -145,7 +145,6 @@
     <string name="download_notification_channel">Stahování modelů</string>
     <string name="download_notification_channel_description">Zobrazuje průběh stahování souborů modelů</string>
     <string name="download_complete">Stahování dokončeno</string>
-    <string name="moving_to_storage">Přesouvám do úložiště\u2026</string>
     <string name="starting_download">Spouštím stahování\u2026</string>
     <string name="download_failed">Stahování selhalo</string>
     <string name="download_cancelled">Stahování zrušeno</string>

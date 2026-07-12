@@ -45,6 +45,12 @@ sealed interface FileExtractionResult {
 object FileTextExtractor {
 
     private const val MAX_TEXT_CHARS = 1_000_000
+    // Hard ceiling on decompressed/raw BYTES read into memory from one file, so a
+    // zip-bomb (a tiny .docx/.xlsx that inflates to gigabytes) or a huge HTML file
+    // can't OOM-crash the app. Well above any real document's text payload.
+    private const val MAX_FILE_BYTES = 64 * 1024 * 1024
+    // Excel's last column is XFD = index 16383 (0-based); anything larger is invalid.
+    private const val MAX_XLSX_COL = 16383
 
     /** PdfBox needs a one-time resource-loader init before the first document load. */
     @Volatile
@@ -161,17 +167,40 @@ object FileTextExtractor {
         keep: (String) -> Boolean,
     ): Map<String, ByteArray> {
         val out = LinkedHashMap<String, ByteArray>()
+        // Total decompressed-bytes budget across the kept entries. Reading only up to
+        // the remaining budget (and stopping once exhausted) bounds memory even if an
+        // entry claims to inflate to gigabytes (zip bomb).
+        var budget = MAX_FILE_BYTES
         context.contentResolver.openInputStream(uri)?.use { raw ->
             ZipInputStream(raw.buffered()).use { zip ->
                 var e: ZipEntry? = zip.nextEntry
                 while (e != null) {
-                    if (!e.isDirectory && keep(e.name)) out[e.name] = zip.readBytes()
+                    if (!e.isDirectory && keep(e.name)) {
+                        val bytes = readBytesCapped(zip, budget)
+                        out[e.name] = bytes
+                        budget -= bytes.size
+                        if (budget <= 0) break
+                    }
                     zip.closeEntry()
                     e = zip.nextEntry
                 }
             }
         }
         return out
+    }
+
+    /** Read at most [cap] bytes from [input] into memory; bounds OOM on hostile input. */
+    private fun readBytesCapped(input: java.io.InputStream, cap: Int): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(64 * 1024)
+        var remaining = cap
+        while (remaining > 0) {
+            val n = input.read(buf, 0, minOf(buf.size, remaining))
+            if (n < 0) break
+            out.write(buf, 0, n)
+            remaining -= n
+        }
+        return out.toByteArray()
     }
 
     // OOXML tags are namespaced (w:t, a:t); the XML parser preserves them (the HTML
@@ -246,14 +275,17 @@ object FileTextExtractor {
                 val byCol = HashMap<Int, String>()
                 var maxCol = -1
                 for (c in row.getElementsByTag("c")) {
+                    // A malformed/hostile r="…" can encode a column far beyond Excel's
+                    // max; reject it (fall back to the next sequential column) so the
+                    // (0..maxCol) join below can't allocate a 100M-element range.
                     val col = c.attr("r").takeIf { it.isNotEmpty() }
-                        ?.let { columnIndex(it) } ?: (maxCol + 1)
-                    if (col >= 0) {
+                        ?.let { columnIndex(it) }?.takeIf { it in 0..MAX_XLSX_COL } ?: (maxCol + 1)
+                    if (col in 0..MAX_XLSX_COL) {
                         byCol[col] = cellText(c, shared)
                         if (col > maxCol) maxCol = col
                     }
                 }
-                sb.append((0..maxCol).joinToString("\t") { byCol[it].orEmpty() })
+                sb.append((0..maxCol.coerceAtMost(MAX_XLSX_COL)).joinToString("\t") { byCol[it].orEmpty() })
                 sb.append('\n')
                 if (sb.length > MAX_TEXT_CHARS) break
             }
@@ -269,6 +301,8 @@ object FileTextExtractor {
             val u = ch.uppercaseChar()
             if (u !in 'A'..'Z') break
             idx = idx * 26 + (u - 'A' + 1)
+            // Stop well before Int overflow once already past Excel's max column.
+            if (idx > MAX_XLSX_COL + 2) break
         }
         return idx - 1
     }
@@ -411,7 +445,7 @@ object FileTextExtractor {
     }
 
     private fun extractHtml(context: Context, uri: Uri, name: String): FileExtractionResult {
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        val bytes = context.contentResolver.openInputStream(uri)?.use { readBytesCapped(it, MAX_FILE_BYTES) }
             ?: return FileExtractionResult.Failure("cannot open file")
         // Jsoup auto-detects the charset from the document; null lets it decide.
         val doc = Jsoup.parse(bytes.inputStream(), null, "")

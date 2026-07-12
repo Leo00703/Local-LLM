@@ -125,7 +125,6 @@
     <string name="download_notification_channel">모델 다운로드</string>
     <string name="download_notification_channel_description">모델 파일 다운로드 진행 상황을 표시합니다</string>
     <string name="download_complete">다운로드 완료</string>
-    <string name="moving_to_storage">저장소로 이동 중\u2026</string>
     <string name="starting_download">다운로드 시작 중\u2026</string>
     <string name="download_failed">다운로드 실패</string>
     <string name="download_cancelled">다운로드가 취소되었습니다</string>

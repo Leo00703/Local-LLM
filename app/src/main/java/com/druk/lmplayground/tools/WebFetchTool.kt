@@ -55,8 +55,14 @@ class WebFetchTool(
             val response = client.newCall(request).execute()
             val mediaType = response.body?.contentType()
             val contentType = (response.header("Content-Type") ?: mediaType?.toString() ?: "").lowercase()
-            // Read the body once as bytes so binary documents can be decoded.
-            val bytes = response.body?.bytes() ?: return errorJson("Empty response")
+            // Read the body once as bytes (so binary documents can be decoded), but cap
+            // it so a huge or hostile response can't OOM the app.
+            val body = response.body ?: return errorJson("Empty response")
+            if (body.contentLength() > MAX_FETCH_BYTES) {
+                body.close()
+                return errorJson("Response too large")
+            }
+            val bytes = body.byteStream().use { readCapped(it, MAX_FETCH_BYTES.toInt()) }
 
             val result = JSONObject().put("url", url)
 
@@ -140,12 +146,28 @@ class WebFetchTool(
             .takeIf { it.length in 1..5 } ?: "bin"
     }
 
-    private fun errorJson(message: String): String {
-        return """{"error":"${message.replace("\"", "'")}"}"""
+    // JSONObject escapes quotes/backslashes/newlines/control chars in the message.
+    private fun errorJson(message: String): String =
+        JSONObject().put("error", message).toString()
+
+    /** Read at most [cap] bytes from [input] into memory; bounds OOM on hostile responses. */
+    private fun readCapped(input: java.io.InputStream, cap: Int): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(64 * 1024)
+        var remaining = cap
+        while (remaining > 0) {
+            val n = input.read(buf, 0, minOf(buf.size, remaining))
+            if (n < 0) break
+            out.write(buf, 0, n)
+            remaining -= n
+        }
+        return out.toByteArray()
     }
 
     companion object {
         private val DOC_EXTS = listOf(".pdf", ".docx", ".xlsx", ".pptx", ".odt", ".rtf", ".epub")
         private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+        // Cap on the web_fetch response bytes held in memory (docs decode from these).
+        private const val MAX_FETCH_BYTES = 16L * 1024 * 1024
     }
 }

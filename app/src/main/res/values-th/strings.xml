@@ -144,7 +144,6 @@
     <string name="download_notification_channel">การดาวน์โหลดโมเดล</string>
     <string name="download_notification_channel_description">แสดงความคืบหน้าในการดาวน์โหลดไฟล์โมเดล</string>
     <string name="download_complete">ดาวน์โหลดเสร็จสมบูรณ์</string>
-    <string name="moving_to_storage">กำลังย้ายไปที่พื้นที่จัดเก็บ\u2026</string>
     <string name="starting_download">กำลังเริ่มดาวน์โหลด\u2026</string>
     <string name="download_failed">การดาวน์โหลดล้มเหลว</string>
     <string name="download_cancelled">ยกเลิกการดาวน์โหลดแล้ว</string>

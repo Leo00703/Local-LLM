@@ -51,11 +51,20 @@ class RemoteOpenAiClient(baseUrl: String) {
         .callTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    // Warm-up POST can legitimately take a while (cold model load) but must not hang
+    // forever if the server accepts then wedges: a generous but FINITE call timeout.
+    private val warmupHttp: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(120, TimeUnit.SECONDS)
+        .build()
+
     /** GET /v1/models → list of model ids. Empty on any failure. */
     suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url("$base/v1/models").get().build()
-            http.newCall(request).execute().use { response ->
+            // Short control call: use the bounded client so a half-open socket can't
+            // hang the remote-models spinner forever (http has no read timeout).
+            controlHttp.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
                 val body = response.body?.string() ?: return@withContext emptyList()
                 val data = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
@@ -83,7 +92,7 @@ class RemoteOpenAiClient(baseUrl: String) {
                 put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", ".")))
             }.toString().toRequestBody("application/json".toMediaType())
             val request = Request.Builder().url("$base/v1/chat/completions").post(body).build()
-            http.newCall(request).execute().use { it.isSuccessful }
+            warmupHttp.newCall(request).execute().use { it.isSuccessful }
         } catch (_: Exception) {
             false
         }

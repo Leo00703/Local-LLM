@@ -125,7 +125,6 @@
     <string name="download_notification_channel">Desc\u0103rc\u0103ri de modele</string>
     <string name="download_notification_channel_description">Afi\u015Feaz\u0103 progresul desc\u0103rc\u0103rilor de modele</string>
     <string name="download_complete">Desc\u0103rcare finalizat\u0103</string>
-    <string name="moving_to_storage">Mutare \u00EEn stocare\u2026</string>
     <string name="starting_download">Pornire desc\u0103rcare\u2026</string>
     <string name="download_failed">Desc\u0103rcarea a e\u015Fuat</string>
     <string name="download_cancelled">Desc\u0103rcare anulat\u0103</string>
