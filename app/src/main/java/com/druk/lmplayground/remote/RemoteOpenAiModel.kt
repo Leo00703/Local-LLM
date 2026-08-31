@@ -13,9 +13,10 @@ class RemoteOpenAiModel(
     private val baseUrl: String,
     private val modelId: String,
     private val maxContext: Int = DEFAULT_CONTEXT,
+    private val apiKey: String? = null,
 ) : GenerationModel {
 
-    private val client = RemoteOpenAiClient(baseUrl)
+    private val client = RemoteOpenAiClient(baseUrl, apiKey)
 
     override fun getModelSize(): Long = 0L
 

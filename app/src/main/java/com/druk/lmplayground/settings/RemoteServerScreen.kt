@@ -46,11 +46,13 @@ import com.druk.lmplayground.remote.FoundServer
 fun RemoteServerScreen(
     serverName: String,
     serverUrl: String,
+    apiKey: String,
     enabled: Boolean,
     scanning: Boolean,
     foundServers: List<FoundServer>,
     onNameChange: (String) -> Unit,
     onUrlChange: (String) -> Unit,
+    onApiKeyChange: (String) -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onScan: () -> Unit,
     onUseServer: (FoundServer) -> Unit,
@@ -74,11 +76,13 @@ fun RemoteServerScreen(
         RemoteServerContent(
             serverName = serverName,
             serverUrl = serverUrl,
+            apiKey = apiKey,
             enabled = enabled,
             scanning = scanning,
             foundServers = foundServers,
             onNameChange = onNameChange,
             onUrlChange = onUrlChange,
+            onApiKeyChange = onApiKeyChange,
             onEnabledChange = onEnabledChange,
             onScan = onScan,
             onUseServer = onUseServer,
@@ -93,11 +97,13 @@ fun RemoteServerScreen(
 fun RemoteServerContent(
     serverName: String,
     serverUrl: String,
+    apiKey: String,
     enabled: Boolean,
     scanning: Boolean,
     foundServers: List<FoundServer>,
     onNameChange: (String) -> Unit,
     onUrlChange: (String) -> Unit,
+    onApiKeyChange: (String) -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onScan: () -> Unit,
     onUseServer: (FoundServer) -> Unit,
@@ -157,6 +163,19 @@ fun RemoteServerContent(
             placeholder = { Text(stringResource(R.string.server_url_hint)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+
+        // Optional API key — only llama.cpp servers started with --api-key need one.
+        OutlinedTextField(
+            value = apiKey,
+            onValueChange = onApiKeyChange,
+            label = { Text(stringResource(R.string.server_api_key)) },
+            placeholder = { Text(stringResource(R.string.server_api_key_hint)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),

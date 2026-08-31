@@ -28,17 +28,20 @@ class RemoteServerFragment : Fragment() {
             PlaygroundTheme {
                 val serverName by viewModel.serverName.observeAsState("")
                 val serverUrl by viewModel.serverUrl.observeAsState("")
+                val apiKey by viewModel.apiKey.observeAsState("")
                 val enabled by viewModel.enabled.observeAsState(false)
                 val scanning by viewModel.scanning.observeAsState(false)
                 val foundServers by viewModel.foundServers.observeAsState(emptyList())
                 RemoteServerScreen(
                     serverName = serverName,
                     serverUrl = serverUrl,
+                    apiKey = apiKey,
                     enabled = enabled,
                     scanning = scanning,
                     foundServers = foundServers,
                     onNameChange = { viewModel.setServerName(it) },
                     onUrlChange = { viewModel.setServerUrl(it) },
+                    onApiKeyChange = { viewModel.setApiKey(it) },
                     onEnabledChange = { viewModel.setEnabled(it) },
                     onScan = { viewModel.scan() },
                     onUseServer = { viewModel.useServer(it) },

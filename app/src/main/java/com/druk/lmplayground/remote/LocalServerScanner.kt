@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
  * @param label short human label, e.g. `192.168.1.42:1234`
  * @param modelCount number of models the server advertised via `/v1/models`
  * @param firstModel id of the first advertised model, or null
- * @param serverType detected server software: "LM Studio", "Ollama", or "OpenAI"
+ * @param serverType detected server software: "LM Studio", "Ollama", "llama.cpp", or "OpenAI"
  */
 data class FoundServer(
     val url: String,
@@ -34,9 +34,10 @@ data class FoundServer(
 
 /**
  * Discovers OpenAI-compatible inference servers on the phone's WiFi subnet by
- * actively probing the well-known ports (LM Studio 1234, Ollama 11434) with a
- * short-timeout `GET /v1/models`. mDNS/NSD is not used because neither LM
- * Studio nor Ollama advertise themselves over Bonjour by default.
+ * actively probing the well-known ports (LM Studio 1234, Ollama 11434,
+ * llama.cpp 8080 and the 9931 port llama.cpp is moving to) with a
+ * short-timeout `GET /v1/models`. mDNS/NSD is not used because none of the
+ * three advertise themselves over Bonjour by default.
  *
  * Pure Kotlin + OkHttp; safe to call from a coroutine. Returns the servers
  * that answered, sorted by address.
@@ -85,7 +86,7 @@ class LocalServerScanner {
                     label = "$ip:$port",
                     modelCount = data.length(),
                     firstModel = first,
-                    serverType = detectType(ip, port),
+                    serverType = detectType(ip, port, body),
                 )
             }
         } catch (_: Exception) {
@@ -105,14 +106,20 @@ class LocalServerScanner {
      * response *body shape* — Ollama's `/api/tags` is `{"models":[...]}`, while
      * LM Studio's native `/api/v0|v1/models` is `{"data":[...]}` — and probe the
      * LM Studio endpoints first (Ollama genuinely 404s on those).
+     *
+     * llama.cpp is identified from [modelsBody] itself (no extra request): its
+     * `/v1/models` entries carry `owned_by: "llamacpp"`, checked first because
+     * the body is otherwise the same plain `data` array shape as LM Studio's.
      */
-    private fun detectType(ip: String, port: Int): String {
+    private fun detectType(ip: String, port: Int, modelsBody: String): String {
         val host = "http://$ip:$port"
         return when {
+            modelsBody.contains("\"llamacpp\"") -> "llama.cpp"
             getJsonHasArray("$host/api/v0/models", "data") ||
                 getJsonHasArray("$host/api/v1/models", "data") -> "LM Studio"
             getJsonHasArray("$host/api/tags", "models") -> "Ollama"   // Ollama native
             port == 11434 -> "Ollama"
+            port == 8080 || port == 9931 -> "llama.cpp"
             port == 1234 -> "LM Studio"
             else -> "OpenAI"
         }
@@ -150,6 +157,8 @@ class LocalServerScanner {
         const val TAG = "LocalServerScanner"
         const val SCAN_TIMEOUT_MS = 600L
         const val MAX_CONCURRENT = 64
-        val KNOWN_PORTS = intArrayOf(1234, 11434)
+        // 8080 is llama.cpp's current default port; 9931 is the port its
+        // source warns will become the default in a future release.
+        val KNOWN_PORTS = intArrayOf(1234, 11434, 8080, 9931)
     }
 }

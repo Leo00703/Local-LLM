@@ -387,17 +387,20 @@ class SettingsFragment : Fragment() {
     private fun RemoteServerDetailPane() {
         val serverName by remoteServerViewModel.serverName.observeAsState("")
         val serverUrl by remoteServerViewModel.serverUrl.observeAsState("")
+        val apiKey by remoteServerViewModel.apiKey.observeAsState("")
         val enabled by remoteServerViewModel.enabled.observeAsState(false)
         val scanning by remoteServerViewModel.scanning.observeAsState(false)
         val foundServers by remoteServerViewModel.foundServers.observeAsState(emptyList())
         RemoteServerContent(
             serverName = serverName,
             serverUrl = serverUrl,
+            apiKey = apiKey,
             enabled = enabled,
             scanning = scanning,
             foundServers = foundServers,
             onNameChange = { remoteServerViewModel.setServerName(it) },
             onUrlChange = { remoteServerViewModel.setServerUrl(it) },
+            onApiKeyChange = { remoteServerViewModel.setApiKey(it) },
             onEnabledChange = { remoteServerViewModel.setEnabled(it) },
             onScan = { remoteServerViewModel.scan() },
             onUseServer = { remoteServerViewModel.useServer(it) },

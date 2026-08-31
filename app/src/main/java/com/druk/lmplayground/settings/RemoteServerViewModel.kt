@@ -27,6 +27,9 @@ class RemoteServerViewModel(app: Application) : AndroidViewModel(app) {
     private val _serverUrl = MutableLiveData(prefs.remoteServerUrl.orEmpty())
     val serverUrl: LiveData<String> = _serverUrl
 
+    private val _apiKey = MutableLiveData(prefs.remoteServerApiKey.orEmpty())
+    val apiKey: LiveData<String> = _apiKey
+
     private val _enabled = MutableLiveData(prefs.remoteServerEnabled)
     val enabled: LiveData<Boolean> = _enabled
 
@@ -44,6 +47,11 @@ class RemoteServerViewModel(app: Application) : AndroidViewModel(app) {
     fun setServerUrl(value: String) {
         _serverUrl.value = value
         prefs.remoteServerUrl = value.trim().ifEmpty { null }
+    }
+
+    fun setApiKey(value: String) {
+        _apiKey.value = value
+        prefs.remoteServerApiKey = value.trim().ifEmpty { null }
     }
 
     fun setEnabled(value: Boolean) {

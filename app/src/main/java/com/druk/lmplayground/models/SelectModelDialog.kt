@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.Image
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
@@ -346,6 +347,7 @@ private fun RemoteServerHeader(
     val logoRes = when (serverType) {
         "LM Studio" -> R.drawable.logo_lmstudio
         "Ollama" -> R.drawable.logo_ollama
+        "llama.cpp" -> R.drawable.logo_llamacpp
         else -> 0
     }
     Row(
@@ -362,6 +364,11 @@ private fun RemoteServerHeader(
             Image(
                 painter = painterResource(id = logoRes),
                 contentDescription = null,
+                // The llama.cpp mark is a monochrome vector: tint it with the
+                // theme's foreground so it stays visible in both light and dark.
+                colorFilter = if (serverType == "llama.cpp") {
+                    ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                } else null,
                 modifier = Modifier
                     .size(28.dp)
                     .clip(logoShape),

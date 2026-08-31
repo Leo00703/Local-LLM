@@ -250,11 +250,13 @@
     <string name="folder_empty_hint">No chats here yet. Start a new chat to add one.</string>
     <string name="folder_new_chat_hint">New chat in this folder</string>
     <string name="remote_server">Remote server</string>
-    <string name="remote_server_subtitle">Use LM Studio / Ollama on your network</string>
+    <string name="remote_server_subtitle">Use LM Studio / Ollama / llama.cpp on your network</string>
     <string name="use_remote_server_title">Use remote server</string>
     <string name="use_remote_server_desc">Route chats to the configured server instead of an on-device model.</string>
     <string name="server_url">Server URL</string>
     <string name="server_url_hint">http://192.168.1.42:1234</string>
+    <string name="server_api_key">API key</string>
+    <string name="server_api_key_hint">Optional — only if the server was started with a key</string>
     <string name="server_model">Model</string>
     <string name="server_model_hint">e.g. qwen2.5-7b-instruct</string>
     <string name="scan_network">Scan network</string>

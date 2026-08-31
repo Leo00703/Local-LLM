@@ -538,7 +538,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         if (_remoteModelsLoading.value == true) return
         _remoteModelsLoading.postValue(true)
         viewModelScope.launch {
-            val models = RemoteOpenAiClient(url).listModels()
+            val models = RemoteOpenAiClient(url, storagePreferences.remoteServerApiKey).listModels()
             _remoteModels.postValue(models)
             _remoteModelsLoading.postValue(false)
         }
@@ -551,6 +551,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      */
     fun loadRemoteModel(modelId: String) {
         val url = storagePreferences.remoteServerUrl
+        val apiKey = storagePreferences.remoteServerApiKey
         if (url.isNullOrBlank()) {
             _userError.postValue(
                 app.getString(com.druk.lmplayground.R.string.remote_server_not_configured)
@@ -582,7 +583,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
             // Read the server model's real metadata (context window, quant, …)
             // so the context ring and the details card are accurate.
-            val details = RemoteOpenAiClient(url).fetchModelDetails(modelId)
+            val details = RemoteOpenAiClient(url, apiKey).fetchModelDetails(modelId)
             _serverModelDetails.postValue(details)
             val maxContext = details?.maxContext?.takeIf { it > 0 }
                 ?: RemoteOpenAiModel.DEFAULT_CONTEXT
@@ -601,19 +602,23 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // Keep the thinking toggle available for remote models; enableThinking
             // is forwarded to the server as chat_template_kwargs when disabled.
             _supportsThinking.postValue(true)
+            // Servers that report capabilities explicitly (Ollama /api/show,
+            // llama.cpp /props) gate tools and vision on them. LM Studio reports
+            // none at all, so an empty list is "unknown" -> allow, and the server
+            // rejects unsupported requests rather than hide the option for every
+            // model (e.g. a llama.cpp server started without --jinja has no tool
+            // calling).
+            val caps = details?.capabilities ?: emptyList()
+            val hasCap: (String) -> Boolean = { c ->
+                caps.isEmpty() || caps.any { it.equals(c, ignoreCase = true) }
+            }
             // OpenAI-compatible servers accept the `tools` param; the same VM tool
             // loop drives RemoteOpenAiBackend (tools only sent when the user enables
             // them, so non-tool models are unaffected by default).
-            _supportsToolCalling.postValue(true)
+            _supportsToolCalling.postValue(hasCap("tools"))
             // Remote vision: the image is sent to the server as a base64 image_url
-            // part (no on-device projector). Ollama reports `capabilities` via
-            // /api/show, so gate on "vision" there; LM Studio doesn't report them
-            // at all, so an empty list is "unknown" -> allow attaching and let the
-            // server reject a non-vision model, rather than hide the option for
-            // every LM Studio model.
-            val caps = details?.capabilities ?: emptyList()
-            val remoteVision = caps.isEmpty() || caps.any { it.equals("vision", ignoreCase = true) }
-            _supportsVision.postValue(remoteVision)
+            // part (no on-device projector).
+            _supportsVision.postValue(hasCap("vision"))
             // Compute backend is a local (on-device) concept; the server owns its own.
             _computeBackend.postValue(null)
             _toolEnabledStates.postValue(emptyMap())
@@ -626,7 +631,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _contextUsedTokens.postValue(0)
             _sessionModelHint.postValue(null)
 
-            val model = RemoteOpenAiModel(url, modelId, maxContext)
+            val model = RemoteOpenAiModel(url, modelId, maxContext, apiKey)
             val effectiveSystemPrompt = composeSystemPrompt("")
             currentEffectiveSystemPrompt = effectiveSystemPrompt
             val session = model.createSession(
@@ -657,7 +662,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     kotlinx.coroutines.delay(100)
                 }
             }
-            withContext(Dispatchers.IO) { RemoteOpenAiClient(url).warmUp(modelId) }
+            withContext(Dispatchers.IO) { RemoteOpenAiClient(url, apiKey).warmUp(modelId) }
             progressJob.cancel()
             _modelLoadingProgress.postValue(0f)
             _loadedModelStatus.postValue(host)

@@ -97,7 +97,7 @@ class StoragePreferences(context: Context) {
         get() = prefs.getString("remote_server_name", null)
         set(value) = prefs.edit { putString("remote_server_name", value) }
 
-    /** Detected server software ("LM Studio" / "Ollama" / "OpenAI"), for its logo. */
+    /** Detected server software ("LM Studio" / "Ollama" / "llama.cpp" / "OpenAI"), for its logo. */
     var remoteServerType: String?
         get() = prefs.getString("remote_server_type", null)
         set(value) = prefs.edit { putString("remote_server_type", value) }
@@ -106,6 +106,12 @@ class StoragePreferences(context: Context) {
     var remoteServerUrl: String?
         get() = prefs.getString("remote_server_url", null)
         set(value) = prefs.edit { putString("remote_server_url", value) }
+
+    /** Optional API key sent as `Authorization: Bearer <key>` — only servers
+     *  started with a key (llama.cpp `--api-key`) need one. Null = unset. */
+    var remoteServerApiKey: String?
+        get() = prefs.getString("remote_server_api_key", null)
+        set(value) = prefs.edit { putString("remote_server_api_key", value) }
 
     /** Model id to request from the remote server. Null = unset. */
     var remoteServerModel: String?
