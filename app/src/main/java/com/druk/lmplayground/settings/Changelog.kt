@@ -54,6 +54,16 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.106", "llama.cpp server fixes", listOf(
+        Change(ChangeType.FIX, "Chatting with a llama.cpp server no longer prints the word \"null\" at the start of the model's replies and after tool calls: the server's empty placeholder chunks were being read as text and are now ignored."),
+        Change(ChangeType.DESIGN, "The llama.cpp icon in the model picker now shows the full logo in its native square shape instead of being cropped to a circle."),
+    )),
+    ChangelogEntry("1.9.105", "llama.cpp remote server", listOf(
+        Change(ChangeType.NEW, "Chat with llama.cpp (llama-server) models running on your PC or another device: the network scan now finds llama.cpp servers the same way it finds LM Studio and Ollama, and you can chat with them like any other remote model (streaming replies, tools, thinking, and image input for vision models)."),
+        Change(ChangeType.NEW, "A llama.cpp server's model list now shows each model's real details: quantization, context size, and parameter count (for example 7.6B), read from the server itself."),
+        Change(ChangeType.NEW, "New optional API key field in the remote server settings, only needed if you started the server with an API key (--api-key)."),
+        Change(ChangeType.IMPROVED, "For remote models, the Tools tab now appears only when the server reports that the model can use tools, so a model without tool support no longer fails mid-conversation."),
+    )),
     ChangelogEntry("1.9.104", "Better Gemma 4 downloads, storage fix", listOf(
         Change(ChangeType.IMPROVED, "The built-in Gemma 4 models (E2B, E4B, 12B) now download Google's official QAT builds, which keep near-full quality at the same size. Versions you already downloaded keep working; the QAT builds are offered for new downloads."),
         Change(ChangeType.FIX, "Fixed a case where moving your models to a new folder could make one vanish from the list: if the system storage appended a file extension during the copy, the model is now renamed back so it stays visible."),

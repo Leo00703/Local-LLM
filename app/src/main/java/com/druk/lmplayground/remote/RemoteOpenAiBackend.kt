@@ -165,6 +165,20 @@ class RemoteOpenAiBackend(
         currentCall?.cancel()
     }
 
+    /**
+     * Null-safe delta text. [JSONObject.optString] returns the literal string
+     * "null" when the key is present with an explicit JSON null — which is what
+     * llama-server streams in its role-only and tool-call chunks ("content":
+     * null, "reasoning_content": null) — and that was prepended to every
+     * streamed phrase. Only a real JSON string counts as text; absent keys and
+     * explicit nulls both read as "".
+     */
+    private fun JSONObject?.optText(key: String): String =
+        when (val v = this?.opt(key)) {
+            is String -> v
+            else -> ""
+        }
+
     /** Combine streamed reasoning + answer into the app's `<think>…</think>answer` form. */
     private fun render(reasoning: StringBuilder, content: StringBuilder): String =
         if (reasoning.isNotEmpty()) {
@@ -296,9 +310,8 @@ class RemoteOpenAiBackend(
                             completionTokens = u.optInt("completion_tokens", completionTokens)
                         }
                         val delta = obj.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("delta")
-                        val reason = delta?.optString("reasoning_content").orEmpty()
-                            .ifEmpty { delta?.optString("reasoning").orEmpty() }
-                        val text = delta?.optString("content").orEmpty()
+                        val reason = delta.optText("reasoning_content").ifEmpty { delta.optText("reasoning") }
+                        val text = delta.optText("content")
                         if (reason.isNotEmpty() || text.isNotEmpty()) {
                             if (firstTokenMs == 0L) firstTokenMs = System.currentTimeMillis()
                             if (reason.isNotEmpty()) reasoning.append(reason)

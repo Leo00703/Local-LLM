@@ -1,9 +1,10 @@
 <!--
   Official llama.cpp icon (ggml-org/llama.brand, icon/icon-light.svg, MIT).
   Two angular marks split diagonally across the full 600x600 square; the UI
-  crops it to a 28dp circle (see SelectModelDialog.RemoteServerHeader) and
-  tints it with the theme's onSurface color, so the solid #111 fill below is
-  only a fallback for non-tinted usages.
+  shows it at 28dp in its native square shape, clipped to a rounded square
+  (see SelectModelDialog.RemoteServerHeader) and tinted with the theme's
+  onSurface color, so the solid #111 fill below is only a fallback for
+  non-tinted usages.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"

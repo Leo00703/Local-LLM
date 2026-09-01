@@ -358,9 +358,16 @@ private fun RemoteServerHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (logoRes != 0) {
-            // LM Studio's mark is a rounded square — keep its native shape
-            // rather than clipping it to a circle like the round Ollama mark.
-            val logoShape = if (serverType == "LM Studio") RoundedCornerShape(7.dp) else CircleShape
+            // The LM Studio and llama.cpp marks are square (llama.cpp's is the
+            // two-shard negative-space llama filling the full frame) — keep
+            // their native shape with a rounded-square clip rather than
+            // clipping to a circle like the round Ollama mark, which would
+            // crop the corners of the square marks.
+            val logoShape = if (serverType == "LM Studio" || serverType == "llama.cpp") {
+                RoundedCornerShape(7.dp)
+            } else {
+                CircleShape
+            }
             Image(
                 painter = painterResource(id = logoRes),
                 contentDescription = null,
