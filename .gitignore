@@ -37,8 +37,6 @@ app/src/main/cpp/clblast
 app/release
 android-commandlinetools.zip
 
-AGENTS.md
-
 # Fastlane
 fastlane/report.xml
 fastlane/README.md
