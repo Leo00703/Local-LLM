@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.108", "Emoji and vision stability", listOf(
+        Change(ChangeType.FIX, "Fixed a crash that could close the app while a reply was streaming if an emoji or other multi-byte character was split across two chunks of text. The half-written character is now held back until the rest arrives."),
+        Change(ChangeType.FIX, "Attaching a photo again with the same image-detail setting no longer reloads the vision add-on, which avoids a rare crash while a chat is using it. Changing the image-detail setting still reloads it as before."),
+    )),
     ChangelogEntry("1.9.107", "Crash and blank-reply fixes", listOf(
         Change(ChangeType.FIX, "Fixed a crash that could close the app when a message was rejected before the model started replying: the engine was asked to run an empty request. The turn now ends cleanly instead."),
         Change(ChangeType.FIX, "Fixed blank or repeated replies in long chats. After a chat-template hiccup the app re-sent the whole conversation on top of the model's old memory, which duplicated the history and could leave no room to answer. The old memory is now cleared first."),

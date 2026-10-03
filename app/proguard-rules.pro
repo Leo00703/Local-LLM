@@ -42,6 +42,10 @@
 -dontwarn org.apache.pdfbox.**
 -dontwarn java.awt.**
 -dontwarn javax.imageio.**
+# PdfBox's optional JPEG2000 codec (com.gemalto.jp2) is not bundled; its JPXFilter
+# catches the absence at runtime. Without this R8 fails minifyReleaseWithR8 on the
+# missing class (the com.tom_roush.** rule above only covers classes IN that package).
+-dontwarn com.gemalto.jp2.JP2Decoder
 
 # Keep Core
 -keep class com.druk.llamacpp.** { *; }

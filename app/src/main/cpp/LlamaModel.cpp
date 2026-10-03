@@ -166,11 +166,24 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
         mmproj_error = "text model not loaded";
         return false;
     }
+    // Re-attaching the projector that is already loaded is a no-op. Live
+    // generation sessions borrow [mctx] (see setProjector), so freeing and
+    // reloading it for nothing would leave them holding a dangling pointer. The
+    // key includes the image-detail preference because that is baked into the
+    // projector at load time: changing it must still reload (see
+    // setImageMaxTokens). Only a real change falls through to the replace below.
+    if (mctx != nullptr && mtmd_support_vision(mctx) &&
+        mmprojPath == loaded_mmproj_path &&
+        image_max_tokens_pref == loaded_mmproj_max_tokens) {
+        return true;
+    }
     // Replace any previously loaded projector.
     if (mctx != nullptr) {
         mtmd_free(mctx);
         mctx = nullptr;
     }
+    loaded_mmproj_path.clear();
+    loaded_mmproj_max_tokens = -1;
     mtmd_context_params mparams = mtmd_context_params_default();
     // GPU vision encoder — only when the experimental GPU-acceleration setting is
     // on (gpu_enabled, from loadModel). When on, the ACTUAL device is still chosen
@@ -232,6 +245,8 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
         mmproj_error = "this projector has no vision encoder";
         return false;
     }
+    loaded_mmproj_path = mmprojPath;
+    loaded_mmproj_max_tokens = image_max_tokens_pref;
     return true;
 }
 
@@ -302,6 +317,8 @@ void LlamaModel::unloadModel() {
         mtmd_free(mctx);
         mctx = nullptr;
     }
+    loaded_mmproj_path.clear();
+    loaded_mmproj_max_tokens = -1;
     chat_tmpls.reset();
     if (model != nullptr) {
         llama_model_free(model);

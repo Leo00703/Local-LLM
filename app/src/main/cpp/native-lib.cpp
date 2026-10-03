@@ -487,6 +487,27 @@ Java_com_druk_llamacpp_jni_NativeLlamaModel_createSession(JNIEnv *env, jobject t
     return obj;
 }
 
+// Number of trailing bytes of [s] that form an INCOMPLETE UTF-8 sequence, or 0
+// if the string ends on a character boundary. The streamed response is built
+// token by token, and a token can end in the middle of a multi-byte character
+// (an emoji split across tokens, byte-fallback pieces). NewStringUTF aborts the
+// process on invalid UTF-8 under CheckJNI (on by default for debuggable apps,
+// which is every build this fork ships), so the partial tail must not cross.
+static size_t incompleteUtf8Tail(const std::string &s) {
+    const size_t n = s.size();
+    // The last sequence starts at most 3 bytes back; walk over continuation bytes.
+    for (size_t back = 1; back <= 3 && back <= n; ++back) {
+        const unsigned char c = (unsigned char) s[n - back];
+        if ((c & 0xC0) == 0x80) continue;                    // continuation byte
+        size_t expected = 1;                                  // ASCII / unknown lead
+        if ((c & 0xE0) == 0xC0) expected = 2;
+        else if ((c & 0xF0) == 0xE0) expected = 3;
+        else if ((c & 0xF8) == 0xF0) expected = 4;
+        return back < expected ? back : 0;
+    }
+    return 0;
+}
+
 extern "C" JNIEXPORT jint JNICALL Java_com_druk_llamacpp_jni_NativeLlamaSession_generate
         (JNIEnv *env, jobject obj, jobject callback) {
     jclass clazz = env->GetObjectClass(obj);
@@ -501,7 +522,17 @@ extern "C" JNIEXPORT jint JNICALL Java_com_druk_llamacpp_jni_NativeLlamaSession_
 
     return session->generate(
             [env, onFullResponseId, callback](const std::string &fullResponse) {
-                jstring jResponse = env->NewStringUTF(fullResponse.c_str());
+                // Drop a trailing half-written character. The next callback carries
+                // the whole string again, so what reaches Kotlin stays an
+                // append-only prefix of the final text.
+                const size_t partial = incompleteUtf8Tail(fullResponse);
+                std::string trimmed;  // only filled (copied) when a tail is dropped
+                const char *text = fullResponse.c_str();
+                if (partial != 0) {
+                    trimmed = fullResponse.substr(0, fullResponse.size() - partial);
+                    text = trimmed.c_str();
+                }
+                jstring jResponse = env->NewStringUTF(text);
                 if (jResponse != nullptr) {
                     env->CallVoidMethod(callback, onFullResponseId, jResponse);
                     env->DeleteLocalRef(jResponse);
