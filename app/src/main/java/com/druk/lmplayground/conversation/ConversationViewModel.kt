@@ -40,6 +40,9 @@ import com.druk.lmplayground.data.SystemPromptRepository
 import com.druk.lmplayground.models.DeviceCapability
 import com.druk.lmplayground.models.MmprojPairing
 import com.druk.lmplayground.models.ModelInfo
+import com.druk.lmplayground.models.ThinkingMode
+import com.druk.lmplayground.models.canThink
+import com.druk.lmplayground.models.offersThinkingSwitch
 import com.druk.lmplayground.models.ModelInfoProvider
 import com.druk.lmplayground.models.ModelWithStatus
 import com.druk.lmplayground.models.resolveCapabilities
@@ -128,6 +131,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     private val _models = MutableLiveData<List<ModelWithStatus>>(emptyList())
     private val _supportsThinking = MutableLiveData(false)
     private val _thinkingEnabled = MutableLiveData(false)
+    // Distinct from supportsThinking: a model can think (so the thinking budget
+    // applies) while the on/off switch is meaningless because it always reasons.
+    private val _thinkingToggleable = MutableLiveData(false)
     private val _generationParams = MutableLiveData(GenerationParams())
     private val _maxContextSize = MutableLiveData(4096)
     private val _sessionModelHint = MutableLiveData<Pair<String, String>?>(null) // (modelName, modelFilename)
@@ -259,6 +265,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val models: LiveData<List<ModelWithStatus>> = _models
     val supportsThinking: LiveData<Boolean> = _supportsThinking
     val thinkingEnabled: LiveData<Boolean> = _thinkingEnabled
+    val thinkingToggleable: LiveData<Boolean> = _thinkingToggleable
     val generationParams: LiveData<GenerationParams> = _generationParams
     val maxContextSize: LiveData<Int> = _maxContextSize
     val sessionModelHint: LiveData<Pair<String, String>?> = _sessionModelHint
@@ -602,6 +609,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // Keep the thinking toggle available for remote models; enableThinking
             // is forwarded to the server as chat_template_kwargs when disabled.
             _supportsThinking.postValue(true)
+            _thinkingToggleable.postValue(true)
             // Servers that report capabilities explicitly (Ollama /api/show,
             // llama.cpp /props) gate tools and vision on them. LM Studio reports
             // none at all, so an empty list is "unknown" -> allow, and the server
@@ -724,6 +732,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // Gemma 4 (LiteRT) streams reasoning on its "thought" channel (toggle
             // default off) and supports native function calling (manual tool loop).
             _supportsThinking.postValue(true)
+            _thinkingToggleable.postValue(true)
             _supportsToolCalling.postValue(true)
             _supportsVision.postValue(liteRtVision)
             // Compute backend is surfaced only for the llama path; keep it null.
@@ -991,6 +1000,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 _loadedModel.postValue(modelInfo)
                 _thinkingEnabled.postValue(false)
                 _supportsThinking.postValue(false)
+                _thinkingToggleable.postValue(false)
                 _supportsVision.postValue(false)
                 _computeBackend.postValue(null)
                 _loadedModelStatus.postValue("Loading...")
@@ -1114,7 +1124,14 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     this@ConversationViewModel.llamaModel = llamaModel
                     this@ConversationViewModel.llamaSession = llamaSession
                     val thinkingSupported = llamaModel.supportsThinking()
-                    _supportsThinking.postValue(thinkingSupported)
+                    // The template's flag is only the fallback: measured behaviour
+                    // wins where we have it (ThinkingMode). Without this the toggle
+                    // shows for models that never think, and offers "off" to models
+                    // that always do.
+                    _supportsThinking.postValue(modelInfo.canThink(thinkingSupported))
+                    _thinkingToggleable.postValue(modelInfo.offersThinkingSwitch(thinkingSupported))
+                    // A model that always reasons is shown as thinking, not as "off".
+                    if (modelInfo.thinkingMode == ThinkingMode.ALWAYS) _thinkingEnabled.postValue(true)
                     val toolCallingSupported = llamaModel.supportsToolCalling()
                     _supportsToolCalling.postValue(toolCallingSupported)
                     // Vision: the attach UI lights up from the mmproj pairing
@@ -3595,6 +3612,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _loadedModelStatus.postValue(null)
             _isModelReady.postValue(false)
             _supportsThinking.postValue(false)
+            _thinkingToggleable.postValue(false)
             _supportsToolCalling.postValue(false)
             _supportsVision.postValue(false)
             _toolEnabledStates.postValue(emptyMap())

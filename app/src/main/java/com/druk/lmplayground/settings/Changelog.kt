@@ -54,6 +54,11 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.109", "New models, honest thinking switch", listOf(
+        Change(ChangeType.NEW, "Six new models are ready to download: LFM2.5 2.6B and LFM2.5 1.2B Instruct from Liquid AI, Granite 4.2 3B from IBM, MiniCPM5 1B and 2B from OpenBMB, and SmolLM3 3B from Hugging Face. SmolLM3 chats and thinks, but tool use is not turned on for it yet."),
+        Change(ChangeType.IMPROVED, "The thinking switch now follows how each model really behaves instead of what its chat template claims. Models that never think no longer show a switch that does nothing, and models that always reason (like DeepSeek R1 Distill 1.5B and LFM2.5 2.6B) no longer offer an \"off\" they would ignore. Their thinking limit in the parameters card still works."),
+        Change(ChangeType.FIX, "Llama 3.2 1B, Phi-4 mini and Mistral 7B no longer show a tools badge in the model list. Their chat templates cannot call tools, so the badge promised something the app could never do."),
+    )),
     ChangelogEntry("1.9.108", "Emoji and vision stability", listOf(
         Change(ChangeType.FIX, "Fixed a crash that could close the app while a reply was streaming if an emoji or other multi-byte character was split across two chunks of text. The half-written character is now held back until the rest arrives."),
         Change(ChangeType.FIX, "Attaching a photo again with the same image-detail setting no longer reloads the vision add-on, which avoids a rare crash while a chat is using it. Changing the image-detail setting still reloads it as before."),

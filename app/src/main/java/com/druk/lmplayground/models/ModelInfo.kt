@@ -8,6 +8,24 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
+ * How a model behaves when asked to think, as measured rather than as its chat
+ * template advertises. The two disagree often enough to matter: templates
+ * declare a thinking mode the weights never use, and reasoning-tuned models
+ * keep reasoning whatever the flag says. Gating the UI on the template alone
+ * gives the user a switch that does nothing, in one direction or the other.
+ */
+enum class ThinkingMode {
+    /** Never produces a thinking block, whatever the template claims. */
+    NONE,
+    /** The toggle works: thinking on produces a block, off suppresses it. */
+    OPTIONAL,
+    /** Always reasons; "off" cannot be honoured. */
+    ALWAYS,
+    /** Not measured: fall back to the template's own capability flag. */
+    UNKNOWN,
+}
+
+/**
  * Static model definition - does not contain download status.
  * Chat template parameters (prefix, suffix, stop sequences) are read
  * from the GGUF file's embedded Jinja template at load time.
@@ -27,6 +45,9 @@ data class ModelInfo(
     // [resolveCapabilities].
     val supportsTools: Boolean = false,
     val supportsThinking: Boolean = false,
+    // Measured behaviour, which overrides supportsThinking for UI purposes
+    // (see ThinkingMode). UNKNOWN for custom and unmeasured models.
+    val thinkingMode: ThinkingMode = ThinkingMode.UNKNOWN,
     // The bare filename of a paired multimodal projector (mmproj) sitting next
     // to this model in the storage folder, if one was found. When set, the model
     // can accept images once loaded (the projector is attached at load time).
@@ -45,6 +66,26 @@ fun ModelInfo.supportsLanguage(lang: String): Boolean =
     supportedLanguages.isEmpty() || lang in supportedLanguages
 
 /**
+ * Whether this model can think at all (so the thinking budget applies and the
+ * model is badged as thinking). Measured behaviour wins where we have it; the
+ * chat template's own flag, [templateFlag], is only the fallback for models
+ * nobody has measured (custom GGUFs and unlisted families).
+ */
+fun ModelInfo.canThink(templateFlag: Boolean = supportsThinking): Boolean = when (thinkingMode) {
+    ThinkingMode.NONE -> false
+    ThinkingMode.OPTIONAL, ThinkingMode.ALWAYS -> true
+    ThinkingMode.UNKNOWN -> templateFlag
+}
+
+/**
+ * Whether the on/off thinking switch should be offered: only where turning it off
+ * actually does something. A model that always reasons keeps its budget but not
+ * the switch, since "off" would be a promise it will not keep.
+ */
+fun ModelInfo.offersThinkingSwitch(templateFlag: Boolean = supportsThinking): Boolean =
+    canThink(templateFlag) && thinkingMode != ThinkingMode.ALWAYS
+
+/**
  * Overlay this model's static capability flags with the real capabilities
  * detected from its chat template the first time it was loaded (cached in
  * [StoragePreferences]). Returns the model unchanged if it has never been
@@ -53,7 +94,7 @@ fun ModelInfo.supportsLanguage(lang: String): Boolean =
  */
 fun ModelInfo.resolveCapabilities(prefs: StoragePreferences): ModelInfo {
     val detected = prefs.getDetectedCaps(filename) ?: return this
-    return copy(supportsTools = detected.first, supportsThinking = detected.second)
+    return copy(supportsTools = detected.first, supportsThinking = canThink(detected.second))
 }
 
 data class ModelWithStatus(

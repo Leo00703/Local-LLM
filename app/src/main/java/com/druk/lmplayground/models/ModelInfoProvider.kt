@@ -25,6 +25,15 @@ object ModelInfoProvider {
     )
     private val DEEPSEEK_LANGS = listOf("en", "zh")
     private val LFM_LANGS = listOf("en", "ar", "zh", "fr", "de", "ja", "ko", "es")
+    // LFM2.5 1.2B Instruct and 2.6B declare a wider set than the earlier LFM2.5 sizes.
+    private val LFM25_LANGS = listOf(
+        "ar", "zh", "en", "fr", "de", "hi", "id", "it",
+        "ja", "ko", "pl", "pt", "ru", "es", "th", "vi"
+    )
+    // The card's frontmatter also tags zh/ar/ru, but the model card text is
+    // explicit that only these six are natively supported.
+    private val SMOLLM3_LANGS = listOf("en", "fr", "es", "de", "it", "pt")
+    private val MINICPM_LANGS = listOf("en", "zh")
     private val MISTRAL_LANGS = listOf(
         "en", "fr", "de", "es", "it", "pt", "nl", "zh", "ja", "ko", "ar"
     )
@@ -164,6 +173,15 @@ object ModelInfoProvider {
             supportedLanguages = LFM_LANGS
         ),
         ModelInfo(
+            name = "LFM2.5 1.2B Instruct",
+            filename = "LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-GGUF/resolve/main/LFM2.5-1.2B-Instruct-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-08-19"),
+            description = "Liquid AI \u00B7 Compact chat model \u00B7 730Mb",
+            logoRes = R.drawable.logo_liquid,
+            supportedLanguages = LFM25_LANGS
+        ),
+        ModelInfo(
             name = "LFM2.5 1.2B Thinking",
             filename = "LFM2.5-1.2B-Thinking-Q4_K_M.gguf",
             remoteUri = Uri.parse("https://huggingface.co/lmstudio-community/LFM2.5-1.2B-Thinking-GGUF/resolve/main/LFM2.5-1.2B-Thinking-Q4_K_M.gguf"),
@@ -171,6 +189,15 @@ object ModelInfoProvider {
             description = "Liquid AI \u00B7 Thinking model \u00B7 731Mb",
             logoRes = R.drawable.logo_liquid,
             supportedLanguages = LFM_LANGS
+        ),
+        ModelInfo(
+            name = "LFM2.5 2.6B",
+            filename = "LFM2.5-2.6B-Q4_K_M.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF/resolve/main/LFM2.5-2.6B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-07-28"),
+            description = "Liquid AI \u00B7 Reasoning model \u00B7 1.67Gb",
+            logoRes = R.drawable.logo_liquid,
+            supportedLanguages = LFM25_LANGS
         ),
         ModelInfo(
             name = "Ministral 3 3B Instruct",
@@ -227,6 +254,15 @@ object ModelInfoProvider {
             supportedLanguages = GRANITE_LANGS
         ),
         ModelInfo(
+            name = "Granite 4.2 3B",
+            filename = "granite-4.2-3b-Q4_K_M.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/ibm-granite/granite-4.2-3b-GGUF/resolve/main/granite-4.2-3b-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-08-25"),
+            description = "IBM · Hybrid reasoning model · 2.24Gb",
+            logoRes = R.drawable.logo_ibm,
+            supportedLanguages = GRANITE_LANGS
+        ),
+        ModelInfo(
             name = "Granite 4.1 3B",
             filename = "granite-4.1-3b-Q4_K_M.gguf",
             remoteUri = Uri.parse("https://huggingface.co/lmstudio-community/granite-4.1-3b-GGUF/resolve/main/granite-4.1-3b-Q4_K_M.gguf"),
@@ -252,6 +288,33 @@ object ModelInfoProvider {
             description = "NVIDIA \u00B7 Hybrid reasoning model \u00B7 2.84Gb",
             logoRes = R.drawable.logo_nvidia,
             supportedLanguages = ENGLISH_ONLY
+        ),
+        ModelInfo(
+            name = "SmolLM3 3B",
+            filename = "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/bartowski/HuggingFaceTB_SmolLM3-3B-GGUF/resolve/main/HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2025-07-08"),
+            description = "Hugging Face · Hybrid reasoning model · 1.92Gb",
+            logoRes = R.drawable.logo_huggingface,
+            supportedLanguages = SMOLLM3_LANGS
+        ),
+        ModelInfo(
+            name = "MiniCPM5 1B",
+            filename = "MiniCPM5-1B-Q4_K_M.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-05-21"),
+            description = "OpenBMB · Hybrid reasoning model · 688Mb",
+            logoRes = R.drawable.logo_minicpm,
+            supportedLanguages = MINICPM_LANGS
+        ),
+        ModelInfo(
+            name = "MiniCPM5 2B",
+            filename = "MiniCPM5-2B-Q4_K_M.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/openbmb/MiniCPM5-2B-GGUF/resolve/main/MiniCPM5-2B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-09-06"),
+            description = "OpenBMB · Hybrid reasoning model · 1.56Gb",
+            logoRes = R.drawable.logo_minicpm,
+            supportedLanguages = MINICPM_LANGS
         ),
         ModelInfo(
             name = "Gemma 3n E2B",
@@ -405,6 +468,16 @@ object ModelInfoProvider {
     // cached and override these (see ModelInfo.resolveCapabilities). A wrong flag
     // here only mis-paints a list badge \u2014 it never affects whether tools actually
     // run, which is gated separately on the loaded model's real capability.
+    //
+    // Checked against the chat template embedded in each catalog GGUF: Llama 3.2
+    // 1B (346-char template) and Mistral 7B v0.3 (470 chars) have no tool logic at
+    // all, and Phi-4 mini only reads `tools` from a per-system-message field, not
+    // the OpenAI-style argument the engine passes. They were listed here, so the
+    // badge promised a capability the engine would never enable; removed.
+    //
+    // SmolLM3 is deliberately absent: its published template never renders
+    // message.tool_calls, so llama.cpp derives no tool grammar and every tool call
+    // would reach the chat as raw XML. It joins once its corrected template ships.
     private val TOOL_CAPABLE = setOf(
         "Qwen3-0.6B-Q4_K_M.gguf",
         "Qwen3-1.7B-Q4_K_M.gguf",
@@ -412,11 +485,13 @@ object ModelInfoProvider {
         "Qwen_Qwen3.5-0.8B-Q3_K_M.gguf",
         "Qwen_Qwen3.5-2B-Q3_K_M.gguf",
         "Qwen_Qwen3.5-4B-Q3_K_M.gguf",
-        "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
         "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-        "Phi-4-mini-instruct-Q4_K_M.gguf",
         "LFM2.5-350M-Q4_K_M.gguf",
+        "LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
         "LFM2.5-1.2B-Thinking-Q4_K_M.gguf",
+        "LFM2.5-2.6B-Q4_K_M.gguf",
+        "MiniCPM5-1B-Q4_K_M.gguf",
+        "MiniCPM5-2B-Q4_K_M.gguf",
         "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
         "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf",
         "Ministral-3-8B-Instruct-2512-Q4_K_M.gguf",
@@ -425,6 +500,7 @@ object ModelInfoProvider {
         "granite-4.0-h-tiny-Q4_K_M.gguf",
         "granite-4.1-3b-Q4_K_M.gguf",
         "granite-4.1-8b-Q4_K_M.gguf",
+        "granite-4.2-3b-Q4_K_M.gguf",
         "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf",
         "gemma-4-E2B_q4_0-it.gguf",
         "gemma-4-E4B_q4_0-it.gguf",
@@ -434,7 +510,6 @@ object ModelInfoProvider {
         "gemma-4-12B-it-Q4_K_M.gguf",
         "Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
         "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
-        "Mistral-7B-Instruct-v0.3-Q4_K_M.gguf",
         "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
         "gpt-oss-20b-mxfp4.gguf",
     )
@@ -448,7 +523,13 @@ object ModelInfoProvider {
         "DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
         "DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
         "LFM2.5-350M-Q4_K_M.gguf",
+        "LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
         "LFM2.5-1.2B-Thinking-Q4_K_M.gguf",
+        "LFM2.5-2.6B-Q4_K_M.gguf",
+        "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
+        "MiniCPM5-1B-Q4_K_M.gguf",
+        "MiniCPM5-2B-Q4_K_M.gguf",
+        "granite-4.2-3b-Q4_K_M.gguf",
         "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf",
         "Ministral-3-8B-Reasoning-2512-Q4_K_M.gguf",
         "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf",
@@ -461,10 +542,42 @@ object ModelInfoProvider {
         "gpt-oss-20b-mxfp4.gguf",
     )
 
+    // Measured thinking behaviour (ported from upstream LMPlayground's :model-harness
+    // sweep, run on the same catalog GGUFs): thinking on must produce a <think>
+    // block and thinking off must suppress it. Where a model disagrees with its own
+    // template, this is what the UI follows (see ThinkingMode). Models absent here
+    // stay UNKNOWN and fall back to the template flag; that includes the fork's
+    // Qwen 3.5 Q3_K_M files, which upstream measured only at IQ4_XS.
+    private val THINKING_MODE = mapOf(
+        // Templates advertise a thinking mode these models never actually use, so
+        // the toggle would appear and do nothing.
+        "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf" to ThinkingMode.NONE,
+        "LFM2.5-1.2B-Instruct-Q4_K_M.gguf" to ThinkingMode.NONE,
+        "LFM2.5-350M-Q4_K_M.gguf" to ThinkingMode.NONE,
+
+        // Reasoning-tuned: they keep thinking with the flag off, so offering "off"
+        // is a promise the model will not keep.
+        "DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf" to ThinkingMode.ALWAYS,
+        "LFM2.5-1.2B-Thinking-Q4_K_M.gguf" to ThinkingMode.ALWAYS,
+        "LFM2.5-2.6B-Q4_K_M.gguf" to ThinkingMode.ALWAYS,
+        "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf" to ThinkingMode.ALWAYS,
+
+        // Verified to honour the toggle in both directions.
+        "gemma-4-E2B_q4_0-it.gguf" to ThinkingMode.OPTIONAL,
+        "gemma-4-E4B_q4_0-it.gguf" to ThinkingMode.OPTIONAL,
+        "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf" to ThinkingMode.OPTIONAL,
+        "MiniCPM5-1B-Q4_K_M.gguf" to ThinkingMode.OPTIONAL,
+        "MiniCPM5-2B-Q4_K_M.gguf" to ThinkingMode.OPTIONAL,
+        "granite-4.2-3b-Q4_K_M.gguf" to ThinkingMode.OPTIONAL,
+        "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf" to ThinkingMode.OPTIONAL,
+    )
+
     val allModels: List<ModelInfo> = rawModels.map { model ->
-        model.copy(
+        val measured = model.copy(thinkingMode = THINKING_MODE[model.filename] ?: ThinkingMode.UNKNOWN)
+        measured.copy(
             supportsTools = model.filename in TOOL_CAPABLE,
-            supportsThinking = model.filename in THINKING_CAPABLE,
+            // Measured behaviour beats the family-assigned flag for the badge too.
+            supportsThinking = measured.canThink(model.filename in THINKING_CAPABLE),
         )
     }
 
@@ -584,6 +697,8 @@ object ModelInfoProvider {
             "kimi" to R.drawable.logo_kimi,
             "hunyuan" to R.drawable.logo_hunyuan,
             "stablelm" to R.drawable.logo_stablelm,
+            "smollm" to R.drawable.logo_huggingface,
+            "huggingface" to R.drawable.logo_huggingface,
         )
         return rules.firstOrNull { (kw, _) -> id.contains(kw) }?.second
             ?: R.drawable.penrose_triangle

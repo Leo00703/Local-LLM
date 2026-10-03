@@ -205,6 +205,10 @@ class ConversationFragment : Fragment() {
             val modelInfo by viewModel.loadedModel.observeAsState()
             val modelStatus by viewModel.loadedModelStatus.observeAsState()
             val supportsThinking by viewModel.supportsThinking.observeAsState(false)
+            // The chat switch follows measured behaviour: hidden for models that
+            // always reason, since "off" would be ignored. The params sheet still
+            // uses supportsThinking, because the thinking budget applies to them.
+            val thinkingToggleable by viewModel.thinkingToggleable.observeAsState(false)
             val supportsToolCalling by viewModel.supportsToolCalling.observeAsState(false)
             val supportsVision by viewModel.supportsVision.observeAsState(false)
             val showToolsSetup by viewModel.showToolsSetup.observeAsState(false)
@@ -798,7 +802,7 @@ class ConversationFragment : Fragment() {
                                     UserInputStatus.IDLE,
                                 contextUsed = contextUsed,
                                 contextTotal = generationParams.contextSize,
-                                supportsThinking = supportsThinking,
+                                supportsThinking = thinkingToggleable,
                                 thinkingEnabled = thinkingEnabled,
                                 onThinkingToggle = { viewModel.toggleThinking() },
                                 onSwipeUp = {

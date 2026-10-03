@@ -49,10 +49,38 @@ class ModelInfoProviderCapabilityTest {
 
     @Test
     fun toolOnlyModelsSupportToolsNotThinking() {
-        listOf("Llama 3.2 1B", "Phi-4 mini", "Granite 4.0 Micro", "Qwen2.5 0.5B").forEach { name ->
+        listOf("Llama 3.2 3B", "Granite 4.0 Micro", "Qwen2.5 0.5B").forEach { name ->
             val model = byName(name)
             assertTrue("$name should support tools", model.supportsTools)
             assertFalse("$name should not support thinking", model.supportsThinking)
+        }
+    }
+
+    // Llama 3.2 1B and Mistral 7B v0.3 ship chat templates with no tool logic at
+    // all, and Phi-4 mini only reads `tools` from a per-system-message field, so the
+    // engine never enables tools for them. The badge must not promise otherwise.
+    @Test
+    fun modelsWhoseTemplatesCannotCallToolsAreNotBadged() {
+        listOf("Llama 3.2 1B", "Phi-4 mini", "Mistral 7B").forEach { name ->
+            assertFalse("$name must not be badged as tool-capable", byName(name).supportsTools)
+        }
+    }
+
+    // SmolLM3's published template never renders message.tool_calls, so its tool
+    // calls would reach the chat as raw XML. Keep the badge off until the corrected
+    // template is wired in.
+    @Test
+    fun smolLm3IsNotBadgedAsToolCapableYet() {
+        assertFalse(byName("SmolLM3 3B").supportsTools)
+        assertTrue(byName("SmolLM3 3B").supportsThinking)
+    }
+
+    @Test
+    fun newReasoningModelsAreToolAndThinkingCapable() {
+        listOf("LFM2.5 2.6B", "MiniCPM5 1B", "MiniCPM5 2B", "Granite 4.2 3B").forEach { name ->
+            val model = byName(name)
+            assertTrue("$name should support tools", model.supportsTools)
+            assertTrue("$name should support thinking", model.supportsThinking)
         }
     }
 

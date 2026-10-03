@@ -45,11 +45,14 @@ Features added on top of upstream LM Playground:
 | Gemma 3n | E2B, E4B | Google |
 | Gemma 3 | 1B, 4B | Google |
 | Nemotron 3 Nano | 4B | NVIDIA |
+| Granite 4.2 | 3B | IBM |
 | Granite 4.1 | 3B, 8B | IBM |
 | Granite 4.0 | Micro, H-Tiny | IBM |
 | DeepSeek R1 Distill | 1.5B, 7B | DeepSeek |
 | Phi-4 mini | 3.8B | Microsoft |
-| LFM2.5 Thinking | 1.2B | Liquid AI |
+| LFM2.5 | 350M, 1.2B (Instruct & Thinking), 2.6B | Liquid AI |
+| SmolLM3 | 3B | Hugging Face |
+| MiniCPM5 | 1B, 2B | OpenBMB |
 | Ministral 3 | 3B, 8B (Instruct & Reasoning) | Mistral |
 | Llama 3.2 | 1B, 3B | Meta |
 | Llama 3.1 | 8B | Meta |
