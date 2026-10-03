@@ -13,7 +13,10 @@
 #include "mtmd-helper.h"   // mtmd_helper_bitmap_init_from_buf / _eval_chunks
 
 #include <atomic>
+#include <cstdint>
+#include <mutex>
 #include <string>
+#include <vector>
 
 // Native log capture (defined in native-lib.cpp): while begun, ERROR/WARN log
 // lines are teed into a buffer. loadMmproj() uses this to surface the real
@@ -142,7 +145,7 @@ private:
     // mtmd (fresh KV; image encode + non-causal mask + M-RoPE handled inside
     // mtmd_helper_eval_chunks), leaving logits on the last token so generate()
     // samples straight away. Dispatched from addMessage. See setImageData.
-    int addImageMessage(const char *text, bool enableThinking);
+    int addImageMessage(const char *text, bool enableThinking, std::vector<uint8_t> &image_data);
 
     common_chat_params renderTemplate(bool enableThinking, bool addGenerationPrompt = true);
 
@@ -162,6 +165,10 @@ private:
     // tools are active; normal chat keeps using [smpl] unchanged.
     void recreateToolSampler(const common_chat_params &render);
     void destroyToolSampler();
+
+    // Reset the incremental-prefix state and clear the KV cache: the next
+    // prompt is fed from scratch.
+    void clearKvCacheForFreshPrompt();
 
     const struct llama_vocab * vocab = nullptr;
     llama_context * ctx = nullptr;
@@ -219,8 +226,14 @@ private:
     // model's generated tokens out of the cache while preserving the
     // prompt prefix.
     int last_prompt_end_pos = 0;
-    llama_token last_token;
-    llama_batch batch;
+    llama_token last_token = 0;
+    // Pending tokens for the next generate() decode. Zero-initialized and
+    // re-invalidated at the start of every addMessage/submitToolResults so a
+    // turn that fails (or never runs) leaves no batch behind: generate()
+    // refuses an empty batch rather than feeding stale or uninitialized
+    // pointers into llama_decode, which fails GGML_ASSERT(token || embd) and
+    // aborts the whole :llama process.
+    llama_batch batch = {};
     std::string response;
     common_chat_parser_params parser_params;
     bool parser_initialized = false;
@@ -255,7 +268,11 @@ private:
     // the model frees it in unloadModel). Null for text-only models.
     mtmd_context *mctx = nullptr;
     // Encoded image bytes staged by setImageData(), consumed by the next turn.
+    // setImageData and addMessage are separate AIDL transactions and may land on
+    // different binder threads, so the staging slot is guarded by [image_mutex]
+    // (addMessage swaps the bytes out under the lock and owns them for the turn).
     std::vector<uint8_t> pending_image_data;
+    std::mutex image_mutex;
     // Set by an image turn so generate() skips its own prompt decode —
     // mtmd_helper_eval_chunks already ran llama_decode with logits on the last
     // token. Cleared as soon as generate() honors it.

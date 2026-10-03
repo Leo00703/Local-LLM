@@ -54,6 +54,14 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.107", "Crash and blank-reply fixes", listOf(
+        Change(ChangeType.FIX, "Fixed a crash that could close the app when a message was rejected before the model started replying: the engine was asked to run an empty request. The turn now ends cleanly instead."),
+        Change(ChangeType.FIX, "Fixed blank or repeated replies in long chats. After a chat-template hiccup the app re-sent the whole conversation on top of the model's old memory, which duplicated the history and could leave no room to answer. The old memory is now cleared first."),
+        Change(ChangeType.FIX, "Turning on tools with a model whose chat template produces an unusable tool-call rule (some custom models) no longer crashes the app. It now answers normally without that rule."),
+        Change(ChangeType.FIX, "Loading, unloading or switching a model at the same moment a chat is being started could crash the app. Starting a chat and freeing the model now wait for each other."),
+        Change(ChangeType.FIX, "A damaged saved prompt cache is now discarded cleanly instead of crashing the next reply."),
+        Change(ChangeType.FIX, "Attaching a photo at the same moment a message is sent can no longer scramble the image data."),
+    )),
     ChangelogEntry("1.9.106", "llama.cpp server fixes", listOf(
         Change(ChangeType.FIX, "Chatting with a llama.cpp server no longer prints the word \"null\" at the start of the model's replies and after tool calls: the server's empty placeholder chunks were being read as text and are now ignored."),
         Change(ChangeType.DESIGN, "The llama.cpp icon in the model picker now shows the full logo in its native square shape instead of being cropped to a circle."),

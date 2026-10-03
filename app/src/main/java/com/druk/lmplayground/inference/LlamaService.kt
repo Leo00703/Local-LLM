@@ -57,6 +57,21 @@ class LlamaService : Service() {
          * the way via [tryFinalizeModelTeardown].
          */
         @Volatile var pendingDestroy: Boolean = false
+
+        /**
+         * Serializes session creation against the native model free.
+         *
+         * A session being created is not yet in [sessions], so it is invisible
+         * to the `stillHasSessions` check in [tryFinalizeModelTeardown]; without
+         * this lock a concurrent `unloadModel` frees the model while
+         * `llama_init_from_model` is still reading it, and the context
+         * constructor faults on the dangling pointer (SIGSEGV in
+         * llama_model::dev_layer). Creation checks [pendingDestroy] and
+         * registers the new session while holding the lock; the free takes the
+         * same lock, so it either observes the registered session or runs
+         * before creation started.
+         */
+        val lock = Any()
     }
 
     private class SessionEntry(
@@ -194,12 +209,17 @@ class LlamaService : Service() {
     private fun tryFinalizeModelTeardown(modelId: Int) {
         val entry = models[modelId] ?: return
         if (!entry.pendingDestroy) return
-        val stillHasSessions = sessions.values.any { it.modelId == modelId }
-        if (stillHasSessions) return
-        if (models.remove(modelId, entry)) {
-            entry.nativeModel.unloadModel()
-            entry.pfd?.close()
-            if (models.isEmpty()) demoteFromForeground()
+        // Under the lock a session creation in flight has either not started
+        // (it will then see pendingDestroy and bail) or has already registered
+        // itself, so `stillHasSessions` sees it.
+        synchronized(entry.lock) {
+            val stillHasSessions = sessions.values.any { it.modelId == modelId }
+            if (stillHasSessions) return
+            if (models.remove(modelId, entry)) {
+                entry.nativeModel.unloadModel()
+                entry.pfd?.close()
+                if (models.isEmpty()) demoteFromForeground()
+            }
         }
     }
 
@@ -310,27 +330,36 @@ class LlamaService : Service() {
 
         override fun createSession(modelId: Int, params: SamplerParams): Int {
             val model = models[modelId] ?: return 0
-            val nativeSession = model.nativeModel.createSession(
-                params.contextSize,
-                params.temperature,
-                params.topP,
-                params.repetitionPenalty,
-                params.topK,
-                params.minP,
-                params.seed,
-                params.thinkingBudget,
-                params.systemPrompt,
-                params.kvCacheType,
-                params.speculativeEnabled,
-                params.specNDraft,
-            ) ?: return 0
-            val id = nextSessionId.getAndIncrement()
-            sessions[id] = SessionEntry(id, modelId, nativeSession)
-            return id
+            // Create and register under the model's lock so a concurrent
+            // unloadModel can't free the model while the context is still being
+            // built (see ModelEntry.lock).
+            synchronized(model.lock) {
+                if (model.pendingDestroy) return 0
+                val nativeSession = model.nativeModel.createSession(
+                    params.contextSize,
+                    params.temperature,
+                    params.topP,
+                    params.repetitionPenalty,
+                    params.topK,
+                    params.minP,
+                    params.seed,
+                    params.thinkingBudget,
+                    params.systemPrompt,
+                    params.kvCacheType,
+                    params.speculativeEnabled,
+                    params.specNDraft,
+                ) ?: return 0
+                val id = nextSessionId.getAndIncrement()
+                sessions[id] = SessionEntry(id, modelId, nativeSession)
+                return id
+            }
         }
 
         override fun addMessage(sessionId: Int, message: String, enableThinking: Boolean) {
-            sessions[sessionId]?.nativeSession?.addMessage(message, enableThinking)
+            val rc = sessions[sessionId]?.nativeSession?.addMessage(message, enableThinking)
+            if (rc != null && rc != 0) {
+                Log.w(TAG, "addMessage rejected for session $sessionId (rc=$rc); turn dropped")
+            }
         }
 
         override fun setImageData(sessionId: Int, data: ByteArray) {

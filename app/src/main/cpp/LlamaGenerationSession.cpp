@@ -15,6 +15,7 @@
 #include "reasoning-budget.h"
 #include "nlohmann/json.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cinttypes>
 #include <cmath>
@@ -138,7 +139,23 @@ void LlamaGenerationSession::recreateToolSampler(const common_chat_params &rende
         sp.reasoning_budget_forced = common_tokenize(vocab, render.thinking_end_tag, false, true);
     }
 
-    gsmpl = common_sampler_init(llama_get_model(ctx), sp);
+    // common_sampler_init throws when the grammar llama.cpp derived from the
+    // chat template does not parse (a template that yields empty rules, or any
+    // custom GGUF). Uncaught, the exception crosses JNI and aborts the whole
+    // :llama process as soon as tools are enabled. Without the grammar the
+    // regular [smpl] chain runs, and tool calls are still parsed from the
+    // output; they are just no longer constrained while being generated.
+    try {
+        gsmpl = common_sampler_init(llama_get_model(ctx), sp);
+    } catch (const std::exception &e) {
+        LOGe("Tool sampler: %s; continuing without the tool-call grammar", e.what());
+        gsmpl = nullptr;
+        return;
+    } catch (...) {
+        LOGe("Tool sampler: unknown error; continuing without the tool-call grammar");
+        gsmpl = nullptr;
+        return;
+    }
     LOGi("Tool sampler created: grammar_len=%zu lazy=%d triggers=%zu",
          render.grammar.size(), (int)render.grammar_lazy, render.grammar_triggers.size());
 }
@@ -340,6 +357,13 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     }
 }
 
+void LlamaGenerationSession::clearKvCacheForFreshPrompt() {
+    llama_memory_clear(llama_get_memory(ctx), true);
+    prev_len = 0;
+    last_full_prompt.clear();
+    last_prompt_end_pos = 0;
+}
+
 void LlamaGenerationSession::requestAbort() {
     abort_requested.store(true);
 }
@@ -349,6 +373,7 @@ void LlamaGenerationSession::setProjector(mtmd_context *mmctx) {
 }
 
 void LlamaGenerationSession::setImageData(const uint8_t *data, size_t len) {
+    std::lock_guard<std::mutex> lock(image_mutex);
     if (data == nullptr || len == 0) {
         pending_image_data.clear();
         return;
@@ -356,10 +381,10 @@ void LlamaGenerationSession::setImageData(const uint8_t *data, size_t len) {
     pending_image_data.assign(data, data + len);
 }
 
-int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinking) {
+int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinking,
+                                            std::vector<uint8_t> &image_data) {
     if (chat_tmpls == nullptr || ctx == nullptr || mctx == nullptr) {
         LOGe("addImageMessage called on uninitialized/text-only session");
-        pending_image_data.clear();
         return 1;
     }
 
@@ -400,12 +425,10 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
     } catch (const std::exception &e) {
         LOGe("Failed to render chat template (image): %s", e.what());
         messages.pop_back();
-        pending_image_data.clear();
         return 1;
     } catch (...) {
         LOGe("Failed to render chat template (image): unknown error");
         messages.pop_back();
-        pending_image_data.clear();
         return 1;
     }
     std::string full_prompt = result.prompt;
@@ -424,10 +447,11 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
     }
     destroyToolSampler();
 
-    // Decode the staged encoded image (jpg/png/…) into an mtmd bitmap.
+    // Decode the staged encoded image (jpg/png/…) into an mtmd bitmap. The bytes
+    // were swapped out of the staging slot by addMessage, so this turn owns them.
     mtmd_bitmap *bmp = mtmd_helper_bitmap_init_from_buf(
-        mctx, pending_image_data.data(), pending_image_data.size());
-    pending_image_data.clear();
+        mctx, image_data.data(), image_data.size());
+    image_data.clear();
     if (bmp == nullptr) {
         LOGe("failed to decode staged image");
         messages.pop_back();
@@ -438,7 +462,10 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
     // runs llama_decode on text chunks and mtmd_encode + llama_decode on the
     // image chunk, advancing n_past and (logits_last=true) leaving logits on the
     // last token — non-causal mask and M-RoPE positions are handled internally.
-    mtmd_input_text itext;
+    // Value-initialize: newer mtmd headers add fields (text_len) that
+    // mtmd_tokenize reads. When llama.cpp is bumped past b9496, also set
+    // itext.text_len = full_prompt.size() here (upstream LMPlayground 3b52325).
+    mtmd_input_text itext{};
     itext.text = full_prompt.c_str();
     itext.add_special = true;   // fresh KV — add BOS like a first turn
     itext.parse_special = true;
@@ -499,8 +526,11 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
         LOGe("addMessage called on uninitialized session");
         return 1;
     }
-    // Fresh turn — clear any abort left set by a previous cancel.
+    // Fresh turn — clear any abort left set by a previous cancel, and drop any
+    // batch left over from the previous turn so every early-error return below
+    // leaves the session with nothing pending for generate().
     abort_requested.store(false);
+    batch = {};
     // Fresh text turn: allow speculation (the per-turn gate still applies) and
     // clear any stale speculative-continuation flag from a previous turn.
     spec_disabled_this_turn = false;
@@ -513,8 +543,17 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
     // Multimodal turn: if an image was staged (setImageData) and a projector is
     // loaded, take the mtmd path (fresh KV + image encode) instead of the
     // text-only incremental KV/prefix path.
-    if (!pending_image_data.empty() && mctx != nullptr) {
-        return addImageMessage(string, enableThinking);
+    if (mctx != nullptr) {
+        // Take ownership of the staged bytes under the lock (setImageData may
+        // run on another binder thread); the slot is left empty for next time.
+        std::vector<uint8_t> image_data;
+        {
+            std::lock_guard<std::mutex> lock(image_mutex);
+            std::swap(image_data, pending_image_data);
+        }
+        if (!image_data.empty()) {
+            return addImageMessage(string, enableThinking, image_data);
+        }
     }
 
     // Lazy preamble KV-cache: on the first addMessage of a session, try
@@ -611,12 +650,30 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
         }
     }
 
+    // prev_len == 0 means the whole prompt is about to be re-sent, which is only
+    // correct against an empty cache. Several paths zero prev_len without
+    // clearing it (a failed re-render in finalizeResponse, replayHistory into a
+    // session that was already used), and stale entries there are doubly
+    // harmful: the conversation is duplicated in context, and the compaction
+    // check below believes the window is empty, so it skips compaction and
+    // generate() then rejects the batch and returns an empty reply.
+    if (prev_len == 0) {
+        // -1 means empty; any position >= 0 is a leftover entry.
+        const int stale = (int)llama_memory_seq_pos_max(llama_get_memory(ctx), 0);
+        if (stale >= 0) {
+            LOGi("Re-sending full prompt with stale KV entries (last pos %d), clearing", stale);
+            clearKvCacheForFreshPrompt();
+        }
+    }
+
     std::string prompt = full_prompt.substr(prev_len);
     response.clear();
 
     bool is_first = (prev_len == 0);
     int n_ctx = llama_n_ctx(ctx);
-    int n_ctx_used = is_first ? 0 : (int)llama_memory_seq_pos_max(llama_get_memory(ctx), 0);
+    // seq_pos_max returns -1 on an empty cache; clamp so the compaction check
+    // below sees the same occupancy generate() will measure.
+    int n_ctx_used = std::max(0, (int)llama_memory_seq_pos_max(llama_get_memory(ctx), 0));
 
     int n_prompt_tokens = -llama_tokenize(vocab, prompt.c_str(), prompt.size(), NULL, 0, is_first, true);
 
@@ -871,6 +928,15 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
         skip_first_decode = false;
         llama_sampler_reset(smpl);
     } else {
+        // No pending batch: addMessage/submitToolResults failed (or was never
+        // called) this turn, or the prompt delta tokenized to zero tokens.
+        // llama_decode aborts the process on an empty batch
+        // (GGML_ASSERT(batch.token || batch.embd)), so end the turn instead.
+        // No finalizeResponse: a failed turn was already rolled back.
+        if (batch.n_tokens <= 0 || batch.token == nullptr) {
+            LOGe("generate called with no pending batch");
+            return 1;
+        }
         if (n_ctx_used + batch.n_tokens > n_ctx) {
             LOGe("context size exceeded: n_ctx_used = %d, batch.n_tokens = %d, n_ctx = %d", n_ctx_used, batch.n_tokens, n_ctx);
             finalizeResponse();
@@ -1514,6 +1580,11 @@ bool LlamaGenerationSession::tryPreambleCache(bool enableThinking) {
         // Stale or unreadable: clean up so we don't keep retrying.
         unlink(bin_path.c_str());
         unlink(json_path.c_str());
+        // A load that failed part-way can leave the KV cache half-written, and
+        // the prefill below would decode on top of it (a ggml_abort inside
+        // llama_decode). The cache is meant to be empty here (prev_len == 0),
+        // so start the prefill from a clean one.
+        llama_memory_clear(llama_get_memory(ctx), true);
     }
 
     // 3. Cache miss: prefill the preamble alone, then save.
@@ -1620,8 +1691,10 @@ int LlamaGenerationSession::submitToolResults(const char *resultsJson, bool enab
         LOGe("submitToolResults called on uninitialized session");
         return 1;
     }
-    // New decode phase — clear any abort left set by a previous cancel.
+    // New decode phase — clear any abort left set by a previous cancel, and
+    // drop the previous turn's batch so error returns leave nothing pending.
     abort_requested.store(false);
+    batch = {};
     // Tool-result turns run with tools enabled, so the per-turn gate already
     // excludes speculation; clear the continuation flag defensively regardless.
     skip_next_decode = false;

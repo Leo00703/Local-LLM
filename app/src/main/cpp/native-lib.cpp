@@ -511,7 +511,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_druk_llamacpp_jni_NativeLlamaSession_
 }
 
 extern "C"
-JNIEXPORT void JNICALL
+JNIEXPORT jint JNICALL
 Java_com_druk_llamacpp_jni_NativeLlamaSession_addMessage(JNIEnv *env,
                                                          jobject thiz,
                                                          jstring message,
@@ -520,12 +520,13 @@ Java_com_druk_llamacpp_jni_NativeLlamaSession_addMessage(JNIEnv *env,
     jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");
     auto *session = (LlamaGenerationSession*)env->GetLongField(thiz, fid);
     if (session == nullptr) {
-        return;
+        return 1;
     }
 
     const char* utfMessage = env->GetStringUTFChars(message, nullptr);
-    session->addMessage(utfMessage, enableThinking);
+    int rc = session->addMessage(utfMessage, enableThinking);
     env->ReleaseStringUTFChars(message, utfMessage);
+    return rc;
 }
 
 extern "C"
