@@ -42,6 +42,10 @@ jobs:
         cache: 'gradle'
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
+      with:
+        # The default also installs the legacy "tools" package, which the SDK
+        # repository no longer serves; sdkmanager then fails the job.
+        packages: 'platform-tools'
     # OpenCL (GGML_OPENCL=ON, arm64) host build deps — see build-debug-apk.yml for why.
     - name: Set up OpenCL toolchain for the native build
       run: |
