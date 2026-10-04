@@ -188,4 +188,10 @@ interface ILlamaService {
      * the app should keep running, and the next call should rebind).
      */
     void crashForTest();
+
+    /**
+     * The last few native ERROR lines, or the message the previous process was aborted with,
+     * for explaining a failed model load. Empty when there is nothing to say.
+     */
+    String getRecentNativeErrors();
 }

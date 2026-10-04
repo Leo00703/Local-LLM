@@ -30,6 +30,7 @@
 #include <android/log.h>
 #include <sys/system_properties.h>
 #include <mutex>
+#include <deque>
 
 class AndroidLogBuf : public std::streambuf {
 protected:
@@ -72,6 +73,75 @@ std::string native_log_capture_end() {
     return g_capture_buf;
 }
 
+// ── Recent native errors (load diagnostics) ─────────────────────────────────
+// Why a model or context failed to load is only ever said through the log callback, and
+// logcat is out of reach for a sideloaded app on a phone with no adb. Keep the last few
+// ERROR lines so the UI can show the reason next to "Couldn't load model". A GGML_ASSERT
+// does not go through the log at all and ends the process, so ggml's abort callback also
+// writes its message to a file that the next process start reads back (see
+// install_abort_note), because the :llama process is gone by the time the UI asks.
+static std::mutex g_errors_mutex;
+static std::deque<std::string> g_recent_errors;
+static std::string g_abort_note_path;
+
+static void remember_error(const char * msg) {
+    if (msg == nullptr) return;
+    std::string line(msg);
+    while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
+    if (line.empty()) return;
+    if (line.size() > 400) line.resize(400);
+    std::lock_guard<std::mutex> lk(g_errors_mutex);
+    g_recent_errors.push_back(std::move(line));
+    while (g_recent_errors.size() > 12) g_recent_errors.pop_front();
+}
+
+static void forget_errors() {
+    std::lock_guard<std::mutex> lk(g_errors_mutex);
+    g_recent_errors.clear();
+}
+
+// The remembered lines joined by newlines, ASCII only (NewStringUTF aborts on invalid UTF-8).
+static std::string recent_errors() {
+    std::lock_guard<std::mutex> lk(g_errors_mutex);
+    std::string out;
+    for (const auto & l : g_recent_errors) {
+        if (!out.empty()) out += '\n';
+        out += l;
+    }
+    for (char & c : out) {
+        if (static_cast<unsigned char>(c) >= 0x80) c = '?';
+    }
+    return out;
+}
+
+static void abort_note_callback(const char * message) {
+    if (message == nullptr) return;
+    __android_log_print(ANDROID_LOG_FATAL, TAG, "%s", message);
+    if (g_abort_note_path.empty()) return;
+    if (FILE * f = fopen(g_abort_note_path.c_str(), "w")) {
+        fputs(message, f);
+        fflush(f);
+        fsync(fileno(f));
+        fclose(f);
+    }
+}
+
+// Read back (and delete) the message a previous process left when ggml aborted it, then
+// arm the callback for this one.
+static void install_abort_note(const char * stateDir) {
+    if (stateDir == nullptr || stateDir[0] == '\0') return;
+    g_abort_note_path = std::string(stateDir) + "/last_native_abort.txt";
+    if (FILE * f = fopen(g_abort_note_path.c_str(), "r")) {
+        char buf[2100];
+        const size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+        fclose(f);
+        buf[n] = '\0';
+        std::remove(g_abort_note_path.c_str());
+        remember_error((std::string("The engine stopped itself: ") + buf).c_str());
+    }
+    ggml_set_abort_callback(abort_note_callback);
+}
+
 static void log_callback(ggml_log_level level, const char * fmt, void * data) {
     // llama.cpp/mtmd already formatted the message; [fmt] is the final text
     // (and may itself contain %-specifiers). Pass it as a "%s" argument, NOT
@@ -83,6 +153,8 @@ static void log_callback(ggml_log_level level, const char * fmt, void * data) {
     else if (level == GGML_LOG_LEVEL_INFO) __android_log_print(ANDROID_LOG_INFO, TAG, "%s", fmt);
     else if (level == GGML_LOG_LEVEL_WARN) __android_log_print(ANDROID_LOG_WARN, TAG, "%s", fmt);
     else __android_log_print(ANDROID_LOG_DEFAULT, TAG, "%s", fmt);
+
+    if (level == GGML_LOG_LEVEL_ERROR) remember_error(fmt);
 
     if (fmt != nullptr &&
         (level == GGML_LOG_LEVEL_ERROR || level == GGML_LOG_LEVEL_WARN)) {
@@ -217,6 +289,7 @@ Java_com_druk_llamacpp_jni_NativeLlamaCpp_init(JNIEnv *env, jobject object, jstr
         const char *sd = env->GetStringUTFChars(stateDir, nullptr);
         if (sd != nullptr) {
             clipSentinelInit(sd);
+            install_abort_note(sd);
             env->ReleaseStringUTFChars(stateDir, sd);
         }
     }
@@ -309,6 +382,12 @@ Java_com_druk_llamacpp_jni_NativeLlamaCpp_systemInfo(JNIEnv *env, jobject object
     return env->NewStringUTF(llama_print_system_info());
 }
 
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_druk_llamacpp_jni_NativeLlamaCpp_recentErrors(JNIEnv *env, jobject object) {
+    return env->NewStringUTF(recent_errors().c_str());
+}
+
 extern "C" JNIEXPORT jobject
 JNICALL
 Java_com_druk_llamacpp_jni_NativeLlamaCpp_loadModel(JNIEnv *env,
@@ -323,6 +402,7 @@ Java_com_druk_llamacpp_jni_NativeLlamaCpp_loadModel(JNIEnv *env,
         jobject progressCallback;
     };
 
+    forget_errors();
     auto* model = new LlamaModel();
     CallbackContext ctx = {env, progressCallback};
     const char* utfModelPath = env->GetStringUTFChars(modelPath, nullptr);

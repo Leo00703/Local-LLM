@@ -352,6 +352,7 @@
     <string name="model_load_failed_title">Impossibile caricare il modello</string>
     <string name="model_load_failed_message">Impossibile caricare %1$s. Il file potrebbe essere danneggiato o utilizza un\'architettura non ancora supportata da questa versione dell\'app. Prova un altro modello o aggiorna l\'app.</string>
     <string name="model_load_failed_dismiss">OK</string>
+    <string name="model_load_failed_detail">Cosa ha riportato il motore:\n%1$s</string>
 
     <!-- Notifiche di inferenza -->
     <string name="inference_notification_generating_title">Generazione della risposta…</string>

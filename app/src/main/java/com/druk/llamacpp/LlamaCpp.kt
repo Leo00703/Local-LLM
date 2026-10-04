@@ -51,6 +51,13 @@ class LlamaCpp(private val client: InferenceClient) {
         return LlamaModel(client, id)
     }
 
+    /**
+     * Why the last load failed, as the raw native ERROR lines (see [NativeErrors.summarize]).
+     * Empty when nothing was recorded or the service cannot be reached.
+     */
+    fun recentNativeErrors(): String =
+        try { client.withService { it.getRecentNativeErrors() } } catch (_: Throwable) { "" }
+
     fun probeModelMetadata(path: String): Array<String>? =
         client.withService { it.probeModelMetadata(path, null) }
 

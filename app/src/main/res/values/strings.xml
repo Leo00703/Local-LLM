@@ -593,6 +593,7 @@
     <string name="model_load_failed_title">Couldn\'t load model</string>
     <string name="model_load_failed_message">Couldn\'t load %1$s. The file may be corrupt, or it uses an architecture this version of the app doesn\'t support yet. Try a different model, or update the app.</string>
     <string name="model_load_failed_dismiss">OK</string>
+    <string name="model_load_failed_detail">What the engine reported:\n%1$s</string>
 
     <!-- Debug-only crash injection (only shown in debug builds, do not
          translate, English only). -->

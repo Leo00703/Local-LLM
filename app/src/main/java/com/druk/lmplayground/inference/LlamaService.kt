@@ -280,6 +280,9 @@ class LlamaService : Service() {
             }
         }
 
+        override fun getRecentNativeErrors(): String =
+            try { nativeLlamaCpp.recentErrors() } catch (t: Throwable) { "" }
+
         override fun getModelSize(modelId: Int): Long =
             models[modelId]?.nativeModel?.getModelSize() ?: 0L
 

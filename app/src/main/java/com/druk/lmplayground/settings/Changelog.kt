@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.123", "Why a model failed to load", listOf(
+        Change(ChangeType.IMPROVED, "When a model cannot be loaded, the message now also shows what the engine reported (for example an unsupported operation or not enough memory), even if the engine had to stop itself, instead of only saying that the file may be corrupt."),
+    )),
     ChangelogEntry("1.9.122", "Newer Gemma 4 engine", listOf(
         Change(ChangeType.IMPROVED, "The engine behind Gemma 4 E2B and E4B (Google LiteRT-LM) is updated to its latest release, 0.17.1. It uses less memory for long contexts and fixes a bug with whole-number values in tool calls. The GPU sampler it relies on is updated with it, so the faster speculative decoding keeps working. It takes about 10 MB more space on the phone."),
     )),

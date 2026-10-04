@@ -25,6 +25,9 @@ class NativeLlamaCpp {
 
     external fun systemInfo(): String
 
+    /** The last few native ERROR lines (or the message ggml aborted with), newest last. */
+    external fun recentErrors(): String
+
     /**
      * Returns `null` when the native load failed — e.g. the file is not a
      * valid GGUF, the architecture isn't supported by this build of

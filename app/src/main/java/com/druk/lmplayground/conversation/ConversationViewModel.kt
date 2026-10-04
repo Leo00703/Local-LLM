@@ -1276,10 +1276,22 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     fileHandle.close()
                     if (t !is kotlinx.coroutines.CancellationException) {
                         android.util.Log.w("ConversationViewModel", "loadModel failed", t)
+                        // Say why, not just that: the native side remembers the ERROR lines of
+                        // the failed load (or the message the engine aborted with, which survives
+                        // the process being killed). Bounded: a dead service is rebound first.
+                        val detail = com.druk.llamacpp.NativeErrors.summarize(
+                            kotlinx.coroutines.withTimeoutOrNull(8_000) {
+                                withContext(Dispatchers.IO) { llamaCpp.recentNativeErrors() }
+                            }.orEmpty()
+                        )
+                        val message = app.getString(
+                            com.druk.lmplayground.R.string.model_load_failed_message,
+                            modelInfo.name,
+                        )
                         _modelLoadError.postValue(
-                            app.getString(
-                                com.druk.lmplayground.R.string.model_load_failed_message,
-                                modelInfo.name,
+                            if (detail.isEmpty()) message
+                            else message + "\n\n" + app.getString(
+                                com.druk.lmplayground.R.string.model_load_failed_detail, detail
                             )
                         )
                     } else {
