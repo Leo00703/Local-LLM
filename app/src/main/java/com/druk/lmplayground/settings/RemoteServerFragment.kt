@@ -32,6 +32,9 @@ class RemoteServerFragment : Fragment() {
                 val enabled by viewModel.enabled.observeAsState(false)
                 val scanning by viewModel.scanning.observeAsState(false)
                 val foundServers by viewModel.foundServers.observeAsState(emptyList())
+                val savedServers by viewModel.servers.observeAsState(emptyList())
+                val editingId by viewModel.editingId.observeAsState(null)
+                val saving by viewModel.saving.observeAsState(false)
                 RemoteServerScreen(
                     serverName = serverName,
                     serverUrl = serverUrl,
@@ -39,12 +42,19 @@ class RemoteServerFragment : Fragment() {
                     enabled = enabled,
                     scanning = scanning,
                     foundServers = foundServers,
+                    savedServers = savedServers,
+                    editingId = editingId,
+                    saving = saving,
                     onNameChange = { viewModel.setServerName(it) },
                     onUrlChange = { viewModel.setServerUrl(it) },
                     onApiKeyChange = { viewModel.setApiKey(it) },
                     onEnabledChange = { viewModel.setEnabled(it) },
                     onScan = { viewModel.scan() },
                     onUseServer = { viewModel.useServer(it) },
+                    onSave = { viewModel.save() },
+                    onEditServer = { viewModel.edit(it) },
+                    onDeleteServer = { viewModel.delete(it) },
+                    onNewServer = { viewModel.newServer() },
                     onBackClick = { findNavController().popBackStack() },
                 )
             }

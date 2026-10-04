@@ -380,7 +380,7 @@ class SettingsFragment : Fragment() {
     }
 
     /**
-     * Embedded Remote server pane — URL/model fields, LAN scan, enable toggle,
+     * Embedded Remote server pane — saved servers, the add/edit form, LAN scan, enable toggle,
      * rendered without the Scaffold/topBar that [RemoteServerFragment] adds on
      * phone.
      */
@@ -392,6 +392,9 @@ class SettingsFragment : Fragment() {
         val enabled by remoteServerViewModel.enabled.observeAsState(false)
         val scanning by remoteServerViewModel.scanning.observeAsState(false)
         val foundServers by remoteServerViewModel.foundServers.observeAsState(emptyList())
+        val savedServers by remoteServerViewModel.servers.observeAsState(emptyList())
+        val editingId by remoteServerViewModel.editingId.observeAsState(null)
+        val saving by remoteServerViewModel.saving.observeAsState(false)
         RemoteServerContent(
             serverName = serverName,
             serverUrl = serverUrl,
@@ -399,12 +402,19 @@ class SettingsFragment : Fragment() {
             enabled = enabled,
             scanning = scanning,
             foundServers = foundServers,
+            savedServers = savedServers,
+            editingId = editingId,
+            saving = saving,
             onNameChange = { remoteServerViewModel.setServerName(it) },
             onUrlChange = { remoteServerViewModel.setServerUrl(it) },
             onApiKeyChange = { remoteServerViewModel.setApiKey(it) },
             onEnabledChange = { remoteServerViewModel.setEnabled(it) },
             onScan = { remoteServerViewModel.scan() },
             onUseServer = { remoteServerViewModel.useServer(it) },
+            onSave = { remoteServerViewModel.save() },
+            onEditServer = { remoteServerViewModel.edit(it) },
+            onDeleteServer = { remoteServerViewModel.delete(it) },
+            onNewServer = { remoteServerViewModel.newServer() },
         )
     }
 

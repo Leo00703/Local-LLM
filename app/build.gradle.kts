@@ -342,6 +342,8 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
+    // The real org.json: the android.jar one is a stub that throws in unit tests.
+    testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)

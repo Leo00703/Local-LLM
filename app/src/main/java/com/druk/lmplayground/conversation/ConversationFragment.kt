@@ -219,10 +219,9 @@ class ConversationFragment : Fragment() {
             val isModelReady by viewModel.isModelReady.observeAsState(false)
             val models by viewModel.models.observeAsState(emptyList())
             val remoteServerAvailable by viewModel.remoteServerAvailable.observeAsState(false)
-            val remoteServerLabel by viewModel.remoteServerLabel.observeAsState("")
-            val remoteServerType by viewModel.remoteServerType.observeAsState("")
-            val remoteModels by viewModel.remoteModels.observeAsState(emptyList())
-            val remoteModelsLoading by viewModel.remoteModelsLoading.observeAsState(false)
+            val remoteSections by viewModel.remoteSections.observeAsState(emptyList())
+            val remoteChecking by viewModel.remoteChecking.observeAsState(false)
+            val remoteLastServerId by viewModel.remoteLastServerId.observeAsState(null)
             val sessions by viewModel.sessions.observeAsState(emptyList())
             val folders by viewModel.folders.observeAsState(emptyList())
             val stagedAttachments by viewModel.stagedAttachments.observeAsState(emptyList())
@@ -956,13 +955,12 @@ class ConversationFragment : Fragment() {
                                 models = models,
                                 hazeState = hazeState,
                                 hazeStyle = hazeStyle,
-                                remoteServerAvailable = remoteServerAvailable,
-                                remoteServerLabel = remoteServerLabel,
-                                remoteServerType = remoteServerType,
-                                remoteModels = remoteModels,
-                                remoteModelsLoading = remoteModelsLoading,
-                                onRemoteServerExpand = { viewModel.fetchRemoteModels() },
-                                onLoadRemoteModel = { id -> viewModel.loadRemoteModel(id) },
+                                remoteServersConfigured = remoteServerAvailable,
+                                remoteSections = remoteSections,
+                                remoteChecking = remoteChecking,
+                                initiallyExpandedServerId = remoteLastServerId,
+                                onOpened = { viewModel.refreshRemoteServers() },
+                                onLoadRemoteModel = { serverId, id -> viewModel.loadRemoteModel(serverId, id) },
                                 onLoadModel = { model ->
                                     viewModel.loadModel(model)
                                 },

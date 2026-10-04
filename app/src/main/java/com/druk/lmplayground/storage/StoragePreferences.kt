@@ -4,7 +4,10 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import com.druk.lmplayground.remote.SavedServer
+import com.druk.lmplayground.remote.SavedServers
 import com.druk.lmplayground.tools.ToolDefaults
+import java.util.UUID
 
 class StoragePreferences(context: Context) {
 
@@ -118,6 +121,31 @@ class StoragePreferences(context: Context) {
     var remoteServerModel: String?
         get() = prefs.getString("remote_server_model", null)
         set(value) = prefs.edit { putString("remote_server_model", value) }
+
+    // The keys above (name / type / url / api key) hold the single server that existed before
+    // several could be saved. They are only read once, to migrate it into the saved list.
+
+    /**
+     * The remote servers the user saved, in the order they were added. The first call after
+     * the update carries the old single server over (and stores the list, so this happens once).
+     */
+    fun savedRemoteServers(): List<SavedServer> {
+        prefs.getString("remote_servers", null)?.let { return SavedServers.fromJson(it) }
+        val migrated = listOfNotNull(
+            SavedServers.fromLegacy(UUID.randomUUID().toString(), remoteServerName, remoteServerUrl, remoteServerApiKey, remoteServerType)
+        )
+        setSavedRemoteServers(migrated)
+        return migrated
+    }
+
+    fun setSavedRemoteServers(list: List<SavedServer>) {
+        prefs.edit { putString("remote_servers", SavedServers.toJson(list)) }
+    }
+
+    /** Id of the saved server the last remote model was loaded from; its section opens first in the picker. */
+    var remoteLastServerId: String?
+        get() = prefs.getString("remote_last_server_id", null)
+        set(value) = prefs.edit { putString("remote_last_server_id", value) }
 
     /** When true, the chat can use the remote server instead of a local model. */
     var remoteServerEnabled: Boolean

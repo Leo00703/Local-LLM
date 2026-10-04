@@ -42,6 +42,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +63,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
+import com.druk.lmplayground.remote.RemoteServerSection
+import com.druk.lmplayground.remote.SavedServers
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
@@ -79,13 +83,16 @@ fun SelectModelDialog(
     hazeStyle: HazeStyle = HazeStyle.Unspecified,
     onLoadModel: (ModelInfo) -> Unit,
     onBrowseModels: () -> Unit,
-    remoteServerAvailable: Boolean = false,
-    remoteServerLabel: String = "",
-    remoteServerType: String = "",
-    remoteModels: List<String> = emptyList(),
-    remoteModelsLoading: Boolean = false,
-    onRemoteServerExpand: () -> Unit = {},
-    onLoadRemoteModel: (String) -> Unit = {},
+    /** True when the remote feature is on and at least one server is saved. */
+    remoteServersConfigured: Boolean = false,
+    /** The saved servers that answered when the picker opened, with their models. */
+    remoteSections: List<RemoteServerSection> = emptyList(),
+    remoteChecking: Boolean = false,
+    /** The server whose section starts open (the one the last remote model came from). */
+    initiallyExpandedServerId: String? = null,
+    /** Called once when the picker opens: the cue to check which servers are online. */
+    onOpened: () -> Unit = {},
+    onLoadRemoteModel: (serverId: String, modelId: String) -> Unit = { _, _ -> },
     onDismissRequest: () -> Unit
 ) {
     // Only show downloaded models, grouped by provider (Qwen, Gemma, …) and
@@ -99,13 +106,17 @@ fun SelectModelDialog(
                 )
             )
     }
-    var remoteExpanded by remember { mutableStateOf(false) }
-    // Server models grouped by provider (Qwen, Gemma, …), alphabetical by their
+    LaunchedEffect(Unit) { onOpened() }
+    // Sections the user opened or closed; the others follow the default (the last-used server).
+    val expandedByUser = remember { mutableStateMapOf<String, Boolean>() }
+    // Each online server's models grouped by provider (Qwen, Gemma, …), alphabetical by their
     // prettified display name within each group; a header precedes each group.
-    val sortedRemoteModels = remember(remoteModels) {
-        remoteModels.sortedWith(
-            compareBy({ ModelInfoProvider.providerGroup(it) }, { ModelInfoProvider.prettifyModelId(it) })
-        )
+    val sortedSections = remember(remoteSections) {
+        remoteSections.map { section ->
+            section to section.models.sortedWith(
+                compareBy({ ModelInfoProvider.providerGroup(it) }, { ModelInfoProvider.prettifyModelId(it) })
+            )
+        }
     }
 
     // Rendered as an in-composition overlay (not a platform Dialog) so the
@@ -159,62 +170,78 @@ fun SelectModelDialog(
                 } else Modifier
             ) {
             LazyColumn {
-                // Remote server section, above the downloaded models.
-                if (remoteServerAvailable) {
-                    item {
-                        RemoteServerHeader(
-                            label = remoteServerLabel,
-                            serverType = remoteServerType,
-                            expanded = remoteExpanded,
-                            onClick = {
-                                remoteExpanded = !remoteExpanded
-                                if (remoteExpanded) onRemoteServerExpand()
-                            }
-                        )
-                    }
-                    if (remoteExpanded) {
-                        if (remoteModelsLoading) {
-                            item {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
+                // Remote servers, above the downloaded models: only the saved servers that answered
+                // when the picker opened, each with its own models.
+                if (remoteServersConfigured) {
+                    if (remoteSections.isEmpty()) {
+                        item(key = "remote-status") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (remoteChecking) {
                                     CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
+                                        modifier = Modifier.size(18.dp),
                                         strokeWidth = 2.dp
                                     )
+                                    Spacer(modifier = Modifier.width(12.dp))
                                 }
-                            }
-                        } else if (remoteModels.isEmpty()) {
-                            item {
                                 Text(
-                                    text = stringResource(R.string.remote_no_models),
+                                    text = stringResource(
+                                        if (remoteChecking) R.string.remote_checking_servers
+                                        else R.string.remote_none_online
+                                    ),
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(16.dp)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                        } else {
-                            itemsIndexed(
-                                items = sortedRemoteModels,
-                                key = { _, id -> "remote:$id" }
-                            ) { index, id ->
-                                val group = ModelInfoProvider.providerGroup(id)
-                                val firstInGroup = index == 0 ||
-                                    ModelInfoProvider.providerGroup(sortedRemoteModels[index - 1]) != group
-                                Column {
-                                    if (firstInGroup) ProviderHeader(group)
-                                    RemoteModelRow(modelId = id) {
-                                        onDismissRequest()
-                                        onLoadRemoteModel(id)
+                        }
+                    }
+                    sortedSections.forEach { (section, sortedModels) ->
+                        val serverId = section.server.id
+                        val expanded = expandedByUser[serverId] ?: (serverId == initiallyExpandedServerId)
+                        item(key = "remote-server:$serverId") {
+                            RemoteServerHeader(
+                                label = section.server.label,
+                                serverType = section.server.type,
+                                address = SavedServers.hostOf(section.server.url),
+                                expanded = expanded,
+                                onClick = { expandedByUser[serverId] = !expanded }
+                            )
+                        }
+                        if (expanded) {
+                            if (sortedModels.isEmpty()) {
+                                item(key = "remote-empty:$serverId") {
+                                    Text(
+                                        text = stringResource(R.string.remote_no_models),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(16.dp)
+                                    )
+                                }
+                            } else {
+                                itemsIndexed(
+                                    items = sortedModels,
+                                    key = { _, id -> "remote:$serverId:$id" }
+                                ) { index, id ->
+                                    val group = ModelInfoProvider.providerGroup(id)
+                                    val firstInGroup = index == 0 ||
+                                        ModelInfoProvider.providerGroup(sortedModels[index - 1]) != group
+                                    Column {
+                                        if (firstInGroup) ProviderHeader(group)
+                                        RemoteModelRow(modelId = id) {
+                                            onDismissRequest()
+                                            onLoadRemoteModel(serverId, id)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    item {
+                    item(key = "remote-divider") {
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
                     }
                 }
@@ -337,19 +364,61 @@ fun Model(
     }
 }
 
+/**
+ * The mark of a server's software (LM Studio, Ollama, llama.cpp), or the generic server icon.
+ * The LM Studio and llama.cpp marks are square (llama.cpp's is the two-shard negative-space
+ * llama filling the full frame): keep their shape with a rounded-square clip rather than the
+ * circle of the round Ollama mark, which would crop their corners.
+ */
 @Composable
-private fun RemoteServerHeader(
-    label: String,
-    serverType: String,
-    expanded: Boolean,
-    onClick: () -> Unit
-) {
+fun ServerLogo(serverType: String, size: Dp = 28.dp) {
     val logoRes = when (serverType) {
         "LM Studio" -> R.drawable.logo_lmstudio
         "Ollama" -> R.drawable.logo_ollama
         "llama.cpp" -> R.drawable.logo_llamacpp
         else -> 0
     }
+    if (logoRes != 0) {
+        val logoShape = if (serverType == "LM Studio" || serverType == "llama.cpp") {
+            RoundedCornerShape(7.dp)
+        } else {
+            CircleShape
+        }
+        Image(
+            painter = painterResource(id = logoRes),
+            contentDescription = null,
+            // The llama.cpp mark is a monochrome vector: tint it with the
+            // theme's foreground so it stays visible in both light and dark.
+            colorFilter = if (serverType == "llama.cpp") {
+                ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+            } else null,
+            modifier = Modifier
+                .size(size)
+                .clip(logoShape),
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Icon(
+            imageVector = Icons.Outlined.Dns,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(size)
+        )
+    }
+}
+
+@Composable
+private fun RemoteServerHeader(
+    label: String,
+    serverType: String,
+    address: String,
+    expanded: Boolean,
+    onClick: () -> Unit
+) {
+    // Subtitle: the software and the address, leaving out whichever the title already shows.
+    val subtitle = listOf(serverType, address)
+        .filter { it.isNotBlank() && it != label }
+        .joinToString(" \u00B7 ")
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -357,48 +426,18 @@ private fun RemoteServerHeader(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (logoRes != 0) {
-            // The LM Studio and llama.cpp marks are square (llama.cpp's is the
-            // two-shard negative-space llama filling the full frame) — keep
-            // their native shape with a rounded-square clip rather than
-            // clipping to a circle like the round Ollama mark, which would
-            // crop the corners of the square marks.
-            val logoShape = if (serverType == "LM Studio" || serverType == "llama.cpp") {
-                RoundedCornerShape(7.dp)
-            } else {
-                CircleShape
-            }
-            Image(
-                painter = painterResource(id = logoRes),
-                contentDescription = null,
-                // The llama.cpp mark is a monochrome vector: tint it with the
-                // theme's foreground so it stays visible in both light and dark.
-                colorFilter = if (serverType == "llama.cpp") {
-                    ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
-                } else null,
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(logoShape),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Outlined.Dns,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface
-            )
-        }
+        ServerLogo(serverType)
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = stringResource(R.string.remote_server),
+                text = label,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
-            if (label.isNotBlank()) {
+            if (subtitle.isNotBlank()) {
                 Text(
-                    text = label,
+                    text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1

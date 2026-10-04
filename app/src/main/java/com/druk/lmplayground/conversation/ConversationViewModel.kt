@@ -21,6 +21,7 @@ import com.druk.llamacpp.LlamaGenerationCallback
 import com.druk.llamacpp.LlamaProgressCallback
 import com.druk.lmplayground.remote.RemoteOpenAiClient
 import com.druk.lmplayground.remote.RemoteOpenAiModel
+import com.druk.lmplayground.remote.RemoteServerSection
 import com.druk.lmplayground.remote.ServerModelDetails
 import com.druk.llamacpp.PayloadTooLargeException
 import com.druk.lmplayground.App
@@ -258,17 +259,18 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val loadedModelStatus: LiveData<String?> = _loadedModelStatus
     val computeBackend: LiveData<String?> = _computeBackend
 
-    // Remote (OpenAI-compatible) server, surfaced in the model picker.
+    // Remote (OpenAI-compatible) servers, surfaced in the model picker. [remoteServerAvailable] is
+    // "the feature is on and a server is saved"; [remoteSections] are the saved servers that
+    // actually answered the last check, each with its models.
     private val _remoteServerAvailable = MutableLiveData(false)
     val remoteServerAvailable: LiveData<Boolean> = _remoteServerAvailable
-    private val _remoteServerLabel = MutableLiveData("")
-    val remoteServerLabel: LiveData<String> = _remoteServerLabel
-    private val _remoteModels = MutableLiveData<List<String>>(emptyList())
-    val remoteModels: LiveData<List<String>> = _remoteModels
-    private val _remoteModelsLoading = MutableLiveData(false)
-    val remoteModelsLoading: LiveData<Boolean> = _remoteModelsLoading
-    private val _remoteServerType = MutableLiveData("")
-    val remoteServerType: LiveData<String> = _remoteServerType
+    private val _remoteSections = MutableLiveData<List<RemoteServerSection>>(emptyList())
+    val remoteSections: LiveData<List<RemoteServerSection>> = _remoteSections
+    private val _remoteChecking = MutableLiveData(false)
+    val remoteChecking: LiveData<Boolean> = _remoteChecking
+    private val _remoteLastServerId = MutableLiveData<String?>(null)
+    val remoteLastServerId: LiveData<String?> = _remoteLastServerId
+    private var remoteRefreshJob: Job? = null
     // Native metadata of the currently-loaded remote model (for the details card).
     private val _serverModelDetails = MutableLiveData<ServerModelDetails?>(null)
     val serverModelDetails: LiveData<ServerModelDetails?> = _serverModelDetails
@@ -534,33 +536,43 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     ModelInfoProvider.getModelsWithStatus(downloadedFilenames, customModels, mmprojNames)
                         .map { it.copy(model = it.model.resolveCapabilities(storagePreferences)) } + liteRtModels
                 )
-                val remoteUrl = storagePreferences.remoteServerUrl
                 _remoteServerAvailable.postValue(
-                    storagePreferences.remoteServerEnabled && !remoteUrl.isNullOrBlank()
+                    storagePreferences.remoteServerEnabled && storagePreferences.savedRemoteServers().isNotEmpty()
                 )
-                val remoteName = storagePreferences.remoteServerName
-                _remoteServerLabel.postValue(
-                    if (!remoteName.isNullOrBlank()) remoteName
-                    else remoteUrl.orEmpty().substringAfter("://").ifEmpty { remoteUrl.orEmpty() }
-                )
-                _remoteServerType.postValue(storagePreferences.remoteServerType.orEmpty())
             }
         }
     }
 
-    /** Fetch the remote server's model list for the picker's remote section. */
-    fun fetchRemoteModels() {
-        val url = storagePreferences.remoteServerUrl
-        if (url.isNullOrBlank()) {
-            _remoteModels.postValue(emptyList())
+    /**
+     * Check which saved servers are online, for the model picker. Every server is probed in
+     * parallel with a short timeout; one that answers appears (with its models) as soon as it
+     * does, one that does not never shows. Called each time the picker opens.
+     */
+    fun refreshRemoteServers() {
+        remoteRefreshJob?.cancel()
+        _remoteLastServerId.postValue(storagePreferences.remoteLastServerId)
+        val servers = if (storagePreferences.remoteServerEnabled) storagePreferences.savedRemoteServers() else emptyList()
+        _remoteSections.postValue(emptyList())
+        if (servers.isEmpty()) {
+            _remoteChecking.postValue(false)
             return
         }
-        if (_remoteModelsLoading.value == true) return
-        _remoteModelsLoading.postValue(true)
-        viewModelScope.launch {
-            val models = RemoteOpenAiClient(url, storagePreferences.remoteServerApiKey).listModels()
-            _remoteModels.postValue(models)
-            _remoteModelsLoading.postValue(false)
+        _remoteChecking.postValue(true)
+        remoteRefreshJob = viewModelScope.launch {
+            val online = mutableMapOf<String, RemoteServerSection>()
+            kotlinx.coroutines.coroutineScope {
+                for (server in servers) {
+                    launch {
+                        val models = RemoteOpenAiClient(server.url, server.apiKey).probeModels()
+                        if (models != null) {
+                            online[server.id] = RemoteServerSection(server, models)
+                            // Keep the order the servers were saved in as the answers trickle in.
+                            _remoteSections.postValue(servers.mapNotNull { online[it.id] })
+                        }
+                    }
+                }
+            }
+            _remoteChecking.postValue(false)
         }
     }
 
@@ -569,15 +581,16 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      * model — no GGUF is loaded. Tears down any local model/session first and
      * replays the on-screen history into the new remote session.
      */
-    fun loadRemoteModel(modelId: String) {
-        val url = storagePreferences.remoteServerUrl
-        val apiKey = storagePreferences.remoteServerApiKey
-        if (url.isNullOrBlank()) {
+    fun loadRemoteModel(serverId: String, modelId: String) {
+        val server = storagePreferences.savedRemoteServers().firstOrNull { it.id == serverId }
+        if (server == null) {
             _userError.postValue(
                 app.getString(com.druk.lmplayground.R.string.remote_server_not_configured)
             )
             return
         }
+        val url = server.url
+        val apiKey = server.apiKey
         viewModelScope.launch {
           // Serialize teardown+load under the same lock as the GGUF path so two
           // model switches can't run concurrently and leave two engines resident.
@@ -608,7 +621,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             val maxContext = details?.maxContext?.takeIf { it > 0 }
                 ?: RemoteOpenAiModel.DEFAULT_CONTEXT
 
-            val host = url.substringAfter("://").ifEmpty { url }
+            // Shown as the model's source: the name the user gave the server (else its address).
+            val host = server.label
             val modelInfo = ModelInfo(
                 name = ModelInfoProvider.prettifyModelId(modelId),
                 filename = "remote:$modelId",
@@ -673,6 +687,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 try { replayHistoryToSession(session, messages) } catch (_: Throwable) {}
             }
             storagePreferences.remoteServerModel = modelId
+            storagePreferences.remoteLastServerId = server.id
 
             // Preload the model server-side behind the same loading hairline as
             // local models. No real % is available, so animate a logarithmic

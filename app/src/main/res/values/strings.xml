@@ -252,7 +252,7 @@
     <string name="remote_server">Remote server</string>
     <string name="remote_server_subtitle">Use LM Studio / Ollama / llama.cpp on your network</string>
     <string name="use_remote_server_title">Use remote server</string>
-    <string name="use_remote_server_desc">Route chats to the configured server instead of an on-device model.</string>
+    <string name="use_remote_server_desc">Offer your saved servers in the model picker when they are online.</string>
     <string name="server_url">Server URL</string>
     <string name="server_url_hint">http://192.168.1.42:1234</string>
     <string name="server_api_key">API key</string>
@@ -266,6 +266,13 @@
     <string name="remote_no_models">No models on the server</string>
     <string name="remote_model_description">Remote · %s</string>
     <string name="remote_server_not_configured">Set up the server in Settings first</string>
+    <string name="saved_servers">Saved servers</string>
+    <string name="add_server">Add a server</string>
+    <string name="edit_server">Edit server</string>
+    <string name="new_server">New server</string>
+    <string name="delete_server_message">This removes the server from the saved list. The server itself is not changed.</string>
+    <string name="remote_checking_servers">Checking servers…</string>
+    <string name="remote_none_online">No saved server is reachable right now</string>
     <string name="server_name">Server name</string>
     <string name="server_name_hint">My PC</string>
     <string name="remote_loading">Loading…</string>

@@ -111,13 +111,15 @@ class LocalServerScanner {
      * `/v1/models` entries carry `owned_by: "llamacpp"`, checked first because
      * the body is otherwise the same plain `data` array shape as LM Studio's.
      */
-    private fun detectType(ip: String, port: Int, modelsBody: String): String {
-        val host = "http://$ip:$port"
+    private fun detectType(ip: String, port: Int, modelsBody: String): String =
+        detectType("http://$ip:$port", port, modelsBody, client)
+
+    private fun detectType(host: String, port: Int, modelsBody: String, http: OkHttpClient): String {
         return when {
             modelsBody.contains("\"llamacpp\"") -> "llama.cpp"
-            getJsonHasArray("$host/api/v0/models", "data") ||
-                getJsonHasArray("$host/api/v1/models", "data") -> "LM Studio"
-            getJsonHasArray("$host/api/tags", "models") -> "Ollama"   // Ollama native
+            getJsonHasArray("$host/api/v0/models", "data", http) ||
+                getJsonHasArray("$host/api/v1/models", "data", http) -> "LM Studio"
+            getJsonHasArray("$host/api/tags", "models", http) -> "Ollama"   // Ollama native
             port == 11434 -> "Ollama"
             port == 8080 || port == 9931 -> "llama.cpp"
             port == 1234 -> "LM Studio"
@@ -125,11 +127,36 @@ class LocalServerScanner {
         }
     }
 
+    // Longer timeouts than the LAN sweep: this one is aimed at a single address the user chose.
+    private val identifyClient = OkHttpClient.Builder()
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(3, TimeUnit.SECONDS)
+        .build()
+
+    /**
+     * Which server software answers at [baseUrl] ("LM Studio", "Ollama", "llama.cpp" or
+     * "OpenAI"), or null when nothing answers /v1/models there. Used when a server is saved
+     * with a hand-typed address, so it gets the right logo without needing a network scan.
+     */
+    suspend fun identify(baseUrl: String, apiKey: String? = null): String? = withContext(Dispatchers.IO) {
+        val base = baseUrl.trim().trimEnd('/')
+        val body = try {
+            val request = Request.Builder().url("$base/v1/models").apply {
+                if (apiKey != null) header("Authorization", "Bearer $apiKey")
+            }.get().build()
+            identifyClient.newCall(request).execute().use { if (it.isSuccessful) it.body?.string() else null }
+        } catch (_: Exception) {
+            null
+        } ?: return@withContext null
+        val port = runCatching { java.net.URI(base).port }.getOrDefault(-1)
+        detectType(base, port, body, identifyClient)
+    }
+
     /** True when GET [url] returns 2xx with a JSON object holding a non-null
      *  array at [key]. A wrong-shaped or non-JSON 200 body (e.g. LM Studio's
      *  "Returning 200 anyway" fallback) yields false. */
-    private fun getJsonHasArray(url: String, key: String): Boolean = try {
-        client.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
+    private fun getJsonHasArray(url: String, key: String, http: OkHttpClient = client): Boolean = try {
+        http.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
             val body = response.body?.string()
             response.isSuccessful && body != null && JSONObject(body).optJSONArray(key) != null
         }

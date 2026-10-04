@@ -172,7 +172,7 @@
     <string name="remote_server">Server remoto</string>
     <string name="remote_server_subtitle">Usa LM Studio / Ollama sulla tua rete</string>
     <string name="use_remote_server_title">Usa server remoto</string>
-    <string name="use_remote_server_desc">Instrada le chat al server configurato invece di un modello sul dispositivo.</string>
+    <string name="use_remote_server_desc">Mostra i server salvati nel selettore dei modelli quando sono online.</string>
     <string name="server_url">URL del server</string>
     <string name="server_url_hint">http://192.168.1.42:1234</string>
     <string name="server_model">Modello</string>
@@ -184,6 +184,13 @@
     <string name="remote_no_models">Nessun modello sul server</string>
     <string name="remote_model_description">Remoto · %s</string>
     <string name="remote_server_not_configured">Configura prima il server nelle Impostazioni</string>
+    <string name="saved_servers">Server salvati</string>
+    <string name="add_server">Aggiungi un server</string>
+    <string name="edit_server">Modifica server</string>
+    <string name="new_server">Nuovo server</string>
+    <string name="delete_server_message">Il server viene tolto dall\'elenco dei salvati. Il server in sé non viene modificato.</string>
+    <string name="remote_checking_servers">Controllo i server…</string>
+    <string name="remote_none_online">Nessun server salvato è raggiungibile ora</string>
     <string name="server_name">Nome server</string>
     <string name="server_name_hint">Il mio PC</string>
     <string name="remote_loading">Caricamento…</string>

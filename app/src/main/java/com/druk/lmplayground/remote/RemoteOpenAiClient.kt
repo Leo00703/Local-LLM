@@ -67,6 +67,37 @@ class RemoteOpenAiClient(
         .callTimeout(120, TimeUnit.SECONDS)
         .build()
 
+    // Very short timeouts for the "is it online?" check that runs when the model picker
+    // opens: an unreachable address must not keep the picker waiting.
+    private val probeHttp: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(2500, TimeUnit.MILLISECONDS)
+        .readTimeout(3, TimeUnit.SECONDS)
+        .callTimeout(4, TimeUnit.SECONDS)
+        .build()
+
+    /**
+     * GET /v1/models with a short timeout: the model ids when the server answers, null
+     * when it is offline, unreachable, rejects the request or is not OpenAI-compatible.
+     * Unlike [listModels], "no models" (empty list) and "not online" (null) differ.
+     */
+    suspend fun probeModels(): List<String>? = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder().url("$base/v1/models").withAuth().get().build()
+            probeHttp.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body?.string() ?: return@withContext null
+                val data = JSONObject(body).optJSONArray("data") ?: return@withContext null
+                buildList {
+                    for (i in 0 until data.length()) {
+                        data.optJSONObject(i)?.optString("id")?.takeIf { it.isNotBlank() }?.let { add(it) }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** GET /v1/models → list of model ids. Empty on any failure. */
     suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
         try {

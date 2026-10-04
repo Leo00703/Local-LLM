@@ -54,6 +54,11 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.118", "Several remote servers", listOf(
+        Change(ChangeType.NEW, "You can now save several remote servers (LM Studio, Ollama, llama.cpp), each with its own name, address and optional API key. A new Save button stores the one you are editing; tap a saved server to change it, or use the bin to remove it. The server you had before is kept."),
+        Change(ChangeType.IMPROVED, "The model picker checks your saved servers when it opens and lists only the ones that are online, each with its own models. The server you used last starts open."),
+        Change(ChangeType.IMPROVED, "A server you type in by hand now gets its logo too, and a missing http:// or a trailing /v1 in the address is fixed for you."),
+    )),
     ChangelogEntry("1.9.117", "Server model names and tools", listOf(
         Change(ChangeType.IMPROVED, "Models from a llama.cpp or Ollama server now show clean names in the model list, like \"Qwen 3 4B (Q4_K_M)\", instead of file names with \".gguf\" and quantization pieces. Two quantizations of one model stay apart because the quantization is kept in the name."),
         Change(ChangeType.IMPROVED, "A model on a remote server now starts with all its tools on, and the choice you make for each model is remembered. The Location tool only starts on if its permission is already granted."),
