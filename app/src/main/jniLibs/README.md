@@ -8,41 +8,37 @@ decode *speedup* instead of a regression: without it, the runtime falls back to
 CPU sampling and every MTP step ships K+1 logit vectors GPU->CPU, making MTP
 ~2.5x slower than plain decode on this device.
 
-The Maven AAR `com.google.ai.edge.litertlm:litertlm-android:0.13.1` does **not**
-bundle this sampler (it ships only `libLiteRt.so`, `liblitertlm_jni.so`,
-`libLiteRtClGlAccelerator.so`). It lives in the LiteRT-LM repo under
-`prebuilt/android_arm64/`, so we vendor it here.
+The Maven AAR `com.google.ai.edge.litertlm:litertlm-android` does **not** bundle
+this sampler (it ships only `liblitertlm_jni.so`). The runtime looks for it by
+name (`libLiteRtTopKOpenClSampler.so`) and loads it from the app's native
+library directory, so we vendor it here. It lives in the LiteRT-LM repo under
+`prebuilt/android_arm64/`.
+
+**It must be refreshed together with the AAR version.** The sampler talks to
+the runtime through a C API whose shape changes between releases (0.17 added
+`CanHandleInput`, `HandlesInput` and `SetInferenceFuncAndInputTensors`), and a
+stale one is not rejected loudly: the runtime just falls back to CPU sampling.
+`LiteRtSamplerLibraryTest` fails when the version recorded below no longer
+matches the one in `app/build.gradle.kts`.
 
 ### Provenance
-- Source: `google-ai-edge/LiteRT-LM`, tag **v0.13.1** (matches our AAR version),
+- Source: `google-ai-edge/LiteRT-LM`, tag **v0.17.1** (matches our AAR version),
   Git LFS object `prebuilt/android_arm64/libLiteRtTopKOpenClSampler.so`.
-- Upstream oid sha256: `5ca7f34117d8299f88a52f2e6ba4c50219a62bfb870ba08c9f38c46c7122f984`
-  (the pristine 1250680-byte file, before the patch below).
+- sha256: `4993295bbf6ae0bb0f8fd1c5621595dd0e00876231aa348b11dc624146000a0a`,
+  11,794,256 bytes, committed **unmodified**.
 - License: Apache-2.0.
 
-### Local patch (one added DT_NEEDED)
-The stock sampler has ~166 undefined `LiteRt*` symbols (led by
-`LiteRtCreateEnvironment`) but does **not** list `libLiteRt.so` in its
-`DT_NEEDED`. It relies on those symbols being in the linker namespace's global
-group. In an Android app that loads the runtime via the AAR (System.loadLibrary,
-RTLD_LOCAL), `libLiteRt.so` never reaches the global group, so the sampler fails
-to load with `cannot locate symbol "LiteRtCreateEnvironment"` and the runtime
-silently falls back to CPU sampling (LiteRT-LM issue #2211).
+### What changed from 0.13.1 (why there is no local patch any more)
+Up to 0.16 the runtime was split into `liblitertlm_jni.so` and a separate
+`libLiteRt.so`, and the 1.2 MB sampler was a thin plugin with ~166 undefined
+`LiteRt*` symbols that it expected to find in the global linker group. In an
+Android app (System.loadLibrary, RTLD_LOCAL) it never did, so the sampler failed
+to load with `cannot locate symbol "LiteRtCreateEnvironment"` (LiteRT-LM issue
+#2211). We worked around it by adding `libLiteRt.so` to its `DT_NEEDED` with LIEF.
 
-Fix: add `libLiteRt.so` to the sampler's `DT_NEEDED` so the linker resolves the
-symbols directly against it, independent of global-group / namespace rules. Done
-with LIEF (patchelf `--add-needed` corrupts the GNU hash table and is rejected
-by the Android linker, per #2211):
-
-```python
-import lief
-b = lief.parse("libLiteRtTopKOpenClSampler.so")   # pristine v0.13.1
-b.add_library("libLiteRt.so")                       # prepend DT_NEEDED
-b.write("libLiteRtTopKOpenClSampler.so")            # patched, committed here
-```
-
-Verified after patching: all 298 dynamic symbols preserved, all 166 undefined
-`LiteRt*` still `SHN_UNDEF`, the 4 exported `LiteRtTopKOpenClSampler_*` C-API
-entry points intact, `DT_GNU_HASH` intact. `libLiteRt.so`'s SONAME is exactly
-`libLiteRt.so` (matches the added `DT_NEEDED`) and it defines
-`LiteRtCreateEnvironment`.
+Since 0.17.0 the runtime is one self-contained `liblitertlm_jni.so`
+(`libLiteRt.so` and the GL accelerator are folded into it), and the sampler is
+self-contained too: 0 undefined `LiteRt*` symbols, `DT_NEEDED` limited to system
+libraries (`libandroid`, `liblog`, `libm`, `libdl`, `libGLESv3`, `libEGL`, `libc`).
+Patching it with `libLiteRt.so` would now make it fail to load, since that library
+no longer exists. All `PT_LOAD` segments are 16 KB aligned.

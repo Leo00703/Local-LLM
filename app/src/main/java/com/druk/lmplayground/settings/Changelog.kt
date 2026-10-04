@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.122", "Newer Gemma 4 engine", listOf(
+        Change(ChangeType.IMPROVED, "The engine behind Gemma 4 E2B and E4B (Google LiteRT-LM) is updated to its latest release, 0.17.1. It uses less memory for long contexts and fixes a bug with whole-number values in tool calls. The GPU sampler it relies on is updated with it, so the faster speculative decoding keeps working. It takes about 10 MB more space on the phone."),
+    )),
     ChangelogEntry("1.9.121", "Newest AI engine", listOf(
         Change(ChangeType.IMPROVED, "The on-device AI engine (llama.cpp) is updated to its newest release, 193 builds newer than before. It brings fixes for GPU acceleration on Adreno phones, template and tool-calling fixes, and support for newer models. Nothing changes in how you use it."),
     )),

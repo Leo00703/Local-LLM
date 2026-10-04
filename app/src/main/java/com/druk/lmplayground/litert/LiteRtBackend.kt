@@ -36,8 +36,8 @@ class LiteRtBackend(
     private var pendingEnableThinking: Boolean = false
 
     // Tools (function calling). The VM passes the enabled set as OpenAI-format JSON
-    // each turn; the conversation must be rebuilt with them (0.13.1 fixes tools at
-    // creation time), so we only re-set the engine when the JSON actually changes,
+    // each turn; the conversation must be rebuilt with them (LiteRT-LM fixes tools at
+    // creation time, still true in 0.17.1), so we only re-set the engine when the JSON actually changes,
     // to avoid dropping conversation history on every turn.
     private var lastToolsJson: String = "[]"
     private var pendingToolCalls: List<ToolCall> = emptyList()

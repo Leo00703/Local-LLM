@@ -131,8 +131,8 @@ class LiteRtEngine {
     }
 
     /**
-     * Replace the enabled tool set. Tools are fixed at createConversation time in
-     * 0.13.1, so this rebuilds the conversation with the new tools (losing native KV
+     * Replace the enabled tool set. Tools are fixed at createConversation time
+     * (still true in 0.17.1), so this rebuilds the conversation with the new tools (losing native KV
      * / history). The caller (LiteRtBackend) only invokes this when the set actually
      * changes, so a stable-tools chat keeps its history. automaticToolCalling stays
      * false, so the runtime returns tool calls to us instead of executing them.

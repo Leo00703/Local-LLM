@@ -324,8 +324,10 @@ dependencies {
     // running Gemma 4 .litertlm models with their built-in MTP speculative-decoding
     // drafter (the real 2-3x decode speedup llama.cpp self-MTP couldn't deliver).
     // Prebuilt AAR with native .so bundled (arm64-v8a + x86_64, 16KB-aligned),
-    // Apache-2.0, minSdk 23. Pinned: re-verify the native ABI + API before bumping.
-    implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
+    // Apache-2.0, minSdk 23. Pinned: re-verify the native ABI + API before bumping, and
+    // refresh app/src/main/jniLibs/arm64-v8a/libLiteRtTopKOpenClSampler.so with it (see the
+    // README there; LiteRtSamplerLibraryTest checks the two agree).
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.17.1")
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
