@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.120", "Spark-X2.5 1.7B", listOf(
+        Change(ChangeType.NEW, "Spark-X2.5 1.7B from XHToken is in the model list: the smaller sibling of the 4B, a 1.1 GB reasoning model that can use tools and has a thinking switch."),
+    )),
     ChangelogEntry("1.9.119", "Long research no longer stops", listOf(
         Change(ChangeType.FIX, "A model on a remote server no longer stops in the middle of a long research. Replies ended after 5 rounds of tools with nothing written; server models now get 25 rounds, and when that budget runs out the model writes its answer from what it found instead of leaving an empty reply."),
         Change(ChangeType.IMPROVED, "When a server reply ends early, the chat now says why under the reply: the server hit its context or output limit, the connection closed before the end, or the server sent nothing."),

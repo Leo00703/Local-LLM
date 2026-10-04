@@ -54,7 +54,7 @@ Features added on top of upstream LM Playground:
 | LFM2.5-VL | 450M, 1.6B, 3B | Liquid AI |
 | SmolLM3 | 3B | Hugging Face |
 | MiniCPM5 | 1B, 2B | OpenBMB |
-| Spark-X2.5 | 4B | XHToken |
+| Spark-X2.5 | 1.7B, 4B | XHToken |
 | Ministral 3 | 3B, 8B (Instruct & Reasoning) | Mistral |
 | Llama 3.2 | 1B, 3B | Meta |
 | Llama 3.1 | 8B | Meta |

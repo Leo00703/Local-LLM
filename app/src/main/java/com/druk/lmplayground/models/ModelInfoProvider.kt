@@ -425,6 +425,15 @@ object ModelInfoProvider {
             supportedLanguages = MINICPM_LANGS
         ),
         ModelInfo(
+            name = "Spark-X2.5 1.7B",
+            filename = "Spark-X2.5-1.7B-Q4_K_M.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/XHToken/Spark-X2.5-1.7B-GGUF/resolve/main/Spark-X2.5-1.7B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-08-24"),
+            description = "XHToken \u00B7 Hybrid reasoning model \u00B7 1.11Gb",
+            logoRes = R.drawable.logo_xhtoken,
+            supportedLanguages = SPARK_LANGS
+        ),
+        ModelInfo(
             name = "Spark-X2.5 4B",
             filename = "Spark-X2.5-4B-Q4_K_M.gguf",
             remoteUri = Uri.parse("https://huggingface.co/XHToken/Spark-X2.5-4B-GGUF/resolve/main/Spark-X2.5-4B-Q4_K_M.gguf"),
@@ -648,6 +657,7 @@ object ModelInfoProvider {
         "MiniCPM5-1B-Q4_K_M.gguf",
         "MiniCPM5-2B-Q4_K_M.gguf",
         "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
+        "Spark-X2.5-1.7B-Q4_K_M.gguf",
         "Spark-X2.5-4B-Q4_K_M.gguf",
         "LFM2.5-VL-450M-Q4_K_M.gguf",
         "LFM2.5-VL-1.6B-Q4_K_M.gguf",
@@ -692,6 +702,7 @@ object ModelInfoProvider {
         "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
         "MiniCPM5-1B-Q4_K_M.gguf",
         "MiniCPM5-2B-Q4_K_M.gguf",
+        "Spark-X2.5-1.7B-Q4_K_M.gguf",
         "Spark-X2.5-4B-Q4_K_M.gguf",
         "granite-4.2-3b-Q4_K_M.gguf",
         "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf",
