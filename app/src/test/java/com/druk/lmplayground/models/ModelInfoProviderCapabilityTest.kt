@@ -89,6 +89,19 @@ class ModelInfoProviderCapabilityTest {
         }
     }
 
+    // The VL models call tools but their templates advertise a thinking mode they never
+    // use, so they are badged for tools only. They see images only once their add-on is in.
+    @Test
+    fun lfmVisionModelsCallToolsButDoNotThink() {
+        listOf("LFM2.5 VL 450M", "LFM2.5 VL 1.6B", "LFM2.5 VL 3B").forEach { name ->
+            val m = byName(name)
+            assertTrue("$name should support tools", m.supportsTools)
+            assertFalse("$name must not be badged as thinking", m.supportsThinking)
+            assertFalse("$name has no projector until it is downloaded", m.isVision)
+            assertTrue("$name can see images once the add-on is fetched", m.canSeeImages)
+        }
+    }
+
     @Test
     fun customModelHasNoCapabilities() {
         val custom = ModelInfoProvider.createCustomModelInfo(

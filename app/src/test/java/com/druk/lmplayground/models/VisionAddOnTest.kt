@@ -27,6 +27,7 @@ class VisionAddOnTest {
             "Ministral 3 3B Instruct", "Ministral 3 3B Reasoning",
             "Ministral 3 8B Instruct", "Ministral 3 8B Reasoning",
             "Gemma 4 E2B", "Gemma 4 E4B", "Gemma 4 E2B (Q4_K_M)", "Gemma 4 E4B (Q4_K_M)",
+            "LFM2.5 VL 450M", "LFM2.5 VL 1.6B", "LFM2.5 VL 3B",
         ).forEach { name ->
             assertNotNull("$name should offer an image add-on", byName(name).visionAddOn)
         }

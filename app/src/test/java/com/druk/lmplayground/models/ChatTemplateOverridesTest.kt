@@ -59,6 +59,19 @@ class ChatTemplateOverridesTest {
         assertTrue(text.contains("<|im_end|>"))
     }
 
+    // The VL 450M override must stay a template that renders NO tool calls: its own renders
+    // them in a form llama.cpp turns into a grammar with empty rules (the failure the
+    // override exists to avoid). Rendering them again would bring that grammar back.
+    @Test
+    fun lfmVl450mOverrideRendersNoToolCalls() {
+        val asset = ChatTemplateOverrides.OVERRIDES.getValue("LFM2.5-VL-450M-Q4_K_M.gguf")
+        val text = assetFile(asset).readText()
+        assertFalse("must not render message.tool_calls", text.contains("tool_calls"))
+        // Still the LFM chat format, with the tools it is told about listed in the prompt.
+        assertTrue(text.contains("<|im_start|>"))
+        assertTrue(text.contains("tools"))
+    }
+
     @Test
     fun aModelWithoutAnOverrideKeepsItsOwnTemplate() {
         assertEquals(null, ChatTemplateOverrides.OVERRIDES["Qwen3-4B-Q4_K_M.gguf"])

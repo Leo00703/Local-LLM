@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.115", "LFM2.5-VL vision models", listOf(
+        Change(ChangeType.NEW, "Three small vision models from Liquid AI: LFM2.5-VL 450M (the smallest, 229 MB), 1.6B and 3B (which also reads text in photos, in 16 languages). They are fast even on a phone without a strong GPU, and all three can use tools. Their image add-on (from 102 MB to 583 MB) is offered the first time you attach a picture."),
+    )),
     ChangelogEntry("1.9.114", "Spark-X2.5 and SmolLM3 tools", listOf(
         Change(ChangeType.NEW, "Spark-X2.5 4B from XHToken is in the model list: a reasoning model that can use tools and has a thinking switch that works both ways. It needs the newer AI engine from the last update."),
         Change(ChangeType.FIX, "SmolLM3 3B can now use tools. Before, the tool calls it wrote appeared in the chat as raw text instead of running, because its built-in chat template never described them. The app now loads it with a corrected template."),

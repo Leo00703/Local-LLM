@@ -25,6 +25,8 @@ object ModelInfoProvider {
     )
     private val DEEPSEEK_LANGS = listOf("en", "zh")
     private val LFM_LANGS = listOf("en", "ar", "zh", "fr", "de", "ja", "ko", "es")
+    // LFM2.5-VL 450M adds Portuguese to the LFM2 set.
+    private val LFM_VL_LANGS = listOf("en", "ar", "zh", "fr", "de", "ja", "ko", "pt", "es")
     // LFM2.5 1.2B Instruct and 2.6B declare a wider set than the earlier LFM2.5 sizes.
     private val LFM25_LANGS = listOf(
         "ar", "zh", "en", "fr", "de", "hi", "id", "it",
@@ -88,6 +90,17 @@ object ModelInfoProvider {
     private val ADDON_GEMMA4_E4B = VisionAddOn(
         "mmproj-gemma-4-E4B-it-Q8_0.gguf",
         hf("ggml-org/gemma-4-E4B-it-GGUF", "mmproj-gemma-4-E4B-it-Q8_0.gguf"), "559Mb")
+    // Liquid ships Q8_0 projectors. Their encoders are small (86M-400M), which keeps vision
+    // fast where it falls back to the CPU.
+    private val ADDON_LFM25_VL_450M = VisionAddOn(
+        "mmproj-LFM2.5-VL-450m-Q8_0.gguf",
+        hf("LiquidAI/LFM2.5-VL-450M-GGUF", "mmproj-LFM2.5-VL-450m-Q8_0.gguf"), "102Mb")
+    private val ADDON_LFM25_VL_1_6B = VisionAddOn(
+        "mmproj-LFM2.5-VL-1.6b-Q8_0.gguf",
+        hf("LiquidAI/LFM2.5-VL-1.6B-GGUF", "mmproj-LFM2.5-VL-1.6b-Q8_0.gguf"), "583Mb")
+    private val ADDON_LFM25_VL_3B = VisionAddOn(
+        "mmproj-LFM2.5-VL-3B-Q8_0.gguf",
+        hf("LiquidAI/LFM2.5-VL-3B-GGUF", "mmproj-LFM2.5-VL-3B-Q8_0.gguf"), "583Mb")
 
 
     /**
@@ -314,7 +327,7 @@ object ModelInfoProvider {
             filename = "granite-4.2-3b-Q4_K_M.gguf",
             remoteUri = Uri.parse("https://huggingface.co/ibm-granite/granite-4.2-3b-GGUF/resolve/main/granite-4.2-3b-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-08-25"),
-            description = "IBM · Hybrid reasoning model · 2.24Gb",
+            description = "IBM \u00B7 Hybrid reasoning model \u00B7 2.24Gb",
             logoRes = R.drawable.logo_ibm,
             supportedLanguages = GRANITE_LANGS
         ),
@@ -350,7 +363,7 @@ object ModelInfoProvider {
             filename = "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
             remoteUri = Uri.parse("https://huggingface.co/bartowski/HuggingFaceTB_SmolLM3-3B-GGUF/resolve/main/HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2025-07-08"),
-            description = "Hugging Face · Hybrid reasoning model · 1.92Gb",
+            description = "Hugging Face \u00B7 Hybrid reasoning model \u00B7 1.92Gb",
             logoRes = R.drawable.logo_huggingface,
             supportedLanguages = SMOLLM3_LANGS
         ),
@@ -359,7 +372,7 @@ object ModelInfoProvider {
             filename = "MiniCPM5-1B-Q4_K_M.gguf",
             remoteUri = Uri.parse("https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-05-21"),
-            description = "OpenBMB · Hybrid reasoning model · 688Mb",
+            description = "OpenBMB \u00B7 Hybrid reasoning model \u00B7 688Mb",
             logoRes = R.drawable.logo_minicpm,
             supportedLanguages = MINICPM_LANGS
         ),
@@ -368,7 +381,7 @@ object ModelInfoProvider {
             filename = "MiniCPM5-2B-Q4_K_M.gguf",
             remoteUri = Uri.parse("https://huggingface.co/openbmb/MiniCPM5-2B-GGUF/resolve/main/MiniCPM5-2B-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-09-06"),
-            description = "OpenBMB · Hybrid reasoning model · 1.56Gb",
+            description = "OpenBMB \u00B7 Hybrid reasoning model \u00B7 1.56Gb",
             logoRes = R.drawable.logo_minicpm,
             supportedLanguages = MINICPM_LANGS
         ),
@@ -377,9 +390,39 @@ object ModelInfoProvider {
             filename = "Spark-X2.5-4B-Q4_K_M.gguf",
             remoteUri = Uri.parse("https://huggingface.co/XHToken/Spark-X2.5-4B-GGUF/resolve/main/Spark-X2.5-4B-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-08-24"),
-            description = "XHToken · Hybrid reasoning model · 2.60Gb",
+            description = "XHToken \u00B7 Hybrid reasoning model \u00B7 2.60Gb",
             logoRes = R.drawable.logo_xhtoken,
             supportedLanguages = SPARK_LANGS
+        ),
+        ModelInfo(
+            name = "LFM2.5 VL 450M",
+            filename = "LFM2.5-VL-450M-Q4_K_M.gguf",
+            visionAddOn = ADDON_LFM25_VL_450M,
+            remoteUri = Uri.parse("https://huggingface.co/LiquidAI/LFM2.5-VL-450M-GGUF/resolve/main/LFM2.5-VL-450M-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-04-08"),
+            description = "Liquid AI \u00B7 Tiny vision model \u00B7 229Mb",
+            logoRes = R.drawable.logo_liquid,
+            supportedLanguages = LFM_VL_LANGS
+        ),
+        ModelInfo(
+            name = "LFM2.5 VL 1.6B",
+            filename = "LFM2.5-VL-1.6B-Q4_K_M.gguf",
+            visionAddOn = ADDON_LFM25_VL_1_6B,
+            remoteUri = Uri.parse("https://huggingface.co/LiquidAI/LFM2.5-VL-1.6B-GGUF/resolve/main/LFM2.5-VL-1.6B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-01-05"),
+            description = "Liquid AI \u00B7 Compact vision model \u00B7 730Mb",
+            logoRes = R.drawable.logo_liquid,
+            supportedLanguages = LFM_LANGS
+        ),
+        ModelInfo(
+            name = "LFM2.5 VL 3B",
+            filename = "LFM2.5-VL-3B-Q4_K_M.gguf",
+            visionAddOn = ADDON_LFM25_VL_3B,
+            remoteUri = Uri.parse("https://huggingface.co/LiquidAI/LFM2.5-VL-3B-GGUF/resolve/main/LFM2.5-VL-3B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-08-12"),
+            description = "Liquid AI \u00B7 Vision and OCR model \u00B7 1.67Gb",
+            logoRes = R.drawable.logo_liquid,
+            supportedLanguages = LFM25_LANGS
         ),
         ModelInfo(
             name = "Gemma 3n E2B",
@@ -564,6 +607,9 @@ object ModelInfoProvider {
         "MiniCPM5-2B-Q4_K_M.gguf",
         "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
         "Spark-X2.5-4B-Q4_K_M.gguf",
+        "LFM2.5-VL-450M-Q4_K_M.gguf",
+        "LFM2.5-VL-1.6B-Q4_K_M.gguf",
+        "LFM2.5-VL-3B-Q4_K_M.gguf",
         "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
         "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf",
         "Ministral-3-8B-Instruct-2512-Q4_K_M.gguf",
@@ -627,6 +673,9 @@ object ModelInfoProvider {
         "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf" to ThinkingMode.NONE,
         "LFM2.5-1.2B-Instruct-Q4_K_M.gguf" to ThinkingMode.NONE,
         "LFM2.5-350M-Q4_K_M.gguf" to ThinkingMode.NONE,
+        "LFM2.5-VL-450M-Q4_K_M.gguf" to ThinkingMode.NONE,
+        "LFM2.5-VL-1.6B-Q4_K_M.gguf" to ThinkingMode.NONE,
+        "LFM2.5-VL-3B-Q4_K_M.gguf" to ThinkingMode.NONE,
 
         // Reasoning-tuned: they keep thinking with the flag off, so offering "off"
         // is a promise the model will not keep.

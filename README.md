@@ -51,6 +51,7 @@ Features added on top of upstream LM Playground:
 | DeepSeek R1 Distill | 1.5B, 7B | DeepSeek |
 | Phi-4 mini | 3.8B | Microsoft |
 | LFM2.5 | 350M, 1.2B (Instruct & Thinking), 2.6B | Liquid AI |
+| LFM2.5-VL | 450M, 1.6B, 3B | Liquid AI |
 | SmolLM3 | 3B | Hugging Face |
 | MiniCPM5 | 1B, 2B | OpenBMB |
 | Spark-X2.5 | 4B | XHToken |

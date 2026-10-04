@@ -64,7 +64,10 @@ class ThinkingModeTest {
     // Templates advertise a thinking mode that these models never use.
     @Test
     fun modelsThatNeverThinkAreMeasuredAsNone() {
-        listOf("Ministral 3 3B Instruct", "LFM2.5 350M", "LFM2.5 1.2B Instruct").forEach { name ->
+        listOf(
+            "Ministral 3 3B Instruct", "LFM2.5 350M", "LFM2.5 1.2B Instruct",
+            "LFM2.5 VL 450M", "LFM2.5 VL 1.6B", "LFM2.5 VL 3B",
+        ).forEach { name ->
             val m = byName(name)
             assertEquals(name, ThinkingMode.NONE, m.thinkingMode)
             assertFalse("$name must not be badged as thinking", m.supportsThinking)
