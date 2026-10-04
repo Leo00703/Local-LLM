@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.113", "Pictures without copying files", listOf(
+        Change(ChangeType.NEW, "Qwen 3.5, Gemma 3, Gemma 4 and Ministral can now look at pictures without you finding and copying a file by hand. Tap the attach button and, if the model's image add-on isn't on your phone yet, the app asks whether to download it (from about 200 MB to 850 MB depending on the model). It downloads in the background and tells you when it's ready."),
+        Change(ChangeType.IMPROVED, "Deleting a model now also removes the image add-on that was downloaded for it, unless another model you kept still uses the same one (both Gemma 4 E2B versions share it)."),
+    )),
     ChangelogEntry("1.9.112", "Tools now work with photos", listOf(
         Change(ChangeType.FIX, "Tools now work together with a photo. When tools were on and you attached a picture, the model was told about the tools but its tool calls were not recognised, so a request to use one could show up as raw text instead of running. A photo question can now use the calculator, web search and the other tools like any other message."),
     )),

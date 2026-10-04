@@ -26,6 +26,25 @@ enum class ThinkingMode {
 }
 
 /**
+ * The multimodal projector ("image add-on") a catalog vision model needs before it
+ * can look at pictures. It is a second, separate download: most people never attach
+ * an image, and the add-on is often as large as a small model, so the chat asks
+ * before fetching it instead of bundling it with the text weights.
+ */
+data class VisionAddOn(
+    /** File name it is stored under in the models folder (may differ from the URL's). */
+    val filename: String,
+    /**
+     * Where it is downloaded from. A plain string, not an android.net.Uri: the catalog is
+     * built when ModelInfoProvider first loads, and a string needs nothing from the
+     * Android framework, so the catalog and its tests also work in plain JVM unit tests.
+     */
+    val url: String,
+    /** Size for the confirmation prompt, in the same format as the model list ("672Mb"). */
+    val sizeLabel: String,
+)
+
+/**
  * Static model definition - does not contain download status.
  * Chat template parameters (prefix, suffix, stop sequences) are read
  * from the GGUF file's embedded Jinja template at load time.
@@ -57,9 +76,15 @@ data class ModelInfo(
     // custom model. Never offered for download: hidden from the list unless the
     // file is present on disk (see getModelsWithStatus).
     val deprecated: Boolean = false,
+    // Catalog models only: where the projector comes from when it is not on disk yet.
+    // Distinct from [mmprojFilename], which means "a projector is present next to this
+    // model" and is what turns vision on; this only says one CAN be downloaded.
+    val visionAddOn: VisionAddOn? = null,
 ) {
     val isCustom: Boolean get() = remoteUri == null
     val isVision: Boolean get() = mmprojFilename != null
+    /** Can see images now, or after downloading its [visionAddOn]. */
+    val canSeeImages: Boolean get() = isVision || visionAddOn != null
 }
 
 fun ModelInfo.supportsLanguage(lang: String): Boolean =

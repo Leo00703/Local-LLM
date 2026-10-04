@@ -384,6 +384,14 @@
     <string name="image_attach_failed">Impossibile leggere l\'immagine</string>
     <string name="vision_load_failed">Impossibile caricare il proiettore vision. Il messaggio non è stato inviato. Riprova, oppure rimuovi l\'immagine per inviare solo il testo.</string>
     <string name="vision_load_failed_reason">Vision non caricata: %1$s</string>
+    <string name="vision_addon_title">Serve il componente per le immagini</string>
+    <string name="vision_addon_message">Per usare le immagini con %1$s devi scaricare il suo componente immagini (%2$s). Il download avviene in background e riceverai una notifica quando è pronto.</string>
+    <string name="vision_addon_downloading">Il componente immagini si sta scaricando in background. Potrai allegare immagini non appena avrà finito.</string>
+    <string name="vision_addon_download">Scarica</string>
+    <string name="vision_addon_not_now">Non ora</string>
+    <string name="vision_addon_ready">Componente immagini pronto. Ora puoi allegare immagini.</string>
+    <string name="vision_addon_failed">Impossibile scaricare il componente immagini. Riprova dal pulsante allega.</string>
+    <string name="vision_addon_no_storage">Scegli prima una cartella per i modelli (Impostazioni, Modelli), poi riprova.</string>
     <string name="vision_diagnostic_title">Diagnostica caricamento vision</string>
     <string name="image_token_count">🖼 %1$d token</string>
     <string name="image_detail_label">Dettaglio immagine</string>

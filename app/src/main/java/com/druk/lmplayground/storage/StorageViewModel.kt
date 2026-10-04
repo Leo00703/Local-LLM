@@ -164,19 +164,34 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
     fun deleteModel(model: ModelFile) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                repository.deleteModel(model.name)
+                deleteModelAndAddOn(model.name)
             }
             loadStorageInfo()
         }
     }
-    
+
     fun deleteModel(model: ModelInfo) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                repository.deleteModel(model.filename)
+                deleteModelAndAddOn(model.filename)
             }
             loadStorageInfo()
         }
+    }
+
+    /**
+     * Delete [filename] and, when it is a catalog vision model, the image add-on that was
+     * downloaded for it, so removing a model frees everything it cost. The add-on stays
+     * if another downloaded model still uses the same file (both Gemma 4 E2B builds
+     * share one). A projector the user sideloaded under a different name is theirs and
+     * is never touched. Blocking file I/O: call off the main thread.
+     */
+    private fun deleteModelAndAddOn(filename: String) {
+        repository.deleteModel(filename)
+        val addOn = ModelInfoProvider.getByFilename(filename)?.visionAddOn?.filename ?: return
+        val remaining = repository.getModelFiles().map { it.name }.toSet()
+        val stillNeeded = ModelInfoProvider.modelsUsingAddOn(addOn).any { it.filename in remaining }
+        if (!stillNeeded) repository.deleteModel(addOn)
     }
 
     /**

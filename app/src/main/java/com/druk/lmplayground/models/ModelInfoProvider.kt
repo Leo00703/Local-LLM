@@ -42,6 +42,51 @@ object ModelInfoProvider {
     )
     private val ENGLISH_ONLY = listOf("en")
 
+    // Image add-ons (multimodal projectors) of the catalog's vision models, offered on
+    // demand from the chat the first time someone tries to attach a picture. Sizes are
+    // the real byte counts of the hosted files, formatted like the model list. The
+    // stored name is distinct from the URL's wherever the host's own name is generic
+    // (Gemma 3's is just "mmproj-model-f16.gguf"), because every projector lands in
+    // the same folder as the models and must be told apart by name.
+    private fun hf(repo: String, file: String): String =
+        "https://huggingface.co/$repo/resolve/main/$file"
+
+    private val ADDON_QWEN35_0_8B = VisionAddOn(
+        "mmproj-Qwen_Qwen3.5-0.8B-f16.gguf",
+        hf("bartowski/Qwen_Qwen3.5-0.8B-GGUF", "mmproj-Qwen_Qwen3.5-0.8B-f16.gguf"), "204Mb")
+    private val ADDON_QWEN35_2B = VisionAddOn(
+        "mmproj-Qwen_Qwen3.5-2B-f16.gguf",
+        hf("bartowski/Qwen_Qwen3.5-2B-GGUF", "mmproj-Qwen_Qwen3.5-2B-f16.gguf"), "668Mb")
+    private val ADDON_QWEN35_4B = VisionAddOn(
+        "mmproj-Qwen_Qwen3.5-4B-f16.gguf",
+        hf("bartowski/Qwen_Qwen3.5-4B-GGUF", "mmproj-Qwen_Qwen3.5-4B-f16.gguf"), "672Mb")
+    private val ADDON_GEMMA3_4B = VisionAddOn(
+        "gemma-3-4b-it-mmproj-f16.gguf",
+        hf("lmstudio-community/gemma-3-4b-it-GGUF", "mmproj-model-f16.gguf"), "851Mb")
+    private val ADDON_MINISTRAL_3B_INSTRUCT = VisionAddOn(
+        "mmproj-Ministral-3-3B-Instruct-2512-F16.gguf",
+        hf("lmstudio-community/Ministral-3-3B-Instruct-2512-GGUF", "mmproj-Ministral-3-3B-Instruct-2512-F16.gguf"), "840Mb")
+    private val ADDON_MINISTRAL_3B_REASONING = VisionAddOn(
+        "mmproj-Ministral-3-3B-Reasoning-2512-F16.gguf",
+        hf("lmstudio-community/Ministral-3-3B-Reasoning-2512-GGUF", "mmproj-Ministral-3-3B-Reasoning-2512-F16.gguf"), "840Mb")
+    private val ADDON_MINISTRAL_8B_INSTRUCT = VisionAddOn(
+        "mmproj-Ministral-3-8B-Instruct-2512-F16.gguf",
+        hf("lmstudio-community/Ministral-3-8B-Instruct-2512-GGUF", "mmproj-Ministral-3-8B-Instruct-2512-F16.gguf"), "857Mb")
+    private val ADDON_MINISTRAL_8B_REASONING = VisionAddOn(
+        "mmproj-Ministral-3-8B-Reasoning-2512-F16.gguf",
+        hf("lmstudio-community/Ministral-3-8B-Reasoning-2512-GGUF", "mmproj-Ministral-3-8B-Reasoning-2512-F16.gguf"), "857Mb")
+    // Q8_0, not BF16: BF16 has no optimised ARM CPU kernel, so on devices where the
+    // vision encoder runs on the CPU one image took ~64s against ~14s for Q8_0 on the
+    // same phone (measured upstream), at the same answer quality and 400Mb less.
+    // Both quantizations of a Gemma 4 size share the one projector.
+    private val ADDON_GEMMA4_E2B = VisionAddOn(
+        "mmproj-gemma-4-E2B-it-Q8_0.gguf",
+        hf("ggml-org/gemma-4-E2B-it-GGUF", "mmproj-gemma-4-E2B-it-Q8_0.gguf"), "557Mb")
+    private val ADDON_GEMMA4_E4B = VisionAddOn(
+        "mmproj-gemma-4-E4B-it-Q8_0.gguf",
+        hf("ggml-org/gemma-4-E4B-it-GGUF", "mmproj-gemma-4-E4B-it-Q8_0.gguf"), "559Mb")
+
+
     /**
      * Static list of all available models
      */
@@ -76,6 +121,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Qwen 3.5 0.8B",
             filename = "Qwen_Qwen3.5-0.8B-Q3_K_M.gguf",
+            visionAddOn = ADDON_QWEN35_0_8B,
             remoteUri = Uri.parse("https://huggingface.co/bartowski/Qwen_Qwen3.5-0.8B-GGUF/resolve/main/Qwen_Qwen3.5-0.8B-Q3_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-02-27"),
             description = "Alibaba \u00B7 Lightweight chat model \u00B7 466Mb",
@@ -85,6 +131,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Qwen 3.5 2B",
             filename = "Qwen_Qwen3.5-2B-Q3_K_M.gguf",
+            visionAddOn = ADDON_QWEN35_2B,
             remoteUri = Uri.parse("https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF/resolve/main/Qwen_Qwen3.5-2B-Q3_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-02-27"),
             description = "Alibaba \u00B7 General-purpose chat model \u00B7 1.07Gb",
@@ -94,6 +141,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Qwen 3.5 4B",
             filename = "Qwen_Qwen3.5-4B-Q3_K_M.gguf",
+            visionAddOn = ADDON_QWEN35_4B,
             remoteUri = Uri.parse("https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF/resolve/main/Qwen_Qwen3.5-4B-Q3_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-02-27"),
             description = "Alibaba \u00B7 General-purpose chat model \u00B7 2.25Gb",
@@ -112,6 +160,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Gemma 3 4B",
             filename = "gemma-3-4b-it-Q4_K_M.gguf",
+            visionAddOn = ADDON_GEMMA3_4B,
             remoteUri = Uri.parse("https://huggingface.co/lmstudio-community/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2025-03-12"),
             description = "Google \u00B7 General-purpose chat model \u00B7 2.49Gb",
@@ -202,6 +251,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Ministral 3 3B Instruct",
             filename = "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
+            visionAddOn = ADDON_MINISTRAL_3B_INSTRUCT,
             remoteUri = Uri.parse("https://huggingface.co/lmstudio-community/Ministral-3-3B-Instruct-2512-GGUF/resolve/main/Ministral-3-3B-Instruct-2512-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2024-12-17"),
             description = "Mistral \u00B7 Lightweight chat model \u00B7 2.15Gb",
@@ -211,6 +261,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Ministral 3 3B Reasoning",
             filename = "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf",
+            visionAddOn = ADDON_MINISTRAL_3B_REASONING,
             remoteUri = Uri.parse("https://huggingface.co/lmstudio-community/Ministral-3-3B-Reasoning-2512-GGUF/resolve/main/Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2024-12-17"),
             description = "Mistral \u00B7 Lightweight reasoning model \u00B7 2.15Gb",
@@ -220,6 +271,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Ministral 3 8B Instruct",
             filename = "Ministral-3-8B-Instruct-2512-Q4_K_M.gguf",
+            visionAddOn = ADDON_MINISTRAL_8B_INSTRUCT,
             remoteUri = Uri.parse("https://huggingface.co/lmstudio-community/Ministral-3-8B-Instruct-2512-GGUF/resolve/main/Ministral-3-8B-Instruct-2512-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2024-12-17"),
             description = "Mistral \u00B7 General-purpose chat model \u00B7 5.2Gb",
@@ -229,6 +281,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Ministral 3 8B Reasoning",
             filename = "Ministral-3-8B-Reasoning-2512-Q4_K_M.gguf",
+            visionAddOn = ADDON_MINISTRAL_8B_REASONING,
             remoteUri = Uri.parse("https://huggingface.co/lmstudio-community/Ministral-3-8B-Reasoning-2512-GGUF/resolve/main/Ministral-3-8B-Reasoning-2512-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2024-12-17"),
             description = "Mistral \u00B7 Advanced reasoning model \u00B7 5.2Gb",
@@ -340,6 +393,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Gemma 4 E2B",
             filename = "gemma-4-E2B_q4_0-it.gguf",
+            visionAddOn = ADDON_GEMMA4_E2B,
             remoteUri = Uri.parse("https://huggingface.co/google/gemma-4-E2B-it-qat-q4_0-gguf/resolve/main/gemma-4-E2B_q4_0-it.gguf"),
             releaseDate = LocalDate.parse("2026-03-25"),
             description = "Google \u00B7 QAT on-device model \u00B7 3.35Gb",
@@ -349,6 +403,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Gemma 4 E4B",
             filename = "gemma-4-E4B_q4_0-it.gguf",
+            visionAddOn = ADDON_GEMMA4_E4B,
             remoteUri = Uri.parse("https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf/resolve/main/gemma-4-E4B_q4_0-it.gguf"),
             releaseDate = LocalDate.parse("2026-03-25"),
             description = "Google \u00B7 QAT on-device model \u00B7 5.15Gb",
@@ -370,6 +425,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Gemma 4 E2B (Q4_K_M)",
             filename = "gemma-4-E2B-it-Q4_K_M.gguf",
+            visionAddOn = ADDON_GEMMA4_E2B,
             remoteUri = Uri.parse("https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-03-25"),
             description = "Google \u00B7 Efficient on-device model \u00B7 3.11Gb",
@@ -380,6 +436,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Gemma 4 E4B (Q4_K_M)",
             filename = "gemma-4-E4B-it-Q4_K_M.gguf",
+            visionAddOn = ADDON_GEMMA4_E4B,
             remoteUri = Uri.parse("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-03-25"),
             description = "Google \u00B7 Efficient on-device model \u00B7 4.98Gb",
@@ -584,8 +641,17 @@ object ModelInfoProvider {
     /**
      * Get all known model filenames
      */
-    val knownFilenames: Set<String> = allModels.map { it.filename }.toSet()
-    
+    val knownFilenames: Set<String> =
+        (allModels.map { it.filename } + allModels.mapNotNull { it.visionAddOn?.filename }).toSet()
+
+    /**
+     * Catalog models that list [addOnFilename] as their image add-on. Models of the
+     * same family can share one projector (both Gemma 4 E2B builds do), so deleting
+     * one of them must not remove a projector another downloaded model still needs.
+     */
+    fun modelsUsingAddOn(addOnFilename: String): List<ModelInfo> =
+        allModels.filter { it.visionAddOn?.filename == addOnFilename }
+
     /**
      * Get model by filename
      */
@@ -823,9 +889,13 @@ object ModelInfoProvider {
             .map { model ->
                 val downloaded = model.filename in downloadedFilenames
                 // Only pair once the model file exists (it must load), and only
-                // if the catalog entry didn't already declare a projector.
+                // if the catalog entry didn't already declare a projector. The
+                // catalog's own add-on wins when it is on disk (an exact file name,
+                // no guessing); otherwise fall back to matching a sideloaded
+                // projector by name tokens.
                 val paired = if (downloaded && model.mmprojFilename == null) {
-                    MmprojPairing.findMmprojFor(model.filename, mmprojNames)
+                    model.visionAddOn?.filename?.takeIf { it in mmprojNames }
+                        ?: MmprojPairing.findMmprojFor(model.filename, mmprojNames)
                 } else null
                 ModelWithStatus(
                     model = if (paired != null) model.copy(mmprojFilename = paired) else model,

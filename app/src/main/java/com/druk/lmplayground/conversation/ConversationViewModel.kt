@@ -10,6 +10,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
 import androidx.lifecycle.switchMap
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
 import com.druk.llamacpp.InferenceLimits
 import com.druk.llamacpp.InferenceState
 import com.druk.llamacpp.InferenceUnavailableException
@@ -34,6 +35,7 @@ import com.druk.lmplayground.data.ChatSessionEntity
 import com.druk.lmplayground.data.FolderEntity
 import com.druk.lmplayground.data.ConversationMetadata
 import com.druk.lmplayground.data.MemoryNoteEntity
+import com.druk.lmplayground.download.DownloadRepository
 import com.druk.lmplayground.data.MemoryRepository
 import com.druk.lmplayground.data.SystemPromptEntity
 import com.druk.lmplayground.data.SystemPromptRepository
@@ -41,6 +43,7 @@ import com.druk.lmplayground.models.DeviceCapability
 import com.druk.lmplayground.models.MmprojPairing
 import com.druk.lmplayground.models.ModelInfo
 import com.druk.lmplayground.models.ThinkingMode
+import com.druk.lmplayground.models.VisionAddOn
 import com.druk.lmplayground.models.canThink
 import com.druk.lmplayground.models.offersThinkingSwitch
 import com.druk.lmplayground.models.ModelInfoProvider
@@ -68,6 +71,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
@@ -140,6 +144,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     private val _supportsToolCalling = MutableLiveData(false)
     // True when the loaded local model has a vision projector (mmproj) attached.
     private val _supportsVision = MutableLiveData(false)
+    // The loaded catalog model CAN see images but its image add-on is not on disk yet.
+    // Holds the add-on to offer; null once it is present, or when there is none to offer.
+    private val _visionAddOn = MutableLiveData<VisionAddOn?>(null)
+    private val _visionAddOnDownloading = MutableLiveData(false)
     private val _toolEnabledStates = MutableLiveData<Map<String, Boolean>>(emptyMap())
     val toolRegistry = ToolRegistry.createDefault(app)
     val toolEnabledStates: LiveData<Map<String, Boolean>> = _toolEnabledStates
@@ -271,6 +279,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     val sessionModelHint: LiveData<Pair<String, String>?> = _sessionModelHint
     val supportsToolCalling: LiveData<Boolean> = _supportsToolCalling
     val supportsVision: LiveData<Boolean> = _supportsVision
+    /** The image add-on to offer for the loaded model, or null when none is missing. */
+    val visionAddOn: LiveData<VisionAddOn?> = _visionAddOn
+    val visionAddOnDownloading: LiveData<Boolean> = _visionAddOnDownloading
     val systemPrompt: LiveData<String> = _systemPrompt
     val systemPromptId: LiveData<String?> = _systemPromptId
     val userError: LiveData<String?> = _userError
@@ -627,6 +638,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // Remote vision: the image is sent to the server as a base64 image_url
             // part (no on-device projector).
             _supportsVision.postValue(hasCap("vision"))
+            _visionAddOn.postValue(null)   // remote models need no local projector
             // Compute backend is a local (on-device) concept; the server owns its own.
             _computeBackend.postValue(null)
             _toolEnabledStates.postValue(emptyMap())
@@ -735,6 +747,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _thinkingToggleable.postValue(true)
             _supportsToolCalling.postValue(true)
             _supportsVision.postValue(liteRtVision)
+            _visionAddOn.postValue(null)   // LiteRT bundles its own vision encoder
             // Compute backend is surfaced only for the llama path; keep it null.
             _computeBackend.postValue(null)
             _toolEnabledStates.postValue(emptyMap())
@@ -1002,6 +1015,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 _supportsThinking.postValue(false)
                 _thinkingToggleable.postValue(false)
                 _supportsVision.postValue(false)
+                _visionAddOn.postValue(null)
                 _computeBackend.postValue(null)
                 _loadedModelStatus.postValue("Loading...")
 
@@ -1142,7 +1156,12 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     // (mechanism OS-level, not reproducible statically), so
                     // text-only chat must stay structurally projector-free.
                     projectorLoaded = false
-                    _supportsVision.postValue(modelInfo.mmprojFilename != null)
+                    // A catalog vision model whose projector is not on disk still gets
+                    // the attach button: tapping it offers the add-on download instead
+                    // of opening the picker (see downloadVisionAddOn).
+                    val addOnMissing = modelInfo.mmprojFilename == null && modelInfo.visionAddOn != null
+                    _supportsVision.postValue(modelInfo.mmprojFilename != null || addOnMissing)
+                    _visionAddOn.postValue(if (addOnMissing) modelInfo.visionAddOn else null)
                     // Cache the real, template-detected capabilities so the model
                     // list can show accurate badges for this model (and any custom
                     // GGUF) without having to load it again.
@@ -1905,6 +1924,75 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
         }
         return reason == null
+    }
+
+    private val downloadRepo by lazy { DownloadRepository(app) }
+
+    /**
+     * Fetch the loaded model's image add-on, once the user has agreed to it in the chat.
+     *
+     * The download itself is a background job with its own notification, so it survives
+     * leaving the screen. This only watches it and, when the file lands, switches the
+     * already-loaded model over to vision WITHOUT reloading it: the projector is loaded
+     * lazily at the first image send anyway, so all that has to change is the pairing.
+     */
+    @MainThread
+    fun downloadVisionAddOn() {
+        val model = _loadedModel.value ?: return
+        val addOn = model.visionAddOn ?: return
+        if (_visionAddOnDownloading.value == true) return
+        val storageUri = storageRepository.getStorageUri()
+        if (storageUri == null) {
+            _userError.value = app.getString(com.druk.lmplayground.R.string.vision_addon_no_storage)
+            return
+        }
+        _visionAddOnDownloading.value = true
+        viewModelScope.launch {
+            try {
+                // Already there (e.g. copied in by hand after the model loaded)? Just pair it.
+                val present = withContext(Dispatchers.IO) {
+                    storageRepository.getModelFiles().any { it.name == addOn.filename }
+                }
+                if (present) {
+                    onVisionAddOnReady(model, addOn)
+                    return@launch
+                }
+                // Wait until the job is registered, otherwise a finished job left over from an
+                // earlier download could be read as this one's result.
+                val enqueued = downloadRepo.startVisionAddOnDownload(model, storageUri)
+                if (enqueued != null) withContext(Dispatchers.IO) { enqueued.result.get() }
+                val finished = downloadRepo.observeVisionAddOn(model)
+                    .first { infos -> infos.firstOrNull()?.state?.isFinished == true }
+                val ok = finished.first().state == WorkInfo.State.SUCCEEDED &&
+                    withContext(Dispatchers.IO) {
+                        storageRepository.getModelFiles().any { it.name == addOn.filename }
+                    }
+                if (ok) onVisionAddOnReady(model, addOn)
+                else _userError.postValue(app.getString(com.druk.lmplayground.R.string.vision_addon_failed))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                android.util.Log.w("ConversationViewModel", "image add-on download failed", t)
+                _userError.postValue(app.getString(com.druk.lmplayground.R.string.vision_addon_failed))
+            } finally {
+                _visionAddOnDownloading.postValue(false)
+            }
+        }
+    }
+
+    /** The add-on is on disk: pair it with the loaded model and let the user attach pictures. */
+    private fun onVisionAddOnReady(model: ModelInfo, addOn: VisionAddOn) {
+        val current = _loadedModel.value
+        // The user may have switched models while it downloaded; only touch the one it was for.
+        if (current != null && current.filename == model.filename) {
+            _loadedModel.postValue(current.copy(mmprojFilename = addOn.filename))
+            _visionAddOn.postValue(null)
+            _supportsVision.postValue(true)
+            projectorLoaded = false
+        }
+        // Refresh the picker's list too, so the pairing shows up there as well.
+        loadModelList()
+        _userError.postValue(app.getString(com.druk.lmplayground.R.string.vision_addon_ready))
     }
 
     /**
@@ -3631,6 +3719,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _thinkingToggleable.postValue(false)
             _supportsToolCalling.postValue(false)
             _supportsVision.postValue(false)
+            _visionAddOn.postValue(null)
             _toolEnabledStates.postValue(emptyMap())
             _contextUsedTokens.postValue(0)
         }

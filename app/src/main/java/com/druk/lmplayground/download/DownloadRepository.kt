@@ -12,11 +12,13 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.Operation
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.druk.lmplayground.models.ModelInfo
 import com.druk.lmplayground.storage.DownloadProgress
 import com.druk.lmplayground.storage.StoragePreferences
+import kotlinx.coroutines.flow.Flow
 import java.util.concurrent.TimeUnit
 
 class DownloadRepository(private val context: Context) {
@@ -54,8 +56,53 @@ class DownloadRepository(private val context: Context) {
         workManager.enqueueUniqueWork(workName, ExistingWorkPolicy.KEEP, request)
     }
 
+    /**
+     * Download the image add-on (multimodal projector) of a catalog vision model.
+     *
+     * A job of its own, separate from the model's: the chat asks before fetching it, so
+     * it usually starts long after the text weights arrived. The model keeps its own
+     * name in the download list; this one is labelled "<model> (vision)" so it never
+     * shows up as a second progress bar on the model's row, only in the notification.
+     *
+     * Returns the enqueue [Operation] so a caller can wait until the job is registered
+     * before observing it (otherwise a finished job from an earlier download could be
+     * read as this one's result), or null when the model has no add-on.
+     */
+    fun startVisionAddOnDownload(model: ModelInfo, storageUri: Uri): Operation? {
+        val addOn = model.visionAddOn ?: return null
+        val workName = addOnWorkNameFor(model)
+
+        val inputData = Data.Builder()
+            .putString(DownloadWorker.KEY_URL, addOn.url)
+            .putString(DownloadWorker.KEY_FILENAME, addOn.filename)
+            .putString(DownloadWorker.KEY_MODEL_NAME, addOnLabel(model))
+            .putString(DownloadWorker.KEY_STORAGE_URI, storageUri.toString())
+            .putString(DownloadWorker.KEY_WORK_NAME, workName)
+            .build()
+
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = OneTimeWorkRequestBuilder<DownloadWorker>()
+            .setInputData(inputData)
+            .setConstraints(constraints)
+            .addTag(DownloadWorker.TAG_MODEL_DOWNLOAD)
+            .addTag(addOnLabel(model))
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .build()
+
+        return workManager.enqueueUniqueWork(workName, ExistingWorkPolicy.KEEP, request)
+    }
+
+    /** Work states of [model]'s image-add-on download, including the terminal ones. */
+    fun observeVisionAddOn(model: ModelInfo): Flow<List<WorkInfo>> =
+        workManager.getWorkInfosForUniqueWorkFlow(addOnWorkNameFor(model))
+
     fun cancelDownload(model: ModelInfo) {
         workManager.cancelUniqueWork(workNameFor(model))
+        // An add-on still downloading for this model is moot once the model goes.
+        if (model.visionAddOn != null) workManager.cancelUniqueWork(addOnWorkNameFor(model))
 
         // Downloads now stream straight into "<filename>.part" inside the SAF
         // model folder (not app temp storage), so drop that partial here.
@@ -63,11 +110,14 @@ class DownloadRepository(private val context: Context) {
         try {
             val storageUri = StoragePreferences(context).modelStorageUri
             if (storageUri != null) {
-                val partPrefix = "${model.filename}.part"
-                DocumentFile.fromTreeUri(context, storageUri)
-                    ?.listFiles()
-                    ?.firstOrNull { it.name?.startsWith(partPrefix) == true }
-                    ?.delete()
+                val files = DocumentFile.fromTreeUri(context, storageUri)?.listFiles()
+                val partPrefixes = listOfNotNull(
+                    "${model.filename}.part",
+                    model.visionAddOn?.let { "${it.filename}.part" },
+                )
+                partPrefixes.forEach { prefix ->
+                    files?.firstOrNull { it.name?.startsWith(prefix) == true }?.delete()
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to delete partial on cancel: ${e.message}")
@@ -75,6 +125,9 @@ class DownloadRepository(private val context: Context) {
 
         val notificationManager = DownloadNotificationManager(context)
         notificationManager.cancelNotification(notificationManager.getNotificationId(model.name))
+        if (model.visionAddOn != null) {
+            notificationManager.cancelNotification(notificationManager.getNotificationId(addOnLabel(model)))
+        }
     }
 
     fun observeDownloads(): LiveData<Map<String, DownloadProgress>> {
@@ -134,4 +187,9 @@ class DownloadRepository(private val context: Context) {
     }
 
     private fun workNameFor(model: ModelInfo): String = "download_${model.filename}"
+
+    private fun addOnWorkNameFor(model: ModelInfo): String = workNameFor(model) + "_mmproj"
+
+    /** Progress-map key and notification title of the add-on's job. */
+    private fun addOnLabel(model: ModelInfo): String = "${model.name} (vision)"
 }

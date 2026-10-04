@@ -494,6 +494,14 @@
     <string name="image_attach_failed">Couldn\'t read that image</string>
     <string name="vision_load_failed">Couldn\'t load the vision projector. The message wasn\'t sent. Try again, or remove the image to send text only.</string>
     <string name="vision_load_failed_reason">Vision couldn\'t load: %1$s</string>
+    <string name="vision_addon_title">Image add-on needed</string>
+    <string name="vision_addon_message">To use pictures with %1$s, download its image add-on (%2$s). It downloads in the background and you\'ll get a notification when it\'s ready.</string>
+    <string name="vision_addon_downloading">The image add-on is downloading in the background. You can attach pictures as soon as it finishes.</string>
+    <string name="vision_addon_download">Download</string>
+    <string name="vision_addon_not_now">Not now</string>
+    <string name="vision_addon_ready">Image add-on ready. You can attach pictures now.</string>
+    <string name="vision_addon_failed">Couldn\'t download the image add-on. Try again from the attach button.</string>
+    <string name="vision_addon_no_storage">Choose a models folder first (Settings, Models), then try again.</string>
     <string name="vision_diagnostic_title">Vision load diagnostic</string>
     <string name="image_token_count">🖼 %1$d tokens</string>
     <string name="image_detail_label">Image detail</string>

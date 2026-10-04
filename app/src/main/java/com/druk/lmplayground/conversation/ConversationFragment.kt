@@ -247,6 +247,11 @@ class ConversationFragment : Fragment() {
             val pendingRamWarning by viewModel.pendingRamWarning.observeAsState()
             val modelLoadError by viewModel.modelLoadError.observeAsState()
             var showParamsSheet by remember { mutableStateOf(false) }
+            // Image add-on of the loaded model that is not downloaded yet (null = nothing
+            // to offer), whether it is being fetched now, and the prompt asking for it.
+            val visionAddOn by viewModel.visionAddOn.observeAsState()
+            val visionAddOnDownloading by viewModel.visionAddOnDownloading.observeAsState(false)
+            var showVisionAddOnDialog by remember { mutableStateOf(false) }
 
             // Surface transient ViewModel errors (e.g. message-too-large)
             // as Toasts. The ViewModel can't show UI directly, so we
@@ -289,6 +294,55 @@ class ConversationFragment : Fragment() {
                         }
                     },
                 )
+            }
+
+            // Image add-on prompt. A vision model's projector is a separate download, often
+            // as big as a small model, so it is only fetched when the user actually tries
+            // to attach a picture and agrees here. While it downloads the same prompt just
+            // says so (the progress is in the notification).
+            if (showVisionAddOnDialog) {
+                val addOn = visionAddOn
+                if (addOn == null) {
+                    // It arrived, or the model changed, while the prompt was open.
+                    showVisionAddOnDialog = false
+                } else {
+                    AlertDialog(
+                        onDismissRequest = { showVisionAddOnDialog = false },
+                        title = { Text(stringResource(R.string.vision_addon_title)) },
+                        text = {
+                            Text(
+                                if (visionAddOnDownloading) {
+                                    stringResource(R.string.vision_addon_downloading)
+                                } else {
+                                    stringResource(
+                                        R.string.vision_addon_message,
+                                        modelInfo?.name.orEmpty(),
+                                        addOn.sizeLabel,
+                                    )
+                                }
+                            )
+                        },
+                        confirmButton = {
+                            if (visionAddOnDownloading) {
+                                TextButton(onClick = { showVisionAddOnDialog = false }) {
+                                    Text(stringResource(R.string.close))
+                                }
+                            } else {
+                                TextButton(onClick = {
+                                    showVisionAddOnDialog = false
+                                    viewModel.downloadVisionAddOn()
+                                }) { Text(stringResource(R.string.vision_addon_download)) }
+                            }
+                        },
+                        dismissButton = if (visionAddOnDownloading) null else {
+                            {
+                                TextButton(onClick = { showVisionAddOnDialog = false }) {
+                                    Text(stringResource(R.string.vision_addon_not_now))
+                                }
+                            }
+                        },
+                    )
+                }
             }
 
             // Storage configuration state
@@ -825,25 +879,35 @@ class ConversationFragment : Fragment() {
                                     }
                                 },
                                 attachEnabled = isModelReady && isGenerating != true,
+                                // A catalog vision model whose image add-on is not on disk
+                                // still shows the attach button; both sources then lead to
+                                // the download prompt instead of the picker/camera.
                                 onAttachImageClick = if (supportsVision) {
                                     {
-                                        try {
-                                            pickImageLauncher.launch(
-                                                PickVisualMediaRequest(
-                                                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                                        if (visionAddOn != null) {
+                                            showVisionAddOnDialog = true
+                                        } else {
+                                            try {
+                                                pickImageLauncher.launch(
+                                                    PickVisualMediaRequest(
+                                                        ActivityResultContracts.PickVisualMedia.ImageOnly
+                                                    )
                                                 )
-                                            )
-                                        } catch (_: android.content.ActivityNotFoundException) {
-                                            android.widget.Toast.makeText(
-                                                requireContext(),
-                                                R.string.folder_picker_unavailable,
-                                                android.widget.Toast.LENGTH_LONG,
-                                            ).show()
+                                            } catch (_: android.content.ActivityNotFoundException) {
+                                                android.widget.Toast.makeText(
+                                                    requireContext(),
+                                                    R.string.folder_picker_unavailable,
+                                                    android.widget.Toast.LENGTH_LONG,
+                                                ).show()
+                                            }
                                         }
                                     }
                                 } else null,
                                 onTakePhotoClick = if (supportsVision) {
-                                    { launchCamera() }
+                                    {
+                                        if (visionAddOn != null) showVisionAddOnDialog = true
+                                        else launchCamera()
+                                    }
                                 } else null,
                                 onCancelClicked = {
                                     viewModel.cancelGeneration()
