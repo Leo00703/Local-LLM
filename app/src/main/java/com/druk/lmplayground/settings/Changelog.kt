@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.114", "Spark-X2.5 and SmolLM3 tools", listOf(
+        Change(ChangeType.NEW, "Spark-X2.5 4B from XHToken is in the model list: a reasoning model that can use tools and has a thinking switch that works both ways. It needs the newer AI engine from the last update."),
+        Change(ChangeType.FIX, "SmolLM3 3B can now use tools. Before, the tool calls it wrote appeared in the chat as raw text instead of running, because its built-in chat template never described them. The app now loads it with a corrected template."),
+    )),
     ChangelogEntry("1.9.113", "Pictures without copying files", listOf(
         Change(ChangeType.NEW, "Qwen 3.5, Gemma 3, Gemma 4 and Ministral can now look at pictures without you finding and copying a file by hand. Tap the attach button and, if the model's image add-on isn't on your phone yet, the app asks whether to download it (from about 200 MB to 850 MB depending on the model). It downloads in the background and tells you when it's ready."),
         Change(ChangeType.IMPROVED, "Deleting a model now also removes the image add-on that was downloaded for it, unless another model you kept still uses the same one (both Gemma 4 E2B versions share it)."),

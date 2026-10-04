@@ -34,6 +34,9 @@ object ModelInfoProvider {
     // explicit that only these six are natively supported.
     private val SMOLLM3_LANGS = listOf("en", "fr", "es", "de", "it", "pt")
     private val MINICPM_LANGS = listOf("en", "zh")
+    // The card claims 200+ languages without listing them; the broad set is the closest
+    // honest filter.
+    private val SPARK_LANGS = MULTILINGUAL_BROAD
     private val MISTRAL_LANGS = listOf(
         "en", "fr", "de", "es", "it", "pt", "nl", "zh", "ja", "ko", "ar"
     )
@@ -370,6 +373,15 @@ object ModelInfoProvider {
             supportedLanguages = MINICPM_LANGS
         ),
         ModelInfo(
+            name = "Spark-X2.5 4B",
+            filename = "Spark-X2.5-4B-Q4_K_M.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/XHToken/Spark-X2.5-4B-GGUF/resolve/main/Spark-X2.5-4B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-08-24"),
+            description = "XHToken · Hybrid reasoning model · 2.60Gb",
+            logoRes = R.drawable.logo_xhtoken,
+            supportedLanguages = SPARK_LANGS
+        ),
+        ModelInfo(
             name = "Gemma 3n E2B",
             filename = "gemma-3n-E2B-it-Q4_K_M.gguf",
             remoteUri = Uri.parse("https://huggingface.co/lmstudio-community/gemma-3n-E2B-it-text-GGUF/resolve/main/gemma-3n-E2B-it-Q4_K_M.gguf"),
@@ -532,9 +544,10 @@ object ModelInfoProvider {
     // the OpenAI-style argument the engine passes. They were listed here, so the
     // badge promised a capability the engine would never enable; removed.
     //
-    // SmolLM3 is deliberately absent: its published template never renders
-    // message.tool_calls, so llama.cpp derives no tool grammar and every tool call
-    // would reach the chat as raw XML. It joins once its corrected template ships.
+    // SmolLM3 is listed only because it loads with a corrected template (see
+    // ChatTemplateOverrides): its published one never renders message.tool_calls, so
+    // llama.cpp derived no tool grammar and every call reached the chat as raw XML.
+    // Without that override this entry would promise tools the engine cannot run.
     private val TOOL_CAPABLE = setOf(
         "Qwen3-0.6B-Q4_K_M.gguf",
         "Qwen3-1.7B-Q4_K_M.gguf",
@@ -549,6 +562,8 @@ object ModelInfoProvider {
         "LFM2.5-2.6B-Q4_K_M.gguf",
         "MiniCPM5-1B-Q4_K_M.gguf",
         "MiniCPM5-2B-Q4_K_M.gguf",
+        "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
+        "Spark-X2.5-4B-Q4_K_M.gguf",
         "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
         "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf",
         "Ministral-3-8B-Instruct-2512-Q4_K_M.gguf",
@@ -586,6 +601,7 @@ object ModelInfoProvider {
         "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
         "MiniCPM5-1B-Q4_K_M.gguf",
         "MiniCPM5-2B-Q4_K_M.gguf",
+        "Spark-X2.5-4B-Q4_K_M.gguf",
         "granite-4.2-3b-Q4_K_M.gguf",
         "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf",
         "Ministral-3-8B-Reasoning-2512-Q4_K_M.gguf",
@@ -625,6 +641,7 @@ object ModelInfoProvider {
         "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf" to ThinkingMode.OPTIONAL,
         "MiniCPM5-1B-Q4_K_M.gguf" to ThinkingMode.OPTIONAL,
         "MiniCPM5-2B-Q4_K_M.gguf" to ThinkingMode.OPTIONAL,
+        "Spark-X2.5-4B-Q4_K_M.gguf" to ThinkingMode.OPTIONAL,
         "granite-4.2-3b-Q4_K_M.gguf" to ThinkingMode.OPTIONAL,
         "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf" to ThinkingMode.OPTIONAL,
     )

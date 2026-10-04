@@ -725,6 +725,20 @@ Java_com_druk_llamacpp_jni_NativeLlamaModel_getMmprojError(JNIEnv *env, jobject 
 }
 
 extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_druk_llamacpp_jni_NativeLlamaModel_setChatTemplateOverride(JNIEnv *env, jobject thiz, jstring tmpl) {
+    jclass clazz = env->GetObjectClass(thiz);
+    jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");
+    auto* model = (LlamaModel*) env->GetLongField(thiz, fid);
+    if (model == nullptr || tmpl == nullptr) return JNI_FALSE;
+    const char *chars = env->GetStringUTFChars(tmpl, nullptr);
+    if (chars == nullptr) return JNI_FALSE;
+    const std::string text(chars);
+    env->ReleaseStringUTFChars(tmpl, chars);
+    return model->setChatTemplateOverride(text) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
 JNIEXPORT void JNICALL
 Java_com_druk_llamacpp_jni_NativeLlamaModel_setImageMaxTokens(JNIEnv *env, jobject thiz, jint n) {
     jclass clazz = env->GetObjectClass(thiz);

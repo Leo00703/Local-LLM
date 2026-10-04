@@ -51,5 +51,11 @@ class NativeLlamaModel {
      */
     external fun setImageMaxTokens(n: Int)
 
+    /**
+     * Replace the chat template read from the GGUF with [template] (Jinja). Only valid
+     * right after load, before any session exists; returns false if it was refused.
+     */
+    external fun setChatTemplateOverride(template: String): Boolean
+
     external fun unloadModel()
 }

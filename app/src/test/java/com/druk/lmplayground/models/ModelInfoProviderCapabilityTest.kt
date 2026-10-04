@@ -66,18 +66,23 @@ class ModelInfoProviderCapabilityTest {
         }
     }
 
-    // SmolLM3's published template never renders message.tool_calls, so its tool
-    // calls would reach the chat as raw XML. Keep the badge off until the corrected
-    // template is wired in.
+    // SmolLM3's published template never renders message.tool_calls, so on its own its
+    // tool calls would reach the chat as raw XML. It is badged as tool-capable only
+    // because it is loaded with a corrected template; the two must stay together.
     @Test
-    fun smolLm3IsNotBadgedAsToolCapableYet() {
-        assertFalse(byName("SmolLM3 3B").supportsTools)
-        assertTrue(byName("SmolLM3 3B").supportsThinking)
+    fun smolLm3IsToolCapableOnlyBecauseItsTemplateIsOverridden() {
+        val m = byName("SmolLM3 3B")
+        assertTrue(m.supportsTools)
+        assertTrue(m.supportsThinking)
+        assertTrue(
+            "the tool badge needs the template override",
+            m.filename in ChatTemplateOverrides.OVERRIDES,
+        )
     }
 
     @Test
     fun newReasoningModelsAreToolAndThinkingCapable() {
-        listOf("LFM2.5 2.6B", "MiniCPM5 1B", "MiniCPM5 2B", "Granite 4.2 3B").forEach { name ->
+        listOf("LFM2.5 2.6B", "MiniCPM5 1B", "MiniCPM5 2B", "Granite 4.2 3B", "Spark-X2.5 4B").forEach { name ->
             val model = byName(name)
             assertTrue("$name should support tools", model.supportsTools)
             assertTrue("$name should support thinking", model.supportsThinking)

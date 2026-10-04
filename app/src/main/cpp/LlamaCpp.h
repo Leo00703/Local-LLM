@@ -330,6 +330,14 @@ public:
     // projector to already-created sessions in the lazy vision flow.
     mtmd_context * getProjector() { return mctx; }
 
+    // Replace the chat template read from the GGUF with [tmpl] (a Jinja string), for
+    // models whose published template is defective. Only legal right after loadModel,
+    // before the first session exists: sessions BORROW the template object, so
+    // swapping it under a live one would leave it dangling. Returns false (and
+    // changes nothing) if a session was already created, no model is loaded, or the
+    // replacement cannot be built; an empty string restores the GGUF's own template.
+    bool setChatTemplateOverride(const std::string &tmpl);
+
     bool isLoaded() const { return model != nullptr; }
 
     void unloadModel();
@@ -337,6 +345,9 @@ public:
 private:
     llama_model *model = nullptr;
     common_chat_templates_ptr chat_tmpls;
+    // Set once any session has been handed [chat_tmpls]; from then on the template
+    // object must not be replaced (see setChatTemplateOverride).
+    bool templates_in_use = false;
     // Multimodal projector context (image encoder). Null until loadMmproj()
     // succeeds; owned here and freed in unloadModel().
     mtmd_context *mctx = nullptr;

@@ -97,6 +97,7 @@ class ThinkingModeTest {
             "MiniCPM5 1B",
             "MiniCPM5 2B",
             "Granite 4.2 3B",
+            "Spark-X2.5 4B",
             "Nemotron 3 Nano 4B",
         ).forEach { name ->
             val m = byName(name)

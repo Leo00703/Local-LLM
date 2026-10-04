@@ -39,6 +39,7 @@ import com.druk.lmplayground.download.DownloadRepository
 import com.druk.lmplayground.data.MemoryRepository
 import com.druk.lmplayground.data.SystemPromptEntity
 import com.druk.lmplayground.data.SystemPromptRepository
+import com.druk.lmplayground.models.ChatTemplateOverrides
 import com.druk.lmplayground.models.DeviceCapability
 import com.druk.lmplayground.models.MmprojPairing
 import com.druk.lmplayground.models.ModelInfo
@@ -1129,6 +1130,23 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     // re-apply their most-recent prompt for this model.
                     _systemPrompt.postValue("")
                     _systemPromptId.postValue(null)
+                    // A model whose published chat template is defective gets a corrected
+                    // one (SmolLM3: tool calls were never rendered, so none could run).
+                    // Must happen here: after the load, before the first session exists
+                    // (sessions borrow the template) and before the capability reads
+                    // below, which are derived from it.
+                    ChatTemplateOverrides.forModel(app, modelInfo.filename)?.let { template ->
+                        val applied = try {
+                            llamaModel.setChatTemplateOverride(template)
+                        } catch (t: Throwable) {
+                            android.util.Log.w("ConversationViewModel", "chat template override failed", t)
+                            false
+                        }
+                        android.util.Log.i(
+                            "ConversationViewModel",
+                            "chat template override for ${modelInfo.filename}: applied=$applied"
+                        )
+                    }
                     val llamaSession = createSessionWithParams(llamaModel, params, "")
                     if (llamaSession == null) {
                         _loadedModelStatus.postValue("Failed to create session")

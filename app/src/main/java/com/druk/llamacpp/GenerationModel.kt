@@ -32,6 +32,13 @@ interface GenerationModel {
     fun getMmprojError(): String = ""
     /** Preferred max image tokens (0 = model default). No-op for non-vision backends. */
     fun setImageMaxTokens(n: Int) {}
+    /**
+     * Replace the chat template read from the model file with [template]. Only for
+     * on-device models whose published template is defective, and only valid right after
+     * loading, before the first session is created. Returns whether it was applied;
+     * default false for backends that have no local template (remote, LiteRT).
+     */
+    fun setChatTemplateOverride(template: String): Boolean = false
     fun unloadModel()
     fun createSession(
         contextSize: Int,

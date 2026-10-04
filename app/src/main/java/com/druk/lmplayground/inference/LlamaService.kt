@@ -311,6 +311,9 @@ class LlamaService : Service() {
             models[modelId]?.nativeModel?.setImageMaxTokens(n)
         }
 
+        override fun setChatTemplateOverride(modelId: Int, template: String): Boolean =
+            models[modelId]?.nativeModel?.setChatTemplateOverride(template) == true
+
         override fun unloadModel(modelId: Int) {
             val entry = models[modelId] ?: return
             // Mark for destroy first (DON'T remove from `models` yet).

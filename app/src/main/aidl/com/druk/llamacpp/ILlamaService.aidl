@@ -66,6 +66,14 @@ interface ILlamaService {
     String getMmprojError(int modelId);
     /** Set the preferred max image tokens (0 = model default); applied at next loadMmproj. */
     void setImageMaxTokens(int modelId, int n);
+    /**
+     * Replace the model's chat template with [template] (a Jinja string of a few KB, well
+     * under the binder budget). For the few models whose published template cannot
+     * express something they were trained to do. Must be called right after loadModel,
+     * before the first createSession: sessions borrow the template, so the service
+     * refuses (returns false) once one exists.
+     */
+    boolean setChatTemplateOverride(int modelId, String template);
     void unloadModel(int modelId);
 
     // ── Session lifecycle ────────────────────────────────────────────────

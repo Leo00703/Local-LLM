@@ -80,10 +80,39 @@ void LlamaModel::loadModel(const std::string &modelPath,
     chat_tmpls = common_chat_templates_init(model, "");
 }
 
+bool LlamaModel::setChatTemplateOverride(const std::string &tmpl) {
+    if (model == nullptr) {
+        return false;
+    }
+    if (templates_in_use) {
+        // A session already holds a pointer to the current template object.
+        LOG_ERR("%s: refused, a session already uses the current chat template\n", __func__);
+        return false;
+    }
+    try {
+        // Build the replacement first so a template that fails to compile leaves the
+        // GGUF's own one in place instead of an empty slot.
+        common_chat_templates_ptr replacement = common_chat_templates_init(model, tmpl);
+        if (!replacement) {
+            LOG_ERR("%s: could not build the replacement chat template\n", __func__);
+            return false;
+        }
+        chat_tmpls = std::move(replacement);
+        return true;
+    } catch (const std::exception &e) {
+        LOG_ERR("%s: replacement chat template rejected: %s\n", __func__, e.what());
+        return false;
+    } catch (...) {
+        LOG_ERR("%s: replacement chat template rejected (unknown error)\n", __func__);
+        return false;
+    }
+}
+
 LlamaGenerationSession* LlamaModel::createGenerationSession(const SamplerParams &params) {
     if (model == nullptr) {
         return nullptr;
     }
+    templates_in_use = true;
     auto *session = new LlamaGenerationSession();
     // gpu_enabled gates KV-cache quantization: the OpenCL GPU can't do quantized
     // KV (its Flash Attention kernels are F16/F32 only), so on the GPU the

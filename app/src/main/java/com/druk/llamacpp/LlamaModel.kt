@@ -30,6 +30,9 @@ class LlamaModel internal constructor(
 
     override fun setImageMaxTokens(n: Int) { client.withService { it.setImageMaxTokens(modelId, n) } }
 
+    override fun setChatTemplateOverride(template: String): Boolean =
+        client.withService { it.setChatTemplateOverride(modelId, template) }
+
     override fun unloadModel() {
         try {
             client.withService { it.unloadModel(modelId) }
