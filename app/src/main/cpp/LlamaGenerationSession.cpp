@@ -1206,30 +1206,24 @@ LlamaGenerationSession::emitToken(llama_token tok, const ResponseCallback& callb
 // batch to the MTP head. Positions continue from the current KV, matching what
 // llama_batch_get_one would assign. Returns 0 ok, 1 on decode failure.
 int LlamaGenerationSession::decodeSpecPromptChunk(llama_token * tokens, int n_tokens) {
-    // A full batch is REQUIRED here: common_speculative_process reads batch.pos[k]
-    // and batch.seq_id[k][0] for every token, but llama_batch_get_one leaves those
-    // null (it relies on the context to fill positions), so feeding a get_one
-    // batch to process() null-derefs. We also only need an output row on the last
-    // token (for sampling); the MTP head reads ALL tokens' nextn hidden states in
-    // unmasked mode regardless of the logits flags (qwen35.cpp sets t_h_nextn
-    // before reducing to output rows), so we don't pay for full per-token logits.
+    // The batch carries explicit positions and sequence ids: since b11393
+    // common_speculative_process takes a common_batch (a mirror of every entry), not
+    // a llama_batch, and a llama_batch_get_one batch has neither. We only need an
+    // output row on the last token (for sampling); the MTP head reads ALL tokens'
+    // nextn hidden states in unmasked mode regardless of the output flags (qwen35.cpp
+    // sets t_h_nextn before reducing to output rows), so we don't pay for full
+    // per-token logits.
     const llama_pos pos0 = llama_memory_seq_pos_max(llama_get_memory(ctx), 0) + 1;
-    llama_batch b = llama_batch_init(n_tokens, /*embd=*/0, /*n_seq_max=*/1);
+    common_batch b(ctx);
     for (int i = 0; i < n_tokens; i++) {
-        b.token[i]     = tokens[i];
-        b.pos[i]       = pos0 + i;
-        b.n_seq_id[i]  = 1;
-        b.seq_id[i][0] = 0;
-        b.logits[i]    = (i == n_tokens - 1) ? 1 : 0;
-        b.n_tokens++;
+        b.add(tokens[i], pos0 + i, /*seq_id=*/0, /*output=*/i == n_tokens - 1);
     }
-    const int rc = llama_decode(ctx, b);
+    const int rc = llama_process(ctx, LLAMA_PROCESS_TYPE_DECODE, b.get());
     if (rc == 0) {
         common_speculative_process(spec, b);
     } else {
         LOGe("MTP: prompt chunk decode failed rc=%d", rc);
     }
-    llama_batch_free(b);
     return rc ? 1 : 0;
 }
 
@@ -1316,29 +1310,18 @@ int LlamaGenerationSession::generateSpeculativeStep(const ResponseCallback& call
 
     // 2) Build the target verify batch [seed, draft0..draftK-1] at consecutive
     //    positions from n_past, logits on every row (output row i == batch index i).
-    llama_batch vb = llama_batch_init(K + 1, /*embd=*/0, /*n_seq_max=*/1);
-    auto vb_add = [&](llama_token t, llama_pos p) {
-        const int i = vb.n_tokens;
-        vb.token[i]     = t;
-        vb.pos[i]       = p;
-        vb.n_seq_id[i]  = 1;
-        vb.seq_id[i][0] = 0;
-        vb.logits[i]    = 1;
-        vb.n_tokens++;
-    };
+    common_batch vb(ctx);
     llama_pos p = n_past;
-    vb_add(last_token, p++);
-    for (llama_token d : spec_draft) vb_add(d, p++);
+    vb.add(last_token, p++, /*seq_id=*/0, /*output=*/true);
+    for (llama_token d : spec_draft) vb.add(d, p++, /*seq_id=*/0, /*output=*/true);
 
     // 3) One target decode, then feed the same batch to the MTP head.
-    if (llama_decode(ctx, vb)) {
+    if (llama_process(ctx, LLAMA_PROCESS_TYPE_DECODE, vb.get())) {
         LOGe("MTP: verify decode failed (K=%d n_past=%d n_outputs=%d)", K, (int) n_past, K + 1);
-        llama_batch_free(vb);
         finalizeResponse();
         return 1;
     }
     common_speculative_process(spec, vb);
-    llama_batch_free(vb);
 
     // 4) Greedy verify+accept against the raw smpl chain. llama_sampler_sample
     //    ALREADY calls llama_sampler_accept internally, so we must not accept

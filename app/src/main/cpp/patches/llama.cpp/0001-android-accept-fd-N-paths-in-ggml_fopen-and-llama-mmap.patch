@@ -1,0 +1,81 @@
+From 187409ea84d0f15f2e0b78e3112ce635b9b641b4 Mon Sep 17 00:00:00 2001
+From: Andrew Druk <andriy.druk@gmail.com>
+Date: Sun, 17 May 2026 17:04:41 +0300
+Subject: [PATCH] android: accept "fd:N" paths in ggml_fopen and llama-mmap
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Required by LMPlayground to load models that arrive through Android
+SAF as a ParcelFileDescriptor. The SAF fd was opened by the storage
+provider under its own SELinux context — Scoped Storage rejects a
+plain reopen via /proc/self/fd/N because the kernel re-runs the
+path-based permission check against our app's UID. dup() of the
+Binder-inherited fd keeps the original open-mode privilege and works.
+
+Two call sites patched:
+- ggml/src/ggml.c::ggml_fopen — used for GGUF header read
+- src/llama-mmap.cpp llama_file::init_fd — direct-IO open path
+
+The "fd:N" form is opt-in: anything that doesn't start with "fd:"
+falls through to the upstream code unchanged.
+---
+ ggml/src/ggml.c    | 20 ++++++++++++++++++++
+ src/llama-mmap.cpp | 13 ++++++++++++-
+ 2 files changed, 32 insertions(+), 1 deletion(-)
+
+diff --git a/ggml/src/ggml.c b/ggml/src/ggml.c
+index cdc10a75970f..99632df7667c 100644
+--- a/ggml/src/ggml.c
++++ b/ggml/src/ggml.c
+@@ -624,6 +624,26 @@ FILE * ggml_fopen(const char * fname, const char * mode) {
+ 
+     return file;
+ #else
++    // LMPlayground: "fd:N" path means "use file descriptor N from this
++    // process". Required for loading models that arrive via Android SAF
++    // ParcelFileDescriptor — Scoped Storage prevents reopen via
++    // /proc/self/fd/N, but a dup() of the inherited fd works because the
++    // kernel keeps the original open-mode privilege. dup() so the FILE*
++    // owns its own fd and fclose() doesn't tear down the caller's PFD.
++    if (fname && strncmp(fname, "fd:", 3) == 0) {
++        int original_fd = atoi(fname + 3);
++        if (original_fd > 0) {
++            int fd_copy = dup(original_fd);
++            if (fd_copy < 0) {
++                return NULL;
++            }
++            FILE * file = fdopen(fd_copy, mode);
++            if (!file) {
++                close(fd_copy);
++            }
++            return file;
++        }
++    }
+     return fopen(fname, mode);
+ #endif
+ 
+diff --git a/src/llama-mmap.cpp b/src/llama-mmap.cpp
+index 715a6e3548e6..3388e5ebdb70 100644
+--- a/src/llama-mmap.cpp
++++ b/src/llama-mmap.cpp
+@@ -197,7 +197,18 @@ struct llama_file::impl {
+ 
+ #ifdef __linux__
+     bool init_fd() {
+-        fd = open(fname.c_str(), O_RDONLY | O_DIRECT);
++        // LMPlayground: "fd:N" → dup the inherited fd (e.g. from Android SAF).
++        // Same rationale as the ggml_fopen patch in ggml/src/ggml.c.
++        if (strncmp(fname.c_str(), "fd:", 3) == 0) {
++            int original_fd = atoi(fname.c_str() + 3);
++            if (original_fd > 0) {
++                fd = dup(original_fd);
++            } else {
++                fd = -1;
++            }
++        } else {
++            fd = open(fname.c_str(), O_RDONLY | O_DIRECT);
++        }
+ 
+         if (fd != -1) {
+             struct stat file_stats{};

@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.121", "Newest AI engine", listOf(
+        Change(ChangeType.IMPROVED, "The on-device AI engine (llama.cpp) is updated to its newest release, 193 builds newer than before. It brings fixes for GPU acceleration on Adreno phones, template and tool-calling fixes, and support for newer models. Nothing changes in how you use it."),
+    )),
     ChangelogEntry("1.9.120", "Spark-X2.5 1.7B", listOf(
         Change(ChangeType.NEW, "Spark-X2.5 1.7B from XHToken is in the model list: the smaller sibling of the 4B, a 1.1 GB reasoning model that can use tools and has a thinking switch."),
     )),

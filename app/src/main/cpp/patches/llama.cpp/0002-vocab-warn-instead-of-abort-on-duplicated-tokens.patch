@@ -1,0 +1,36 @@
+From 2a50e266af62f85cf08f877daea41feb33dea1f1 Mon Sep 17 00:00:00 2001
+From: Andrew Druk <adruk@readdle.com>
+Date: Tue, 21 Jul 2026 12:59:17 +0300
+Subject: [PATCH] vocab : warn instead of abort on duplicated tokens
+
+Broken GGUFs with duplicated token strings exist in the wild (the
+2026-07-15 google/gemma-*-qat-q4_0 metadata update shipped three
+duplicates plus one emptied token). Such vocabs are usable: the
+duplicated string tokenizes to the highest of its ids and every id
+still detokenizes to its own text. Replace the load-time
+GGML_ASSERT(id_to_token.size() == token_to_id.size()) with a warning.
+---
+ src/llama-vocab.cpp | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/src/llama-vocab.cpp b/src/llama-vocab.cpp
+index e038637ce707..0a552b6dc8ad 100644
+--- a/src/llama-vocab.cpp
++++ b/src/llama-vocab.cpp
+@@ -2536,7 +2536,15 @@ void llama_vocab::impl::load(llama_model_loader & ml, const LLM_KV & kv) {
+             }
+         }
+     }
+-    GGML_ASSERT(id_to_token.size() == token_to_id.size());
++    // Duplicated token strings collapse in token_to_id, so the map ends up
++    // smaller than the token list. Such GGUFs exist in the wild (the 2026-07-15
++    // google/gemma-*-qat-q4_0 uploads carried 3 duplicates) and remain usable
++    // for inference: the duplicated string tokenizes to the highest of its ids,
++    // and every id still detokenizes to its own text. Warn instead of aborting.
++    if (id_to_token.size() != token_to_id.size()) {
++        LLAMA_LOG_WARN("%s: vocab has %zu duplicated tokens - malformed GGUF, continuing anyway\n",
++                __func__, id_to_token.size() - token_to_id.size());
++    }
+ 
+     // hybriddna: the marker suffix kept k-mer ids distinct in token_to_id; erase
+     // it from id_to_token so the k-mers detokenize to the bare DNA sequence. The

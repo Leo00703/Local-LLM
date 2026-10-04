@@ -23,9 +23,25 @@ jobs:
       with:
         submodules: recursive
 
+    # ── Android patches for llama.cpp (applied at build time) ──
+    # llama.cpp is a submodule pinned to a ggml-org release tag, and a committed edit inside it would be
+    # reset by the recursive checkout above, so the app's few changes live as patch files in
+    # app/src/main/cpp/patches/llama.cpp (see the README there). `git apply` fails the step when one no
+    # longer applies, so a llama.cpp bump that breaks a patch is caught here instead of shipping an
+    # engine that cannot open the model folder.
+    - name: Apply Android patches to llama.cpp
+      run: |
+        set -euo pipefail
+        cd app/src/main/cpp/llama.cpp
+        for p in ../patches/llama.cpp/*.patch; do
+          echo "applying $p"
+          git apply --verbose "$p"
+        done
+        git status --short
+
     # ── Fork patch (applied at build time; llama.cpp is a PINNED submodule, so a
     # committed working-tree edit would be reset by the recursive checkout above) ──
-    # The pinned mtmd (seen on b9496; the target line is unchanged in b11200) hits GGML_ABORT("Unknown projector type") in
+    # The pinned mtmd (seen on b9496; the target line is unchanged through b11393) hits GGML_ABORT("Unknown projector type") in
     # clip_n_mmproj_embd when loading a COMBINED vision+audio projector (e.g. the
     # Gemma 3n / Gemma 4 E2B mmproj): clip builds the audio context, whose audio
     # projector type this version's switch doesn't handle, and aborts the whole

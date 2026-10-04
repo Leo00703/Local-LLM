@@ -94,21 +94,27 @@ NDK 27.2.12479018 + CMake 3.31.5 → **OpenCL toolchain** (below) →
 
 ### The two non-obvious build steps
 
-1. **mtmd fork patch (applied at build time, in BOTH `build-debug-apk.yml` and
-   `pull-request-check.yml`)**. llama.cpp is a **pinned submodule**
-   (`andriydruk/llama.cpp-android`, branch `android-b11200`, pinned commit
-   `f825a61`; that branch is ggml-org b11200 plus three Android patches: the
-   `fd:N` SAF path support, tolerance for duplicated vocab tokens, and a vendored
-   `tools/parakeet` the fork does not build), so any committed working-tree edit
-   inside it would be reset by
-   `submodules: recursive`. Instead CI does a `sed` replacement in
+1. **llama.cpp patches (applied at build time, in `build-debug-apk.yml`,
+   `pull-request-check.yml` and `deploy-internal.yml`)**. llama.cpp is a **pinned
+   submodule of ggml-org itself** (`ggml-org/llama.cpp`, release tag `b11393`,
+   commit `dbe4c3ed4`). The app's Android changes (the `fd:N` SAF path support and
+   tolerance for duplicated vocab tokens) live as patch files in
+   `app/src/main/cpp/patches/llama.cpp/` (see the README there, which also lists
+   the bump procedure) and CI runs `git apply` on them right after the checkout;
+   the step fails if one no longer applies. Before v1.9.121 the submodule was the
+   `andriydruk/llama.cpp-android` fork, which carried the same two patches (plus a
+   vendored `tools/parakeet` for voice dictation, not built here); its newest
+   branch is `android-b11200`, so staying on it would have meant never moving past
+   b11200. A committed edit inside the submodule would be reset by
+   `submodules: recursive`, which is why the patches are files. The same applies
+   to the second patch, a `sed` replacement in
    `app/src/main/cpp/llama.cpp/tools/mtmd/clip.cpp`:
    `skip_audio = ctx_vision->model.proj_type == PROJECTOR_TYPE_GEMMA3NV;` →
    `skip_audio = true;` (vision-only app; the pinned mtmd aborts on combined
    vision+audio projectors). The step greps before and after and **fails the
    build if the patch doesn't take**. Consequence: if you change the pinned
-   llama.cpp commit, you must update the patch step in both workflows to match
-   the new source (or drop the step if the pinned version fixed the bug).
+   llama.cpp commit, you must update the patch steps in all three workflows to match
+   the new source (or drop a step if the pinned version fixed the bug).
    (Commit `bcf5dd8` exists purely to replicate this patch onto the main-branch
    workflows.)
 2. **OpenCL toolchain**. GPU backend = OpenCL, arm64 only (replaces Vulkan,
