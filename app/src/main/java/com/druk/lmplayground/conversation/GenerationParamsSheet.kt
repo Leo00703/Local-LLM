@@ -495,9 +495,9 @@ fun GenerationParamsSheet(
             // may use. Higher = more resolution/detail, more context, slower.
             // Applied to the projector (mtmd image_max_tokens) on the next image.
             if (supportsVision && !isRemote) {
-                val imgMin = 64
-                val imgMax = 320
-                val imgStep = 32
+                val imgMin = GenerationParams.IMAGE_DETAIL_MIN
+                val imgMax = GenerationParams.IMAGE_DETAIL_MAX
+                val imgStep = GenerationParams.IMAGE_DETAIL_STEP
                 ParamSlider(
                     label = stringResource(R.string.image_detail_label),
                     value = editedParams.imageMaxTokens.coerceIn(imgMin, imgMax).toFloat(),

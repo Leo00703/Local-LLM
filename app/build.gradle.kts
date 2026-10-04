@@ -272,6 +272,12 @@ tasks.matching { it.name == "recordPaparazziDebug" }.configureEach {
 // auto-trigger the organize task.
 tasks.withType<Test>().configureEach {
     reports.html.required.set(false)
+    // CI runs the unit tests with -PskipScreenshots: the Paparazzi golden snapshots
+    // are not tracked in git, so verify mode would fail there, and rendering every
+    // store scene is slow. Local `recordPaparazziDebug` runs are unaffected.
+    if (project.hasProperty("skipScreenshots")) {
+        exclude("**/screenshots/**")
+    }
 }
 
 dependencies {

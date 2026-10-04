@@ -1828,7 +1828,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     private val isLiteRtModel: Boolean
         get() = llamaModel is com.druk.lmplayground.litert.LiteRtModel
 
-    /** Snap the mtmd-era imageMaxTokens slider (64..320) to a Gemma-4 visual-token
+    /** Snap the mtmd-era imageMaxTokens slider (96..320) to a Gemma-4 visual-token
      *  budget (the only accepted values), for LiteRT's ExperimentalFlags.visualTokenBudget. */
     private fun nearestGemma4Budget(v: Int): Int =
         intArrayOf(70, 140, 280, 560, 1120).minByOrNull { kotlin.math.abs(it - v) } ?: 280
@@ -1870,7 +1870,12 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         // null reason == success; a non-null string is the failure reason to show.
         // Apply the user's "image detail" preference before the projector loads
         // (mtmd reads image_max_tokens at init). Higher = more image resolution.
-        model.setImageMaxTokens(_generationParams.value?.imageMaxTokens ?: 256)
+        // Clamped again here: params can reach this point without passing through
+        // GenerationParams.fromMap (e.g. a value restored from an older session).
+        model.setImageMaxTokens(
+            (_generationParams.value?.imageMaxTokens ?: 256)
+                .coerceIn(GenerationParams.IMAGE_DETAIL_MIN, GenerationParams.IMAGE_DETAIL_MAX)
+        )
         val reason: String? = withContext(Dispatchers.IO) {
             try {
                 val path = storageRepository.resolveMmprojToPath(mmproj)
@@ -2832,6 +2837,17 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             if (!validateReplaySize(newSystemPrompt, uiMessages)) {
                 return@launch
             }
+
+            // Stop a turn that is still generating BEFORE switching chats, like every
+            // other path that replaces the session (newConversation, param changes,
+            // ...). Without this the old turn keeps streaming into the chat we are
+            // opening, and its final save would be filed under the new session id.
+            // Done after the pre-flight above so a refused swap leaves a running turn
+            // alone, and before the id changes so the interrupted turn is persisted
+            // to the chat it started in.
+            generatingJob?.cancel()
+            generatingJob?.join()
+            generatingJob = null
 
             _currentSessionId.value = sessionId
             // Follow the opened chat's folder so the drawer context + new-chat

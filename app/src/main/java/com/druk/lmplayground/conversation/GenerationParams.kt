@@ -33,6 +33,15 @@ data class GenerationParams(
     )
 
     companion object {
+        // "Image detail" slider bounds (tokens an attached image may use). The floor
+        // is 96, not 64: Gemma 4's vision projector needs at least 70 tokens, and a
+        // cap below that makes the projector reject its own minimum image size
+        // (upstream LMPlayground hit exactly this loading the projector with a cap
+        // of 128 on an older build; the floor here keeps every value above it).
+        const val IMAGE_DETAIL_MIN = 96
+        const val IMAGE_DETAIL_MAX = 320
+        const val IMAGE_DETAIL_STEP = 32
+
         fun fromMap(map: Map<String, Float>): GenerationParams {
             val contextSize = map["contextSize"]?.toInt() ?: 4096
             return GenerationParams(
@@ -44,7 +53,9 @@ data class GenerationParams(
                 minP = map["minP"] ?: 0.05f,
                 seed = map["seed"]?.toInt() ?: -1,
                 thinkingBudget = map["thinkingBudget"]?.toInt() ?: (contextSize / 4),
-                imageMaxTokens = map["imageMaxTokens"]?.toInt() ?: 256,
+                // Saved values from before the floor was raised (64) are lifted to it.
+                imageMaxTokens = (map["imageMaxTokens"]?.toInt() ?: 256)
+                    .coerceIn(IMAGE_DETAIL_MIN, IMAGE_DETAIL_MAX),
                 kvCacheType = map["kvCacheType"]?.toInt() ?: 1
             )
         }

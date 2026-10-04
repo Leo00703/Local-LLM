@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.111", "Chat switching and image detail fixes", listOf(
+        Change(ChangeType.FIX, "Opening a saved chat while a reply is still being written now stops that reply first. Before, the old reply could keep streaming into the chat you had just opened and be saved there."),
+        Change(ChangeType.FIX, "The Image detail slider no longer offers its lowest position (64), which is below the minimum Gemma 4's image add-on can work with and could make it fail to load. The lowest setting is now 96, and a lower value saved earlier is raised to it automatically."),
+    )),
     ChangelogEntry("1.9.110", "Updated AI engine", listOf(
         Change(ChangeType.IMPROVED, "Updated the on-device AI engine (llama.cpp) from a build of June 2026 to one of late September 2026, about 1,700 upstream changes. It brings newer model support, many speed and memory improvements, and fixes."),
         Change(ChangeType.FIX, "Some Gemma 4 model files downloaded in mid-July (Google briefly published them with duplicated entries in the vocabulary) refused to load and crashed the app. They now load."),

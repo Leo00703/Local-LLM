@@ -164,3 +164,82 @@ jobs:
           app/build/outputs/native-debug-symbols/**/*.zip
           app/build/intermediates/merged_native_libs/**/arm64-v8a/*.so
         if-no-files-found: warn
+
+  # JVM unit tests (no device, no native build). They run in parallel with the APK
+  # build so a slow or red suite never delays or hides the installable APK.
+  #
+  # continue-on-error is deliberate for now: this suite had never run in CI (the
+  # job above only assembles), so its first results may include old failures that
+  # have nothing to do with the change being pushed. Once it is known green, drop
+  # continue-on-error so a regression turns the run red.
+  #
+  # -PskipScreenshots excludes the Paparazzi store-screenshot scenes (their golden
+  # snapshots are not tracked in git); see the Test task config in app/build.gradle.kts.
+  unit-tests:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '21'
+        cache: 'gradle'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        # The default also installs the legacy "tools" package, which the SDK
+        # repository no longer serves; sdkmanager then fails the job.
+        packages: 'platform-tools'
+
+    # AGP resolves the pinned NDK/CMake when it configures the module even though
+    # no native code is built here, so install the same pair as the build job.
+    - name: Install pinned NDK and CMake
+      run: yes | sdkmanager "ndk;27.2.12479018" "cmake;3.31.5" >/dev/null 2>&1 || echo "::warning::sdkmanager install returned non-zero"
+
+    - name: Run unit tests
+      run: |
+        set -o pipefail
+        ./gradlew app:testDebugUnitTest -PskipScreenshots --stacktrace 2>&1 | tee test.log
+
+    # Always report the totals, and on failure list every failing test as an
+    # annotation so the result can be read through the API without the logs.
+    - name: Summarize test results
+      if: always()
+      run: |
+        python3 - <<'PY'
+        import glob, xml.etree.ElementTree as ET
+        tests = failures = errors = skipped = 0
+        for f in glob.glob("app/build/test-results/testDebugUnitTest/*.xml"):
+            root = ET.parse(f).getroot()
+            for tc in root.iter("testcase"):
+                tests += 1
+                if tc.find("skipped") is not None:
+                    skipped += 1
+                for kind in ("failure", "error"):
+                    for e in tc.findall(kind):
+                        if kind == "failure": failures += 1
+                        else: errors += 1
+                        msg = (e.get("message") or "").replace("\n", " ")[:300]
+                        print(f"::error title=unit-test::{tc.get('classname')}.{tc.get('name')}: {msg}")
+        print(f"::notice title=unit-test-summary::{tests} tests, {failures} failures, {errors} errors, {skipped} skipped")
+        PY
+        # Compilation problems never reach the XML; surface Gradle's own message.
+        awk '/What went wrong:/{f=1} f{print} /^\* Try:/{f=0}' test.log | head -n 15 | while IFS= read -r l; do
+          [ -n "$l" ] && echo "::error title=gradle-test::$l"
+        done || true
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: unit-test-results
+        path: app/build/test-results/testDebugUnitTest/*.xml
+        if-no-files-found: warn
