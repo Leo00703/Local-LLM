@@ -440,18 +440,33 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
     std::string full_prompt = result.prompt;
     additional_stops = result.additional_stops;
 
-    // Parser init (mirror addMessage) so finalizeResponse can extract reasoning.
-    // Tools are never active on an image turn.
+    // Parser init (mirror addMessage) so finalizeResponse can extract reasoning AND
+    // generate() can recognise a tool call. renderTemplate() above already put the
+    // tool definitions into this prompt whenever tools are enabled, so the model may
+    // well answer with a call; if parsing were off the call would reach the chat as
+    // raw markup instead of running. Tool calls are therefore live on an image turn
+    // exactly as on a text turn (upstream LMPlayground probes the tools+vision pair
+    // on every vision model it ships, 5c85b0b).
     if (!result.parser.empty()) {
         parser_params = common_chat_parser_params(result);
         parser_params.reasoning_format = COMMON_REASONING_FORMAT_DEEPSEEK;
-        parser_params.parse_tool_calls = false;
+        parser_params.parse_tool_calls = tools_enabled;
         parser_params.parser.load(result.parser);
         parser_initialized = true;
     } else {
         parser_initialized = false;
     }
-    destroyToolSampler();
+
+    // Grammar-constrained sampling for the call, built per turn like addMessage does
+    // (fresh lazy grammar, reasoning budget from the template). Normal chat keeps the
+    // plain [smpl] chain. generate()'s image path skips the prompt-priming block
+    // (prompt_tokens is empty), which is fine: this sampler is brand new and its
+    // grammar/budget prefill comes from the template's generation_prompt at init.
+    if (tools_enabled && !result.grammar.empty()) {
+        recreateToolSampler(result);
+    } else {
+        destroyToolSampler();
+    }
 
     // Decode the staged encoded image (jpg/png/…) into an mtmd bitmap. The bytes
     // were swapped out of the staging slot by addMessage, so this turn owns them.

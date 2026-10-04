@@ -166,18 +166,17 @@ jobs:
         if-no-files-found: warn
 
   # JVM unit tests (no device, no native build). They run in parallel with the APK
-  # build so a slow or red suite never delays or hides the installable APK.
+  # build so a slow suite never delays the installable APK.
   #
-  # continue-on-error is deliberate for now: this suite had never run in CI (the
-  # job above only assembles), so its first results may include old failures that
-  # have nothing to do with the change being pushed. Once it is known green, drop
-  # continue-on-error so a regression turns the run red.
+  # First run (v1.9.111): 89 tests, 0 failures, so this job now FAILS THE RUN when a
+  # test breaks. It briefly had continue-on-error while the suite's state was
+  # unknown; if a test is ever knowingly red, fix or @Ignore it rather than
+  # re-adding that, otherwise regressions go unnoticed again.
   #
   # -PskipScreenshots excludes the Paparazzi store-screenshot scenes (their golden
   # snapshots are not tracked in git); see the Test task config in app/build.gradle.kts.
   unit-tests:
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
     - name: Checkout repository

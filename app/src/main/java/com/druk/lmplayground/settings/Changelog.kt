@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.112", "Tools now work with photos", listOf(
+        Change(ChangeType.FIX, "Tools now work together with a photo. When tools were on and you attached a picture, the model was told about the tools but its tool calls were not recognised, so a request to use one could show up as raw text instead of running. A photo question can now use the calculator, web search and the other tools like any other message."),
+    )),
     ChangelogEntry("1.9.111", "Chat switching and image detail fixes", listOf(
         Change(ChangeType.FIX, "Opening a saved chat while a reply is still being written now stops that reply first. Before, the old reply could keep streaming into the chat you had just opened and be saved there."),
         Change(ChangeType.FIX, "The Image detail slider no longer offers its lowest position (64), which is below the minimum Gemma 4's image add-on can work with and could make it fail to load. The lowest setting is now 96, and a lower value saved earlier is raised to it automatically."),
