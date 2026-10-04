@@ -369,6 +369,7 @@
     <string name="set_up_tools">Configura gli strumenti</string>
     <string name="tools_section_intro">Gli strumenti permettono ai modelli capaci di compiere azioni durante una risposta, come cercare sul web o eseguire un calcolo. Ogni strumento è disattivato per impostazione predefinita: attiva solo quelli che vuoi. Gli strumenti funzionano solo con i modelli che li supportano (cerca il badge con l\'icona della chiave).</string>
     <string name="tools_params_sheet_subtitle">Il modello può usarli durante una risposta</string>
+    <string name="tools_enable_all">Attiva tutti</string>
     <string name="tools_example_label">Esempio: %1$s</string>
     <string name="cd_supports_tools">Supporta gli strumenti</string>
     <string name="cd_supports_thinking">Supporta il ragionamento</string>

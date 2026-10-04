@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import com.druk.lmplayground.tools.ToolDefaults
 
 class StoragePreferences(context: Context) {
 
@@ -157,7 +158,8 @@ class StoragePreferences(context: Context) {
     //
     // The global default (set in Settings → Tools) applies to every model; a
     // per-model override (set in a model's generation-params sheet) wins for
-    // that model only. Tools are OFF by default.
+    // that model only. Tools are OFF by default, except for a model on a remote server,
+    // where they start ON (see [ToolDefaults.defaultFor]).
 
     fun isToolEnabledDefault(toolName: String): Boolean {
         return prefs.getBoolean("tool_enabled_$toolName", false)
@@ -175,12 +177,16 @@ class StoragePreferences(context: Context) {
         prefs.edit { putBoolean("tool_override_${filename}_$toolName", enabled) }
     }
 
-    /** Resolved enablement for a tool on a specific model: override if set, else global default. */
-    fun effectiveToolEnabled(filename: String, toolName: String): Boolean {
+    /**
+     * Resolved enablement for a tool on a specific model: the saved per-model choice if there
+     * is one, else the default for that kind of model (global default locally, on for a
+     * remote model). [locationGranted] matters only to the Location tool's remote default.
+     */
+    fun effectiveToolEnabled(filename: String, toolName: String, locationGranted: Boolean = false): Boolean {
         return if (hasToolOverride(filename, toolName)) {
             prefs.getBoolean("tool_override_${filename}_$toolName", false)
         } else {
-            isToolEnabledDefault(toolName)
+            ToolDefaults.defaultFor(filename, toolName, isToolEnabledDefault(toolName), locationGranted)
         }
     }
 

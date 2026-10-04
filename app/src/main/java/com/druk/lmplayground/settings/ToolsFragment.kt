@@ -31,6 +31,7 @@ class ToolsFragment : Fragment() {
                     tools = toolsViewModel.tools,
                     enabledStates = enabled,
                     onToolEnabledChanged = { name, value -> toolsViewModel.setEnabled(name, value) },
+                    onAllToolsEnabledChanged = { toolsViewModel.setAllEnabled(it) },
                     onBackClick = { findNavController().popBackStack() },
                 )
             }

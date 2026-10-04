@@ -398,6 +398,7 @@
     <string name="tools_section_intro">Tools let capable models take actions during a reply, like searching the web or running a calculation. Each tool is off by default. Turn on only the ones you want. Tools work only with models that support them (look for the hammer badge).</string>
     <string name="tools_example_label">Example: %1$s</string>
     <string name="tools_params_sheet_subtitle">The model can call these during a reply</string>
+    <string name="tools_enable_all">Enable all</string>
     <!-- Tool-call detail in the chat bubble -->
     <string name="tool_call_input">Input</string>
     <string name="tool_call_output">Output</string>

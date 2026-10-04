@@ -998,6 +998,7 @@ class ConversationFragment : Fragment() {
                                 tools = viewModel.toolRegistry.getAllTools(),
                                 toolEnabledStates = toolEnabledStates,
                                 onToolEnabledChanged = { name, enabled -> viewModel.setToolEnabled(name, enabled) },
+                                onAllToolsEnabledChanged = { viewModel.setAllToolsEnabled(it) },
                                 systemPrompt = systemPrompt,
                                 canUpdateLinkedPrompt = systemPromptId != null,
                                 isRemote = isRemote,

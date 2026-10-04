@@ -54,6 +54,12 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.117", "Server model names and tools", listOf(
+        Change(ChangeType.IMPROVED, "Models from a llama.cpp or Ollama server now show clean names in the model list, like \"Qwen 3 4B (Q4_K_M)\", instead of file names with \".gguf\" and quantization pieces. Two quantizations of one model stay apart because the quantization is kept in the name."),
+        Change(ChangeType.IMPROVED, "A model on a remote server now starts with all its tools on, and the choice you make for each model is remembered. The Location tool only starts on if its permission is already granted."),
+        Change(ChangeType.NEW, "An Enable all switch at the top of the tools list, in the chat and in Settings → Tools, turns every tool on or off at once."),
+        Change(ChangeType.FIX, "The tool switches now show their real state right after loading a server model or a Gemma 4 model; before, they showed everything off until the first message."),
+    )),
     ChangelogEntry("1.9.116", "Qwen 3.5 on the GPU", listOf(
         Change(ChangeType.IMPROVED, "Qwen 3.5 (0.8B, 2B and 4B) now comes in a higher-quality format, Q4_K_M, that the GPU can run directly; the old Q3_K_M format had no GPU support and fell back to the processor. The new files are about 12-17% bigger (579 MB, 1.40 GB and 3.01 GB). Download the new one from the model list; once it is on your phone, the old file is deleted automatically to give the space back, and the old one keeps working until then."),
     )),

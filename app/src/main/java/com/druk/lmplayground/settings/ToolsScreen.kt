@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.druk.lmplayground.R
 import com.druk.lmplayground.tools.Tool
+import com.druk.lmplayground.tools.ToolDefaults
 
 // Tool presentation (title/description/example/icon) lives in the shared
 // TOOL_UI_CATALOG (ToolUiCatalog.kt), reused by the model params sheet's Tools
@@ -48,6 +49,7 @@ fun ToolsScreen(
     tools: List<Tool>,
     enabledStates: Map<String, Boolean>,
     onToolEnabledChanged: (String, Boolean) -> Unit,
+    onAllToolsEnabledChanged: (Boolean) -> Unit = {},
     onBackClick: () -> Unit,
 ) {
     Scaffold(
@@ -69,6 +71,7 @@ fun ToolsScreen(
             tools = tools,
             enabledStates = enabledStates,
             onToolEnabledChanged = onToolEnabledChanged,
+            onAllToolsEnabledChanged = onAllToolsEnabledChanged,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
@@ -81,6 +84,7 @@ fun ToolsContent(
     tools: List<Tool>,
     enabledStates: Map<String, Boolean>,
     onToolEnabledChanged: (String, Boolean) -> Unit,
+    onAllToolsEnabledChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -100,6 +104,25 @@ fun ToolsContent(
         }
     }
     Column(modifier = modifier.verticalScroll(rememberScrollState())) {
+        val locationGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val allOn = ToolDefaults.allOn(tools.map { it.name }, enabledStates, locationGranted)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onAllToolsEnabledChanged(!allOn) }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.tools_enable_all),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(checked = allOn, onCheckedChange = onAllToolsEnabledChanged)
+        }
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         tools.forEach { tool ->
             ToolRow(
                 tool = tool,

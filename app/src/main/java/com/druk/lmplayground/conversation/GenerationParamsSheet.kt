@@ -63,6 +63,7 @@ import com.druk.lmplayground.settings.EditorBottomSheet
 import com.druk.lmplayground.settings.EditorTarget
 import com.druk.lmplayground.settings.TOOL_UI_CATALOG
 import com.druk.lmplayground.tools.Tool
+import com.druk.lmplayground.tools.ToolDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -100,6 +101,7 @@ fun GenerationParamsSheet(
     tools: List<Tool> = emptyList(),
     toolEnabledStates: Map<String, Boolean> = emptyMap(),
     onToolEnabledChanged: (String, Boolean) -> Unit = { _, _ -> },
+    onAllToolsEnabledChanged: (Boolean) -> Unit = {},
     systemPrompt: String = "",
     canUpdateLinkedPrompt: Boolean = false,
     // Remote model: when true the context-size / thinking-budget / seed controls
@@ -375,6 +377,27 @@ fun GenerationParamsSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(4.dp))
+                val locationGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    androidx.compose.ui.platform.LocalContext.current,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.tools_enable_all),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f).padding(end = 16.dp)
+                    )
+                    Switch(
+                        checked = ToolDefaults.allOn(tools.map { it.name }, toolEnabledStates, locationGranted),
+                        onCheckedChange = onAllToolsEnabledChanged
+                    )
+                }
+                HorizontalDivider()
                 for (tool in tools) {
                     // Shared catalog drives icon + friendly title + description here
                     // and in Settings -> Tools; an unmapped tool falls back to its raw name.

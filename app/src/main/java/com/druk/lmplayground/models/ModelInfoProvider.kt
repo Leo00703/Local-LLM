@@ -902,6 +902,18 @@ object ModelInfoProvider {
     private val PARAM_SIZE = Regex("^\\d+(\\.\\d+)?[bmk]$")          // 4b, 0.5b, 350m
     private val ACTIVE_PARAMS = Regex("^a\\d+(\\.\\d+)?b$")          // a3b, a1b
     private val FAMILY_VERSION = Regex("^([a-z]+)(\\d[\\d.]*)$")     // qwen3.5, lfm2.5
+    private val EFFECTIVE_PARAMS = Regex("^e\\d+(\\.\\d+)?b$")        // e2b, e4b (Gemma effective params)
+    private val GGUF_EXTENSION = Regex("\\.gguf$", RegexOption.IGNORE_CASE)
+    private val SHARD_SUFFIX = Regex("[-_.]\\d{5}-of-\\d{5}$", RegexOption.IGNORE_CASE)
+    // A quantization label (Q4_K_M, IQ4_XS, UD-Q4_K_XL, BF16, MXFP4) delimited by anything that
+    // is not a letter or digit: llama.cpp and Ollama put it in several places ("-Q4_K_M.gguf",
+    // ":Q4_K_M", "_q4_0-it", "@q8_0").
+    private val QUANT_LABEL = Regex(
+        "(?<![A-Za-z0-9])((?:UD[-_])?(?:I?Q\\d+(?:_[A-Za-z0-9]+)*|BF16|F16|F32|MXFP4))(?![A-Za-z0-9])",
+        RegexOption.IGNORE_CASE
+    )
+    // Words a server adds that say nothing about the model.
+    private val NOISE_TOKENS = setOf("gguf", "latest")
     private val PLAIN_VERSION = Regex("^\\d[\\d.]*$")                // 3.5, 4
 
     /**
@@ -910,21 +922,41 @@ object ModelInfoProvider {
      * "Gemma 4 12B QAT". Strips a leading "publisher/" segment, splits a family
      * from its glued version number, sentence-cases plain words, and keeps
      * parameter sizes (4B, A3B) and known acronyms (MTP, QAT, MoE…) upper-cased.
+     * llama.cpp and Ollama ids also work: the file extension, shard suffix, "GGUF" and
+     * ":tag" noise are dropped and the quantization is kept as a suffix, so two quants of one
+     * model stay distinguishable ("Qwen3-4B-Q4_K_M.gguf" → "Qwen 3 4B (Q4_K_M)",
+     * "qwen3:4b" → "Qwen 3 4B").
      * Purely cosmetic — the raw id is still used for every server call.
      */
     fun prettifyModelId(rawId: String): String {
-        val core = rawId.substringAfterLast('/').trim()
+        var core = rawId.substringAfterLast('/').trim()
         if (core.isEmpty()) return rawId
+        core = SHARD_SUFFIX.replace(GGUF_EXTENSION.replace(core, ""), "")
+        // ":" (Ollama tag, llama.cpp "repo:quant") and "@" (LM Studio "model@quant") just
+        // separate words.
+        core = core.replace(':', '-').replace('@', '-')
+        val quant = QUANT_LABEL.findAll(core).lastOrNull()
+        if (quant != null) core = core.removeRange(quant.range)
         // Keep dots (version numbers) but break on - and _.
-        val tokens = core.split('-', '_').filter { it.isNotBlank() }
-        val pretty = tokens.joinToString(" ") { prettifyToken(it) }.trim()
-        return pretty.ifEmpty { rawId }
+        val tokens = core.split('-', '_')
+            .map { it.trim('.') }
+            .filter { it.isNotBlank() && it.lowercase() !in NOISE_TOKENS }
+        // Repos like bartowski's repeat the publisher ("Qwen_Qwen3.5-4B"): drop a family word
+        // that the next word already starts with.
+        val words = tokens.filterIndexed { i, t ->
+            val next = tokens.getOrNull(i + 1)?.lowercase()
+            !(next != null && t.lowercase() in NAME_FAMILY_CASING && next.startsWith(t.lowercase()))
+        }
+        val pretty = words.joinToString(" ") { prettifyToken(it) }.trim()
+        if (pretty.isEmpty()) return rawId
+        return if (quant != null) "$pretty (${quant.value.uppercase()})" else pretty
     }
 
     private fun prettifyToken(token: String): String {
         val t = token.lowercase()
         if (PARAM_SIZE.matches(t)) return t.uppercase()             // 4b → 4B
         if (ACTIVE_PARAMS.matches(t)) return t.uppercase()          // a3b → A3B
+        if (EFFECTIVE_PARAMS.matches(t)) return t.uppercase()       // e4b -> E4B
         if (t in NAME_ACRONYMS) return t.uppercase()                // mtp → MTP
         FAMILY_VERSION.matchEntire(t)?.let { m ->                   // qwen3.5 → Qwen 3.5
             NAME_FAMILY_CASING[m.groupValues[1]]?.let { fam ->

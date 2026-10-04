@@ -6,6 +6,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.druk.lmplayground.storage.StoragePreferences
 import com.druk.lmplayground.tools.Tool
+import com.druk.lmplayground.tools.ToolDefaults
 import com.druk.lmplayground.tools.ToolRegistry
 
 /**
@@ -36,5 +37,18 @@ class ToolsViewModel(app: Application) : AndroidViewModel(app) {
     fun setEnabled(toolName: String, value: Boolean) {
         prefs.setToolEnabledDefault(toolName, value)
         _enabled.value = _enabled.value.orEmpty().toMutableMap().apply { put(toolName, value) }
+    }
+
+    /** The "Enable all" switch: every tool's default on or off (Location only with its permission). */
+    fun setAllEnabled(value: Boolean) {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            getApplication(), android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val next = _enabled.value.orEmpty().toMutableMap()
+        for (name in ToolDefaults.bulkTargets(tools.map { it.name }, granted, value)) {
+            prefs.setToolEnabledDefault(name, value)
+            next[name] = value
+        }
+        _enabled.value = next
     }
 }

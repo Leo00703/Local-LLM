@@ -59,6 +59,7 @@ import com.druk.lmplayground.files.StagedAttachment
 import com.druk.lmplayground.files.StagedState
 import com.druk.lmplayground.storage.StoragePreferences
 import com.druk.lmplayground.storage.StorageRepository
+import com.druk.lmplayground.tools.ToolDefaults
 import com.druk.lmplayground.tools.ToolRegistry
 import org.json.JSONArray
 import org.json.JSONObject
@@ -642,7 +643,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _visionAddOn.postValue(null)   // remote models need no local projector
             // Compute backend is a local (on-device) concept; the server owns its own.
             _computeBackend.postValue(null)
-            _toolEnabledStates.postValue(emptyMap())
+            // A server model starts with every tool on (a choice saved for this model
+            // wins), so they don't need switching on again after each load. Only when
+            // the server can take tools at all.
+            if (hasCap("tools")) hydrateToolStates("remote:$modelId")
+            else _toolEnabledStates.postValue(emptyMap())
 
             val params = GenerationParams(contextSize = maxContext)
             _generationParams.postValue(params)
@@ -751,7 +756,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _visionAddOn.postValue(null)   // LiteRT bundles its own vision encoder
             // Compute backend is surfaced only for the llama path; keep it null.
             _computeBackend.postValue(null)
-            _toolEnabledStates.postValue(emptyMap())
+            hydrateToolStates(modelInfo.filename)
 
             // Gemma 4 E2B/E4B support up to a 32k context. Load the user's saved
             // params (context/temp/topK persist per model); a fresh model defaults
@@ -2242,15 +2247,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 // next message — without this, enabling a tool after the model
                 // was loaded had no effect (the registry was only hydrated at
                 // load time), so the model never saw any tools.
-                _loadedModel.value?.filename?.let { filename ->
-                    val states = mutableMapOf<String, Boolean>()
-                    for (tool in toolRegistry.getAllTools()) {
-                        val enabled = storagePreferences.effectiveToolEnabled(filename, tool.name)
-                        toolRegistry.setToolEnabled(tool.name, enabled)
-                        states[tool.name] = enabled
-                    }
-                    _toolEnabledStates.postValue(states)
-                }
+                _loadedModel.value?.filename?.let { filename -> hydrateToolStates(filename) }
 
                 // Tools are active when model supports it and user has tools enabled
                 val toolsActive = _supportsToolCalling.value == true
@@ -3757,6 +3754,46 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         val states = _toolEnabledStates.value.orEmpty().toMutableMap()
         states[toolName] = enabled
         _toolEnabledStates.value = states
+    }
+
+    /**
+     * The "Enable all" switch in the tools list: turns every tool on or off for the loaded
+     * model (saved as that model's choice). Location is skipped when switching on without its
+     * permission, so no tool is left on that cannot work.
+     */
+    @MainThread
+    fun setAllToolsEnabled(enabled: Boolean) {
+        val filename = _loadedModel.value?.filename
+        val states = _toolEnabledStates.value.orEmpty().toMutableMap()
+        val names = toolRegistry.getAllTools().map { it.name }
+        for (name in ToolDefaults.bulkTargets(names, locationPermissionGranted(), enabled)) {
+            toolRegistry.setToolEnabled(name, enabled)
+            filename?.let { storagePreferences.setToolOverride(it, name, enabled) }
+            states[name] = enabled
+        }
+        _toolEnabledStates.value = states
+    }
+
+    private fun locationPermissionGranted(): Boolean =
+        androidx.core.content.ContextCompat.checkSelfPermission(
+            app, android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Resolve every tool's enablement for [filename] (the choice saved for that model, else
+     * the default for its kind), apply it to the registry and publish it to the UI. One
+     * resolver for the load paths and the per-turn refresh, so the sheet cannot show
+     * something other than what the next request will use.
+     */
+    private fun hydrateToolStates(filename: String) {
+        val locationGranted = locationPermissionGranted()
+        val states = mutableMapOf<String, Boolean>()
+        for (tool in toolRegistry.getAllTools()) {
+            val enabled = storagePreferences.effectiveToolEnabled(filename, tool.name, locationGranted)
+            toolRegistry.setToolEnabled(tool.name, enabled)
+            states[tool.name] = enabled
+        }
+        _toolEnabledStates.postValue(states)
     }
 
     /**
