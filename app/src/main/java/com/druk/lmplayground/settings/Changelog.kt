@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.116", "Qwen 3.5 on the GPU", listOf(
+        Change(ChangeType.IMPROVED, "Qwen 3.5 (0.8B, 2B and 4B) now comes in a higher-quality format, Q4_K_M, that the GPU can run directly; the old Q3_K_M format had no GPU support and fell back to the processor. The new files are about 12-17% bigger (579 MB, 1.40 GB and 3.01 GB). Download the new one from the model list; once it is on your phone, the old file is deleted automatically to give the space back, and the old one keeps working until then."),
+    )),
     ChangelogEntry("1.9.115", "LFM2.5-VL vision models", listOf(
         Change(ChangeType.NEW, "Three small vision models from Liquid AI: LFM2.5-VL 450M (the smallest, 229 MB), 1.6B and 3B (which also reads text in photos, in 16 languages). They are fast even on a phone without a strong GPU, and all three can use tools. Their image add-on (from 102 MB to 583 MB) is offered the first time you attach a picture."),
     )),

@@ -16,6 +16,8 @@ import com.druk.lmplayground.inference.LlamaService
 import com.druk.lmplayground.inference.ProcessUtils
 import com.druk.lmplayground.storage.LegacyDownloadCleanup
 import com.druk.lmplayground.storage.StoragePreferences
+import com.druk.lmplayground.storage.StorageRepository
+import com.druk.lmplayground.storage.SupersededFileCleanup
 import com.druk.lmplayground.theme.AppThemeState
 import com.druk.lmplayground.theme.ThemeColor
 import kotlin.concurrent.thread
@@ -90,6 +92,17 @@ class App : Application() {
         val appContext = applicationContext
         thread(isDaemon = true, name = "legacy-download-cleanup") {
             LegacyDownloadCleanup.run(appContext)
+        }
+
+        // Drop model files a newer catalog build has replaced (see SupersededFileCleanup),
+        // but only once the replacement is already on disk.
+        thread(isDaemon = true, name = "superseded-file-cleanup") {
+            try {
+                val prefs = StoragePreferences(appContext)
+                SupersededFileCleanup.run(StorageRepository(appContext, prefs))
+            } catch (e: Exception) {
+                android.util.Log.w("App", "Superseded-file cleanup failed: ${e.message}")
+            }
         }
 
         val database = AppDatabase.getInstance(this)

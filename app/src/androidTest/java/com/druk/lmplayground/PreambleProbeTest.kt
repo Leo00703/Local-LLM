@@ -40,6 +40,7 @@ class PreambleProbeTest {
         private val CANDIDATE_MODELS = listOf(
             "gemma-4-E2B-it-Q4_K_M.gguf",
             "Qwen3-0.6B-Q4_K_M.gguf",
+            "Qwen_Qwen3.5-0.8B-Q4_K_M.gguf",
             "Qwen_Qwen3.5-0.8B-Q3_K_M.gguf",
             "LFM2.5-350M-Q4_K_M.gguf",
         )

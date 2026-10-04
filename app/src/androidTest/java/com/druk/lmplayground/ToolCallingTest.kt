@@ -40,6 +40,7 @@ class ToolCallingTest {
             "gemma-4-E2B-it-Q4_K_M.gguf",
             "gemma-4-E4B-it-Q4_K_M.gguf",
             "Qwen3-0.6B-Q4_K_M.gguf",
+            "Qwen_Qwen3.5-0.8B-Q4_K_M.gguf",
             "Qwen_Qwen3.5-0.8B-Q3_K_M.gguf",
             "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"
         )

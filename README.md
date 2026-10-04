@@ -71,7 +71,7 @@ Features added on top of upstream LM Playground:
 
 </details>
 
-Most models use Q4_K_M quantization; Qwen 3.5 uses Q3_K_M, and GPT-OSS ships in its native MXFP4 format. See [`ModelInfoProvider.kt`](app/src/main/java/com/druk/lmplayground/models/ModelInfoProvider.kt) for the full list.
+Most models use Q4_K_M quantization; Qwen 3.5 uses Q4_K_M as well (the GPU backend has kernels for Q4_K but none for Q3_K), and GPT-OSS ships in its native MXFP4 format. See [`ModelInfoProvider.kt`](app/src/main/java/com/druk/lmplayground/models/ModelInfoProvider.kt) for the full list.
 
 ## Install
 

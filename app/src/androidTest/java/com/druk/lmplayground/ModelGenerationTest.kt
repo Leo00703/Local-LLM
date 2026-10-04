@@ -36,8 +36,10 @@ class ModelGenerationTest {
          */
         private val CANDIDATE_MODELS = listOf(
             "Qwen3-0.6B-Q4_K_M.gguf",
+            "Qwen_Qwen3.5-0.8B-Q4_K_M.gguf",
             "Qwen_Qwen3.5-0.8B-Q3_K_M.gguf",
             "LFM2.5-1.2B-Thinking-Q4_K_M.gguf",
+            "Qwen_Qwen3.5-2B-Q4_K_M.gguf",
             "Qwen_Qwen3.5-2B-Q3_K_M.gguf",
             "DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
             "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"

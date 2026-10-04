@@ -111,7 +111,7 @@ class ThinkingModeTest {
 
     @Test
     fun unmeasuredCatalogModelsKeepTheirFamilyFlag() {
-        // Qwen 3.5 ships as Q3_K_M here and was only measured at another quant.
+        // Qwen 3.5 ships as Q4_K_M here and was only measured at another quant (IQ4_XS).
         val qwen35 = byName("Qwen 3.5 4B")
         assertEquals(ThinkingMode.UNKNOWN, qwen35.thinkingMode)
         assertTrue(qwen35.supportsThinking)

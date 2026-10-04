@@ -134,35 +134,74 @@ object ModelInfoProvider {
             logoRes = R.drawable.logo_qwen,
             supportedLanguages = MULTILINGUAL_BROAD
         ),
+        // Qwen 3.5 ships at Q4_K_M. It replaced Q3_K_M because the OpenCL GPU backend has
+        // dedicated kernels for Q4_K and Q6_K (what Q4_K_M is made of) but none for Q3_K,
+        // and because Q4_K_M is the more accurate of the two (about 2.5% perplexity above
+        // Q8_0 against about 10.4% for Q3_K_M, measured upstream). It costs 12-17% more
+        // to download. The Q3_K_M entries below are kept only so a file already on disk is
+        // still recognised; SupersededFileCleanup removes it once the new one is present.
         ModelInfo(
             name = "Qwen 3.5 0.8B",
+            filename = "Qwen_Qwen3.5-0.8B-Q4_K_M.gguf",
+            visionAddOn = ADDON_QWEN35_0_8B,
+            remoteUri = Uri.parse("https://huggingface.co/bartowski/Qwen_Qwen3.5-0.8B-GGUF/resolve/main/Qwen_Qwen3.5-0.8B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-02-27"),
+            description = "Alibaba \u00B7 Lightweight chat model \u00B7 579Mb",
+            logoRes = R.drawable.logo_qwen,
+            supportedLanguages = MULTILINGUAL_BROAD
+        ),
+        ModelInfo(
+            name = "Qwen 3.5 0.8B (Q3_K_M)",
             filename = "Qwen_Qwen3.5-0.8B-Q3_K_M.gguf",
             visionAddOn = ADDON_QWEN35_0_8B,
             remoteUri = Uri.parse("https://huggingface.co/bartowski/Qwen_Qwen3.5-0.8B-GGUF/resolve/main/Qwen_Qwen3.5-0.8B-Q3_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-02-27"),
             description = "Alibaba \u00B7 Lightweight chat model \u00B7 466Mb",
             logoRes = R.drawable.logo_qwen,
-            supportedLanguages = MULTILINGUAL_BROAD
+            supportedLanguages = MULTILINGUAL_BROAD,
+            deprecated = true
         ),
         ModelInfo(
             name = "Qwen 3.5 2B",
+            filename = "Qwen_Qwen3.5-2B-Q4_K_M.gguf",
+            visionAddOn = ADDON_QWEN35_2B,
+            remoteUri = Uri.parse("https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF/resolve/main/Qwen_Qwen3.5-2B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-02-27"),
+            description = "Alibaba \u00B7 General-purpose chat model \u00B7 1.40Gb",
+            logoRes = R.drawable.logo_qwen,
+            supportedLanguages = MULTILINGUAL_BROAD
+        ),
+        ModelInfo(
+            name = "Qwen 3.5 2B (Q3_K_M)",
             filename = "Qwen_Qwen3.5-2B-Q3_K_M.gguf",
             visionAddOn = ADDON_QWEN35_2B,
             remoteUri = Uri.parse("https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF/resolve/main/Qwen_Qwen3.5-2B-Q3_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-02-27"),
             description = "Alibaba \u00B7 General-purpose chat model \u00B7 1.07Gb",
             logoRes = R.drawable.logo_qwen,
-            supportedLanguages = MULTILINGUAL_BROAD
+            supportedLanguages = MULTILINGUAL_BROAD,
+            deprecated = true
         ),
         ModelInfo(
             name = "Qwen 3.5 4B",
+            filename = "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+            visionAddOn = ADDON_QWEN35_4B,
+            remoteUri = Uri.parse("https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF/resolve/main/Qwen_Qwen3.5-4B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-02-27"),
+            description = "Alibaba \u00B7 General-purpose chat model \u00B7 3.01Gb",
+            logoRes = R.drawable.logo_qwen,
+            supportedLanguages = MULTILINGUAL_BROAD
+        ),
+        ModelInfo(
+            name = "Qwen 3.5 4B (Q3_K_M)",
             filename = "Qwen_Qwen3.5-4B-Q3_K_M.gguf",
             visionAddOn = ADDON_QWEN35_4B,
             remoteUri = Uri.parse("https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF/resolve/main/Qwen_Qwen3.5-4B-Q3_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-02-27"),
             description = "Alibaba \u00B7 General-purpose chat model \u00B7 2.25Gb",
             logoRes = R.drawable.logo_qwen,
-            supportedLanguages = MULTILINGUAL_BROAD
+            supportedLanguages = MULTILINGUAL_BROAD,
+            deprecated = true
         ),
         ModelInfo(
             name = "Gemma 3 1B",
@@ -595,8 +634,11 @@ object ModelInfoProvider {
         "Qwen3-0.6B-Q4_K_M.gguf",
         "Qwen3-1.7B-Q4_K_M.gguf",
         "Qwen3-4B-Q4_K_M.gguf",
+        "Qwen_Qwen3.5-0.8B-Q4_K_M.gguf",
         "Qwen_Qwen3.5-0.8B-Q3_K_M.gguf",
+        "Qwen_Qwen3.5-2B-Q4_K_M.gguf",
         "Qwen_Qwen3.5-2B-Q3_K_M.gguf",
+        "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
         "Qwen_Qwen3.5-4B-Q3_K_M.gguf",
         "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
         "LFM2.5-350M-Q4_K_M.gguf",
@@ -635,8 +677,11 @@ object ModelInfoProvider {
         "Qwen3-0.6B-Q4_K_M.gguf",
         "Qwen3-1.7B-Q4_K_M.gguf",
         "Qwen3-4B-Q4_K_M.gguf",
+        "Qwen_Qwen3.5-0.8B-Q4_K_M.gguf",
         "Qwen_Qwen3.5-0.8B-Q3_K_M.gguf",
+        "Qwen_Qwen3.5-2B-Q4_K_M.gguf",
         "Qwen_Qwen3.5-2B-Q3_K_M.gguf",
+        "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
         "Qwen_Qwen3.5-4B-Q3_K_M.gguf",
         "DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
         "DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
@@ -666,7 +711,7 @@ object ModelInfoProvider {
     // block and thinking off must suppress it. Where a model disagrees with its own
     // template, this is what the UI follows (see ThinkingMode). Models absent here
     // stay UNKNOWN and fall back to the template flag; that includes the fork's
-    // Qwen 3.5 Q3_K_M files, which upstream measured only at IQ4_XS.
+    // Qwen 3.5 files (Q4_K_M here; upstream measured the toggle at IQ4_XS).
     private val THINKING_MODE = mapOf(
         // Templates advertise a thinking mode these models never actually use, so
         // the toggle would appear and do nothing.
