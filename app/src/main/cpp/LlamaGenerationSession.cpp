@@ -130,13 +130,19 @@ void LlamaGenerationSession::recreateToolSampler(const common_chat_params &rende
 
     // Reasoning budget (matches tools/cli/cli.cpp). For lazy grammars this also
     // provides thinking-block suppression even when the budget is unlimited.
-    if (!render.thinking_end_tag.empty()) {
+    // A template can expose several end tags (b10327+); the budget sampler accepts
+    // any of them as a natural end, and forces the first when the budget runs out.
+    if (!render.thinking_end_tags.empty()) {
         sp.reasoning_budget_tokens = sampler_params.thinking_budget;
         if (!render.thinking_start_tag.empty()) {
             sp.reasoning_budget_start = common_tokenize(vocab, render.thinking_start_tag, false, true);
         }
-        sp.reasoning_budget_end    = common_tokenize(vocab, render.thinking_end_tag, false, true);
-        sp.reasoning_budget_forced = common_tokenize(vocab, render.thinking_end_tag, false, true);
+        for (const auto &tag : render.thinking_end_tags) {
+            if (!tag.empty()) {
+                sp.reasoning_budget_end.push_back(common_tokenize(vocab, tag, false, true));
+            }
+        }
+        sp.reasoning_budget_forced = common_tokenize(vocab, render.thinking_end_tags.front(), false, true);
     }
 
     // common_sampler_init throws when the grammar llama.cpp derived from the
@@ -285,7 +291,7 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
 
     // Repetition penalty (only if > 1.0)
     if (params.repetition_penalty > 1.0f) {
-        llama_sampler_chain_add(smpl, llama_sampler_init_penalties(256, params.repetition_penalty, 0.0f, 0.0f));
+        llama_sampler_chain_add(smpl, llama_sampler_init_penalties(llama_vocab_n_tokens(vocab), 256, params.repetition_penalty, 0.0f, 0.0f));
     }
 
     // Top-K (only if > 0)
@@ -449,8 +455,13 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
 
     // Decode the staged encoded image (jpg/png/…) into an mtmd bitmap. The bytes
     // were swapped out of the staging slot by addMessage, so this turn owns them.
+    // The helper returns a mtmd_helper_bitmap_wrapper and takes a `placeholder`
+    // flag (false: real pixels, not a token-counting placeholder) and options that
+    // only configure video decoding, so the defaults are right. Unwrap .bitmap;
+    // video_ctx is unused for still images.
     mtmd_bitmap *bmp = mtmd_helper_bitmap_init_from_buf(
-        mctx, image_data.data(), image_data.size());
+        mctx, image_data.data(), image_data.size(),
+        /*placeholder=*/false, mtmd_helper_init_opt_default()).bitmap;
     image_data.clear();
     if (bmp == nullptr) {
         LOGe("failed to decode staged image");
@@ -462,11 +473,12 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
     // runs llama_decode on text chunks and mtmd_encode + llama_decode on the
     // image chunk, advancing n_past and (logits_last=true) leaving logits on the
     // last token — non-causal mask and M-RoPE positions are handled internally.
-    // Value-initialize: newer mtmd headers add fields (text_len) that
-    // mtmd_tokenize reads. When llama.cpp is bumped past b9496, also set
-    // itext.text_len = full_prompt.size() here (upstream LMPlayground 3b52325).
+    // Value-initialize AND set text_len: mtmd_tokenize reads it as the length for
+    // its internal string assign, so leaving it uninitialized built a std::string
+    // from a garbage length (undefined behaviour; upstream LMPlayground 3b52325).
     mtmd_input_text itext{};
     itext.text = full_prompt.c_str();
+    itext.text_len = full_prompt.size();
     itext.add_special = true;   // fresh KV — add BOS like a first turn
     itext.parse_special = true;
     mtmd_input_chunks *chunks = mtmd_input_chunks_init();
@@ -802,21 +814,30 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
         };
 
         std::string start_tag = result.thinking_start_tag;
-        std::string end_tag = result.thinking_end_tag;
+        std::vector<std::string> end_tags = result.thinking_end_tags;
 
         // For gpt-oss (Gemma 4) and similar models that use channel-based thinking,
-        // thinking_start_tag/end_tag may be empty — detect from preserved tokens
+        // thinking_start_tag/end_tags may be empty — detect from preserved tokens
         if (start_tag.empty() && !result.preserved_tokens.empty()) {
             for (const auto &tok : result.preserved_tokens) {
                 if (tok.find("channel") != std::string::npos) {
                     start_tag = "<|channel|>analysis<|message|>";
-                    end_tag = "<|end|>";
+                    end_tags = {"<|end|>"};
                     break;
                 }
             }
         }
 
-        if (!start_tag.empty() && !end_tag.empty()) {
+        // Every end tag is an accepted natural end; the first one is forced when the
+        // budget is exhausted (b10327+ lets a template expose several).
+        std::vector<llama_tokens> end_seqs;
+        for (const auto &tag : end_tags) {
+            if (!tag.empty()) {
+                end_seqs.push_back(tokenize_str(tag));
+            }
+        }
+
+        if (!start_tag.empty() && !end_seqs.empty()) {
             // Rebuild sampler chain with budget sampler first
             llama_sampler_free(smpl);
             auto smplParams = llama_sampler_chain_default_params();
@@ -825,14 +846,13 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
 
             // Budget sampler first (must override logits before other samplers filter)
             auto start_tokens  = tokenize_str(start_tag);
-            auto end_tokens    = tokenize_str(end_tag);
-            auto forced_tokens = end_tokens;
+            auto forced_tokens = end_seqs.front();
             llama_sampler_chain_add(smpl, common_reasoning_budget_init(
-                    vocab, start_tokens, end_tokens, forced_tokens, sampler_params.thinking_budget));
+                    vocab, {start_tokens}, end_seqs, forced_tokens, sampler_params.thinking_budget));
 
             // Re-add other samplers in original order
             if (sampler_params.repetition_penalty > 1.0f)
-                llama_sampler_chain_add(smpl, llama_sampler_init_penalties(256, sampler_params.repetition_penalty, 0.0f, 0.0f));
+                llama_sampler_chain_add(smpl, llama_sampler_init_penalties(llama_vocab_n_tokens(vocab), 256, sampler_params.repetition_penalty, 0.0f, 0.0f));
             if (sampler_params.top_k > 0)
                 llama_sampler_chain_add(smpl, llama_sampler_init_top_k(sampler_params.top_k));
             if (sampler_params.top_p < 1.0f)
@@ -848,7 +868,7 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
 
             budget_sampler_added = true;
             LOGi("Reasoning budget sampler added: budget=%d, start='%s', end='%s'",
-                 sampler_params.thinking_budget, start_tag.c_str(), end_tag.c_str());
+                 sampler_params.thinking_budget, start_tag.c_str(), end_tags.front().c_str());
         }
     }
 
@@ -1253,7 +1273,7 @@ int LlamaGenerationSession::generateSpeculativeStep(const ResponseCallback& call
     common_speculative_draft_params & dp = common_speculative_get_draft_params(spec, /*seq_id=*/0);
     dp.drafting = true;
     dp.n_max    = n_draft_max;
-    dp.n_past   = n_past;
+    dp.pos0     = n_past;   // renamed from n_past in b11200; same meaning (position of id_last)
     dp.id_last  = last_token;
     dp.prompt   = &spec_prompt;
     dp.result   = &spec_draft;
@@ -1663,8 +1683,9 @@ void LlamaGenerationSession::setTools(const char *toolsJson) {
         return;
     }
     try {
-        auto j = nlohmann::ordered_json::parse(toolsJson);
-        tools = common_chat_tools_parse_oaicompat(j);
+        // The chat API takes common_json (a wrapper around the vendored library),
+        // not nlohmann::ordered_json, since b11200.
+        tools = common_chat_tools_parse_oaicompat(common_json::parse(toolsJson));
         tools_enabled = !tools.empty();
         LOGi("Tools set: %zu tools, enabled: %d", tools.size(), (int)tools_enabled);
     } catch (const std::exception &e) {

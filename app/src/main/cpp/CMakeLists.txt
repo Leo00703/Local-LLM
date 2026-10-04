@@ -49,6 +49,12 @@ add_subdirectory(llama.cpp)
 # error. Define a fallback before pulling mtmd in. mtmd links only ggml + llama
 # + pthread (all already linked), so no new external dependency is introduced.
 set(LLAMA_INSTALL_VERSION 0.0.0)
+# b11200+: tools/mtmd/CMakeLists.txt reads LLAMA_VERSION_BASE / LLAMA_VERSION_MAJOR
+# for VERSION / SOVERSION. Both are set in llama.cpp's root scope and so are empty
+# here; an empty expansion silently shifts the property list (VERSION would be
+# set to the literal "SOVERSION"). Define them so the properties are well-formed.
+set(LLAMA_VERSION_BASE 0.0.0)
+set(LLAMA_VERSION_MAJOR 0)
 add_subdirectory(llama.cpp/tools/mtmd)
 
 add_library(${CMAKE_PROJECT_NAME} SHARED

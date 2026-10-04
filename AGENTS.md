@@ -96,8 +96,11 @@ NDK 27.2.12479018 + CMake 3.31.5 → **OpenCL toolchain** (below) →
 
 1. **mtmd fork patch (applied at build time, in BOTH `build-debug-apk.yml` and
    `pull-request-check.yml`)**. llama.cpp is a **pinned submodule**
-   (`andriydruk/llama.cpp-android`, branch `android-b9496`, pinned commit
-   `42b4d85`), so any committed working-tree edit inside it would be reset by
+   (`andriydruk/llama.cpp-android`, branch `android-b11200`, pinned commit
+   `f825a61`; that branch is ggml-org b11200 plus three Android patches: the
+   `fd:N` SAF path support, tolerance for duplicated vocab tokens, and a vendored
+   `tools/parakeet` the fork does not build), so any committed working-tree edit
+   inside it would be reset by
    `submodules: recursive`. Instead CI does a `sed` replacement in
    `app/src/main/cpp/llama.cpp/tools/mtmd/clip.cpp`:
    `skip_audio = ctx_vision->model.proj_type == PROJECTOR_TYPE_GEMMA3NV;` →

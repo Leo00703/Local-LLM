@@ -66,6 +66,12 @@ void LlamaModel::loadModel(const std::string &modelPath,
     // caller disables it so weights stay memory-mapped and load successfully
     // (slower matmuls, but they fit).
     model_params.use_extra_bufts = !disableRepack;
+    // Since b11200 the MTP (NextN) layers of models that carry them are SKIPPED
+    // unless asked for; earlier builds always loaded them. The self-MTP speculative
+    // decoding in LlamaGenerationSession needs them present, and the session that
+    // wants it is only created after the model is loaded, so ask for them here to
+    // keep the previous behaviour. A model without MTP layers is unaffected.
+    model_params.load_mtp = true;
     model = llama_model_load_from_file(modelPath.c_str(), model_params);
     if (model == nullptr) {
         LOG_ERR("%s: failed to load model '%s'\n", __func__, modelPath.c_str());
@@ -186,16 +192,26 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
     loaded_mmproj_max_tokens = -1;
     mtmd_context_params mparams = mtmd_context_params_default();
     // GPU vision encoder — only when the experimental GPU-acceleration setting is
-    // on (gpu_enabled, from loadModel). When on, the ACTUAL device is still chosen
-    // by MTMD_BACKEND_DEVICE (set in native init from the GPU denylist + crash
-    // sentinel), which resolves to "CPU" for unknown-bad/previously-crashed GPUs.
-    // When off, CPU vision (the safe default) — no Vulkan CLIP.
-    mparams.use_gpu = gpu_enabled;
-    mparams.print_timings = false;
-    // Is the CLIP encoder going to run on Vulkan? Only if GPU is enabled AND init
-    // picked a GPU device (MTMD_BACKEND_DEVICE != "CPU").
+    // on (gpu_enabled, from loadModel). Native init decides WHICH device from the
+    // GPU denylist + crash sentinel and publishes it in MTMD_BACKEND_DEVICE: a
+    // device name, or "CPU" for unknown-bad / previously-crashed GPUs. When off,
+    // CPU vision (the safe default).
+    //
+    // mtmd used to read that variable itself; since b11200 it ignores it and takes
+    // an explicit mtmd_context_params.device, so translate the decision here.
+    // Without this the denylist and sentinel would silently stop applying and the
+    // encoder would always take the first GPU.
     const char *clip_backend = std::getenv("MTMD_BACKEND_DEVICE");
-    bool clip_on_vulkan = gpu_enabled && (clip_backend != nullptr && strcmp(clip_backend, "CPU") != 0);
+    const bool clip_cpu_forced = clip_backend != nullptr && strcmp(clip_backend, "CPU") == 0;
+    mparams.use_gpu = gpu_enabled && !clip_cpu_forced;
+    mparams.device = nullptr;   // nullptr + use_gpu = first GPU, else iGPU, else CPU
+    if (mparams.use_gpu && clip_backend != nullptr) {
+        mparams.device = ggml_backend_dev_by_name(clip_backend);
+    }
+    mparams.print_timings = false;
+    // Is the CLIP encoder going to run on a GPU backend? Only if GPU is enabled AND
+    // init picked a GPU device (MTMD_BACKEND_DEVICE set and != "CPU").
+    bool clip_on_vulkan = mparams.use_gpu && clip_backend != nullptr;
     // On Vulkan, warm up at load so the GPU compute-buffer allocation + first
     // encode happen at load time — INSIDE the crash-sentinel bracket below. A
     // driver that survives weight-load but faults during compute then crashes
