@@ -54,6 +54,11 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.119", "Long research no longer stops", listOf(
+        Change(ChangeType.FIX, "A model on a remote server no longer stops in the middle of a long research. Replies ended after 5 rounds of tools with nothing written; server models now get 25 rounds, and when that budget runs out the model writes its answer from what it found instead of leaving an empty reply."),
+        Change(ChangeType.IMPROVED, "When a server reply ends early, the chat now says why under the reply: the server hit its context or output limit, the connection closed before the end, or the server sent nothing."),
+        Change(ChangeType.IMPROVED, "An on-device model that reaches its limit of 5 tool rounds now tells you, instead of just stopping."),
+    )),
     ChangelogEntry("1.9.118", "Several remote servers", listOf(
         Change(ChangeType.NEW, "You can now save several remote servers (LM Studio, Ollama, llama.cpp), each with its own name, address and optional API key. A new Save button stores the one you are editing; tap a saved server to change it, or use the bin to remove it. The server you had before is kept."),
         Change(ChangeType.IMPROVED, "The model picker checks your saved servers when it opens and lists only the ones that are online, each with its own models. The server you used last starts open."),

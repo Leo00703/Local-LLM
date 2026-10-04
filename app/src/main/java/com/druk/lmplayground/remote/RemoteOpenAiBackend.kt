@@ -148,6 +148,21 @@ class RemoteOpenAiBackend(
         return 0
     }
 
+    /**
+     * The tool budget is spent. Answer every call the model still has pending with a
+     * "limit reached" result (the history must not end on an unanswered tool call: servers
+     * reject that on the next message) and stop offering tools, so the next [generateAll] has
+     * to write the final answer. The next user turn re-sends the tools through [setTools].
+     */
+    fun concludeWithoutTools(enableThinking: Boolean) {
+        lastEnableThinking = enableThinking
+        pendingToolCalls.forEach { c ->
+            history.add(Msg(role = "tool", content = TOOL_LIMIT_RESULT, toolCallId = c.id))
+        }
+        pendingToolCalls.clear()
+        toolsJson = null
+    }
+
     override fun setPreambleCachePath(path: String, fingerprint: String) { /* no KV cache */ }
 
     override fun printReport() { /* no-op */ }
@@ -278,6 +293,10 @@ class RemoteOpenAiBackend(
         var firstTokenMs = 0L
         var promptTokens = 0
         var completionTokens = 0
+        // How the stream ended: a finish_reason on the last choice, or the [DONE] marker.
+        // Neither means the connection was cut mid-reply.
+        var finishReason: String? = null
+        var sawDone = false
         try {
             withContext(Dispatchers.IO) {
                 val call = client.chatCompletionCall(bodyJson)
@@ -296,7 +315,10 @@ class RemoteOpenAiBackend(
                         val line = source.readUtf8Line() ?: break
                         if (!line.startsWith("data:")) continue
                         val payload = line.substring(5).trim()
-                        if (payload == "[DONE]") break
+                        if (payload == "[DONE]") {
+                            sawDone = true
+                            break
+                        }
                         // Skip a malformed / non-JSON data frame (some gateways emit
                         // error or keep-alive frames) instead of aborting the whole
                         // stream — which would drop any tool_calls already accumulated.
@@ -309,6 +331,8 @@ class RemoteOpenAiBackend(
                             promptTokens = u.optInt("prompt_tokens", promptTokens)
                             completionTokens = u.optInt("completion_tokens", completionTokens)
                         }
+                        (obj.optJSONArray("choices")?.optJSONObject(0)?.opt("finish_reason") as? String)
+                            ?.takeIf { it.isNotEmpty() }?.let { finishReason = it }
                         val delta = obj.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("delta")
                         val reason = delta.optText("reasoning_content").ifEmpty { delta.optText("reasoning") }
                         val text = delta.optText("content")
@@ -379,6 +403,11 @@ class RemoteOpenAiBackend(
             // Normal turn: history keeps the answer only (no reasoning) so re-sent
             // turns stay clean.
             if (content.isNotEmpty()) history.add(Msg("assistant", content.toString()))
+            // A reply that ended early used to look like a finished one, or like nothing at all.
+            endNote(finishReason, sawDone, hasText = reasoning.isNotEmpty() || content.isNotEmpty())?.let { note ->
+                val shown = render(reasoning, content)
+                callback.onFullResponse((if (shown.isNotEmpty()) shown + "\n\n" else "") + note)
+            }
             return 0
         } catch (e: CancellationException) {
             currentCall?.cancel()
@@ -393,6 +422,31 @@ class RemoteOpenAiBackend(
             return 0
         } finally {
             currentCall = null
+        }
+    }
+
+    companion object {
+        /** Result handed back for a tool call that was not run because the budget was spent. */
+        const val TOOL_LIMIT_RESULT =
+            "{\"error\":\"Tool call limit reached. Do not call more tools; answer now with what you have found so far.\"}"
+
+        const val NOTE_LENGTH =
+            "\u26a0\ufe0f The server stopped here: it reached its context or output limit."
+        const val NOTE_CUT =
+            "\u26a0\ufe0f The connection to the server closed before the reply was complete."
+        const val NOTE_EMPTY =
+            "\u26a0\ufe0f The server returned an empty reply."
+
+        /**
+         * The warning to show under a reply that did not end normally, or null when it did.
+         * [finishReason] is the last `finish_reason` the stream carried, [sawDone] whether the
+         * `[DONE]` marker arrived, [hasText] whether any reasoning or answer text came through.
+         */
+        internal fun endNote(finishReason: String?, sawDone: Boolean, hasText: Boolean): String? = when {
+            finishReason == "length" -> NOTE_LENGTH
+            finishReason == null && !sawDone -> NOTE_CUT
+            !hasText -> NOTE_EMPTY
+            else -> null
         }
     }
 }

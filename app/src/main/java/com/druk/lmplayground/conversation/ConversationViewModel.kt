@@ -19,6 +19,7 @@ import com.druk.llamacpp.GenerationModel
 import com.druk.llamacpp.LlamaCpp
 import com.druk.llamacpp.LlamaGenerationCallback
 import com.druk.llamacpp.LlamaProgressCallback
+import com.druk.lmplayground.remote.RemoteOpenAiBackend
 import com.druk.lmplayground.remote.RemoteOpenAiClient
 import com.druk.lmplayground.remote.RemoteOpenAiModel
 import com.druk.lmplayground.remote.RemoteServerSection
@@ -2470,10 +2471,20 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 )
                 try {
                     var toolRounds = 0
-                    val maxToolRounds = 5
+                    // A model on a server has the context and the stamina for a real research
+                    // session (a search, then several pages); a small on-device one tends to loop.
+                    val remoteBackend = llamaSession as? RemoteOpenAiBackend
+                    val maxToolRounds =
+                        if (remoteBackend != null) MAX_REMOTE_TOOL_ROUNDS else MAX_LOCAL_TOOL_ROUNDS
+                    var toolBudgetSpent = false
                     while (true) {
                         val rc = llamaSession.generateAll(callback)
-                        if (rc != 2 || toolRounds >= maxToolRounds || !this.isActive) {
+                        if (rc != 2 || !this.isActive) break
+                        if (toolRounds >= maxToolRounds) {
+                            // The model asked for yet another tool but the budget is spent. Ending
+                            // the turn right here used to leave the reply empty and unexplained (the
+                            // last thing it said was a tool request); it is closed out below instead.
+                            toolBudgetSpent = true
                             break
                         }
                         toolRounds++
@@ -2547,6 +2558,33 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                             Snapshot.withMutableSnapshot {
                                 uiState.markThinkingStarted()
                             }
+                        }
+                    }
+                    if (toolBudgetSpent && this.isActive) {
+                        android.util.Log.w("ConversationVM", "Tool budget of $maxToolRounds rounds spent")
+                        if (remoteBackend != null) {
+                            // Answer the calls still pending with "limit reached", stop offering
+                            // tools, and let the model write its answer from what it has gathered.
+                            val finalThinking = _supportsThinking.value == true || enableThinking
+                            remoteBackend.concludeWithoutTools(finalThinking)
+                            callback.totalTokens = 0
+                            callback.thinkingTokenCount = 0
+                            callback.thinkingComplete = !finalThinking
+                            callback.modelIsThinking = finalThinking
+                            if (finalThinking) {
+                                Snapshot.withMutableSnapshot {
+                                    uiState.markThinkingStarted()
+                                }
+                            }
+                            llamaSession.generateAll(callback)
+                        } else {
+                            // On-device engines cannot re-render their prompt without tools
+                            // mid-turn; say why it stopped instead of ending in silence.
+                            _userError.postValue(
+                                app.getString(
+                                    com.druk.lmplayground.R.string.tool_limit_reached, maxToolRounds
+                                )
+                            )
                         }
                     }
                 } catch (e: InferenceUnavailableException) {
@@ -3939,6 +3977,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         // Bounds on the injected <user_memory> block so a large saved memory
         // can't crowd out the conversation. Notes past these limits are simply
         // not injected (they remain available via the memory tool's list action).
+        // Tool rounds allowed in one reply before the model is asked to wrap up.
+        private const val MAX_REMOTE_TOOL_ROUNDS = 25
+        private const val MAX_LOCAL_TOOL_ROUNDS = 5
+
         private const val MEMORY_INJECT_MAX_NOTES = 40
         private const val MEMORY_INJECT_CHAR_BUDGET = 4000
 

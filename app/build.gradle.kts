@@ -344,6 +344,8 @@ dependencies {
     testImplementation(libs.junit)
     // The real org.json: the android.jar one is a stub that throws in unit tests.
     testImplementation("org.json:json:20240303")
+    // A scripted HTTP server for the remote backend's stream handling (matches okhttp 4.11).
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0")
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)

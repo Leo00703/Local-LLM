@@ -194,6 +194,7 @@
     <string name="server_name">Nome server</string>
     <string name="server_name_hint">Il mio PC</string>
     <string name="remote_loading">Caricamento…</string>
+    <string name="tool_limit_reached">Fermato dopo %d giri di strumenti. Scrivi un messaggio per continuare.</string>
     <string name="model_details">Dettagli modello</string>
     <string name="context_pill">%s ctx</string>
     <string name="previously_used_model">Usato in precedenza: %s</string>
