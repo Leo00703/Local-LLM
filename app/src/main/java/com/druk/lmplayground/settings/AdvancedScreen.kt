@@ -100,6 +100,9 @@ fun AdvancedContent(
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         // Self-contained as well: keeps big model downloads off mobile data.
         DownloadWifiOnlyRow()
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        // How smoothly a streaming reply is drawn, as numbers: compare builds without adb.
+        UiSmoothnessRow()
     }
 }
 

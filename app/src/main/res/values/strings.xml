@@ -454,6 +454,11 @@
     <string name="advanced_subtitle">Power-user options</string>
     <string name="disable_repack_title">Disable weight repacking</string>
     <string name="disable_repack_desc">Load models memory-mapped to use far less RAM, at the cost of slower generation. Useful on low-memory devices.</string>
+    <string name="ui_smoothness_title">UI smoothness test</string>
+    <string name="ui_smoothness_desc">Streams a long formatted reply through the chat and reports frame times, so builds and settings can be compared by number.</string>
+    <string name="ui_smoothness_hint">Streams a long formatted reply the way a fast model would and measures how smoothly it is drawn. Keep the screen on and do not touch it while it runs.</string>
+    <string name="ui_smoothness_running">Running. Keep the screen on.</string>
+    <string name="ui_smoothness_run">Run test</string>
     <string name="download_wifi_only_title">Download models on Wi-Fi only</string>
     <string name="download_wifi_only_desc">Large model downloads wait for an unmetered network (Wi-Fi) instead of using mobile data. Applies to downloads you start from now on.</string>
     <string name="gpu_acceleration_title">GPU acceleration (experimental)</string>

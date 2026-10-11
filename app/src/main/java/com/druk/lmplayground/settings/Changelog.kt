@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.130", "Measure smoothness, faster first start", listOf(
+        Change(ChangeType.NEW, "Settings > Advanced has a \"UI smoothness test\": it streams a long formatted reply through the chat at the pace of a fast model and reports frame times, so two builds or settings can be compared by number."),
+        Change(ChangeType.IMPROVED, "The lighter \"sideload\" build now ships a startup profile for the app's own code, so it starts and first scrolls with less stutter after being installed."),
+    )),
     ChangelogEntry("1.9.129", "Quicker model list, steadier downloads and history", listOf(
         Change(ChangeType.IMPROVED, "The model list, the model picker and the storage screen read your model folder in one query instead of one per file, so they open faster."),
         Change(ChangeType.NEW, "Settings > Advanced has a new \"Download models on Wi-Fi only\" switch, so big downloads never use mobile data."),

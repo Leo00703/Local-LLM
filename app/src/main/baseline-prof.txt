@@ -1,0 +1,12 @@
+# Baseline profile rules for the app's own code. AGP merges this with the profiles the
+# AndroidX/Compose libraries ship and packages the result into non-debuggable builds (the
+# `sideload` and `release` build types), where ART then compiles these methods ahead of time
+# at install instead of interpreting/JIT-ing them on first use. That is the cold-start and
+# first-scroll jank of a freshly installed Compose app.
+#
+# A rule is [flags][L][class pattern]->[method pattern](params)return. H = hot, S = startup,
+# P = post-startup; ** matches across package separators. The wildcard form marks every method
+# of every app class; the app is small enough (a few thousand methods) that the larger odex it
+# produces is a fair price for not having to curate a list by hand, which a profile recorded
+# on a device would replace.
+HSPLcom/druk/**->**(**)**
