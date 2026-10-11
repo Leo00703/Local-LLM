@@ -4203,8 +4203,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         // can't crowd out the conversation. Notes past these limits are simply
         // not injected (they remain available via the memory tool's list action).
         // Tool rounds allowed in one reply before the model is asked to wrap up.
-        private const val MAX_REMOTE_TOOL_ROUNDS = 25
-        private const val MAX_LOCAL_TOOL_ROUNDS = 5
+        private const val MAX_REMOTE_TOOL_ROUNDS = 30
+        private const val MAX_LOCAL_TOOL_ROUNDS = 30
 
         private const val MEMORY_INJECT_MAX_NOTES = 40
         private const val MEMORY_INJECT_CHAR_BUDGET = 4000

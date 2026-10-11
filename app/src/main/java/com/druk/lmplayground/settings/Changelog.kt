@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.131", "Longer tool chains", listOf(
+        Change(ChangeType.IMPROVED, "A model can now make up to 30 tool calls in one reply (on-device models were stopped after 5), so longer research with search and page reads is no longer cut short."),
+    )),
     ChangelogEntry("1.9.130", "Measure smoothness, faster first start", listOf(
         Change(ChangeType.NEW, "Settings > Advanced has a \"UI smoothness test\": it streams a long formatted reply through the chat at the pace of a fast model and reports frame times, so two builds or settings can be compared by number."),
         Change(ChangeType.IMPROVED, "The lighter \"sideload\" build now ships a startup profile for the app's own code, so it starts and first scrolls with less stutter after being installed."),
