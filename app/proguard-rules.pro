@@ -56,3 +56,17 @@
     public static int v(...);
     public static int d(...);
 }
+
+# LiteRT-LM: native code looks its classes, fields and callbacks up by name over JNI, and tool
+# declarations cross the boundary through reflection. Its AAR ships consumer rules, but a
+# shrunk build is the one place that is not exercised by CI (no device), so keep the package
+# whole rather than rely on them being complete.
+-keep class com.google.ai.edge.litertlm.** { *; }
+
+# jlatexmath loads its symbol tables / fonts by class and resource name at runtime.
+-keep class org.scilab.forge.jlatexmath.** { *; }
+-keep class ru.noties.jlatexmath.** { *; }
+-dontwarn org.scilab.forge.jlatexmath.**
+
+# Generic attributes that reflection-based libraries (Gson, Room, kotlin-reflect) read.
+-keepattributes Signature, InnerClasses, EnclosingMethod, RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations

@@ -225,6 +225,38 @@ app/src/main/java/com/druk/
   three things easy to forget in the same commit (1.9.105 forgot the
   changelog; it was patched in 1.9.106).
 
+## Performance-relevant design (added 2026-10, from the whole-app audit)
+
+- **Streaming UI**: `ConversationViewModel` writes the streamed text to the UI at most every
+  `UI_UPDATE_MIN_INTERVAL_MS` (33 ms). The newest text is flushed (`applyPending`) when a
+  `generateAll` call returns, before tools run, and before a turn is finalized: any new code
+  that reads the last message mid-turn must go through that flush. Do not read
+  `uiState.messages` (size, isEmpty) in a screen-level composable scope: a token rewrites the
+  last message and would recompose the whole chat; use `derivedStateOf` / `snapshotFlow`.
+- **Markdown**: `MarkdownBlocks` caches parse + styling per (text, theme); the reasoning peeks
+  format only the last ~700 characters (`peekTail`).
+- **Native threading** (`LlamaGenerationSession.cpp`): each session attaches persistent ggml
+  thread pools (decode + prefill, looked up through the CPU backend's proc address because it
+  is a dlopen'ed library) and `plan_cpu_threads` picks the counts. Decode stays at 4 threads
+  (bandwidth bound); prefill may use every fast core. The pools must match `n_threads` /
+  `n_threads_batch` exactly and are freed AFTER the context.
+- **Context size**: the KV buffer is zero-filled at creation, so `n_ctx` is resident RAM at
+  once. `getRecommendedContextSize` caps the default at 16k and reads the real head sizes
+  from the GGUF; the user slider still goes to the trained context.
+- **Sessions**: `createGenerationSession` returns null when no `llama_context` could be
+  allocated (a session without one crashes `:llama` in `getReport()`).
+- **SAF**: read the model folder with `StorageRepository.queryChildren` (one provider query),
+  not `DocumentFile.listFiles()/name/length()` per file.
+- **Sideload build**: `assembleSideload` is the daily-driver build (R8, not debuggable, baseline
+  profile from `app/src/main/baseline-prof.txt`). It is built by CI as a non-gating step and has
+  NOT been exercised on a device by CI: LiteRT-LM and jlatexmath are kept whole in
+  `proguard-rules.pro` for that reason. If it misbehaves, install the debug APK and report it.
+- **Download retries**: `PermanentDownloadException` (4xx other than 408/425/429) and
+  ENOSPC / eight failed attempts end the retry loop; a body shorter than its announced length
+  is an IOException so the resume continues instead of renaming a truncated file.
+- **No `git checkout -- .`** in this harness (denied as a destructive blanket revert): fix a
+  half-applied script by running the remaining edits, not by reverting everything.
+
 ## gh CLI + environment quirks
 
 - `gh`'s default repo resolution can point at **upstream**
