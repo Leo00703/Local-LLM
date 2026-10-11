@@ -47,14 +47,14 @@ class RemoteOpenAiClient(
     private fun Request.Builder.withAuth(): Request.Builder =
         if (apiKey != null) header("Authorization", "Bearer $apiKey") else this
 
-    private val http: OkHttpClient = OkHttpClient.Builder()
+    private val http: OkHttpClient = sharedHttp.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
         .build()
 
     // Bounded-timeout client for control calls (unload) so a hung server can't
     // block the caller indefinitely the way the no-read-timeout chat client can.
-    private val controlHttp: OkHttpClient = OkHttpClient.Builder()
+    private val controlHttp: OkHttpClient = sharedHttp.newBuilder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .callTimeout(15, TimeUnit.SECONDS)
@@ -62,14 +62,14 @@ class RemoteOpenAiClient(
 
     // Warm-up POST can legitimately take a while (cold model load) but must not hang
     // forever if the server accepts then wedges: a generous but FINITE call timeout.
-    private val warmupHttp: OkHttpClient = OkHttpClient.Builder()
+    private val warmupHttp: OkHttpClient = sharedHttp.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .callTimeout(120, TimeUnit.SECONDS)
         .build()
 
     // Very short timeouts for the "is it online?" check that runs when the model picker
     // opens: an unreachable address must not keep the picker waiting.
-    private val probeHttp: OkHttpClient = OkHttpClient.Builder()
+    private val probeHttp: OkHttpClient = sharedHttp.newBuilder()
         .connectTimeout(2500, TimeUnit.MILLISECONDS)
         .readTimeout(3, TimeUnit.SECONDS)
         .callTimeout(4, TimeUnit.SECONDS)
@@ -316,6 +316,16 @@ class RemoteOpenAiClient(
         }
     } catch (_: Exception) {
         null
+    }
+
+    private companion object {
+        /**
+         * One connection pool and dispatcher for every instance. A client is created per call
+         * (each time the picker opens, on every load), and four separately built OkHttp clients
+         * each used to bring their own pool and idle threads. The per-purpose timeouts above
+         * are applied on top with newBuilder(), which shares them.
+         */
+        val sharedHttp: OkHttpClient by lazy { OkHttpClient() }
     }
 
     /** Build (but don't execute) a streaming POST /v1/chat/completions call. */

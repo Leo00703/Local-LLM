@@ -202,6 +202,27 @@ class RemoteOpenAiBackend(
             content.toString()
         }
 
+    /**
+     * A request that failed leaves its user turn in the history with no answer, so the retry
+     * sends two user messages in a row, and a server whose template needs alternating roles
+     * (Mistral, Gemma) then rejects every later turn. Plain text turns that follow each
+     * other are joined into one; turns carrying images or tool data are left alone.
+     */
+    private fun mergeAdjacentUserTurns(list: List<Msg>): List<Msg> {
+        fun plainUser(m: Msg) = m.role == "user" && m.content != null &&
+            m.imageDataUrls.isNullOrEmpty() && m.toolCalls == null && m.toolCallId == null
+        val out = ArrayList<Msg>(list.size)
+        for (m in list) {
+            val prev = out.lastOrNull()
+            if (prev != null && plainUser(prev) && plainUser(m)) {
+                out[out.size - 1] = prev.copy(content = (prev.content ?: "") + "\n\n" + (m.content ?: ""))
+            } else {
+                out.add(m)
+            }
+        }
+        return out
+    }
+
     override suspend fun generateAll(callback: LlamaGenerationCallback): Int {
         // Message text is sent verbatim and never mutated per-turn: an earlier
         // version appended "/no_think" to the last user message, which changed
@@ -209,10 +230,12 @@ class RemoteOpenAiBackend(
         // reuse (each turn re-processed the whole prompt, so speed fell off as
         // the chat grew). Thinking is disabled purely via request parameters
         // below, which don't alter the cached token prefix.
-        val messages = buildList {
-            if (systemPrompt.isNotBlank()) add(Msg("system", systemPrompt))
-            addAll(history)
-        }
+        val messages = mergeAdjacentUserTurns(
+            buildList {
+                if (systemPrompt.isNotBlank()) add(Msg("system", systemPrompt))
+                addAll(history)
+            }
+        )
         val modelId = model.lowercase()
         val disableThinking = !lastEnableThinking
         val bodyJson = JSONObject().apply {

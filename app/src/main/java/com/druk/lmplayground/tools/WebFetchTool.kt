@@ -47,7 +47,11 @@ class WebFetchTool(
                 return errorJson("Unknown search reference '$rawUrl'. Call web_search first, then fetch a returned ref.")
             }
             val target = resolved ?: rawUrl
-            val url = if (!target.startsWith("http")) "https://$target" else target
+            // Only a real scheme counts: "httpbin.org" starts with "http" and used to be
+            // sent as is, which OkHttp rejects.
+            val hasScheme = target.startsWith("http://", ignoreCase = true) ||
+                target.startsWith("https://", ignoreCase = true)
+            val url = if (hasScheme) target else "https://$target"
             val maxLength = args.optInt("max_length", 5000).coerceIn(50, 20000)
 
             val request = Request.Builder()
@@ -57,6 +61,13 @@ class WebFetchTool(
                 .build()
 
             val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                // An error page is not the page that was asked for: say so, instead of
+                // handing the model "Not Found" HTML as if it were the content.
+                val code = response.code
+                response.close()
+                return errorJson("The page answered HTTP $code")
+            }
             val mediaType = response.body?.contentType()
             val contentType = (response.header("Content-Type") ?: mediaType?.toString() ?: "").lowercase()
             // Read the body once as bytes (so binary documents can be decoded), but cap
@@ -186,11 +197,31 @@ class WebFetchTool(
          */
         private val BlockInternalHosts = okhttp3.Interceptor { chain ->
             val ip = chain.connection()?.socket()?.inetAddress
-            if (ip != null && (ip.isLoopbackAddress || ip.isAnyLocalAddress ||
-                    ip.isLinkLocalAddress || ip.isSiteLocalAddress || ip.isMulticastAddress)) {
+            if (ip != null && isInternal(ip)) {
                 throw java.io.IOException("Refusing to fetch internal address " + ip.hostAddress)
             }
             chain.proceed(chain.request())
+        }
+
+        /**
+         * Loopback, any-local, link-local, site-local and multicast (the JDK's own checks),
+         * plus what they miss: IPv6 unique-local fc00::/7, the carrier-grade NAT range
+         * 100.64.0.0/10 (Tailscale and most VPN overlays live there) and "this network"
+         * 0.0.0.0/8. Public for tests.
+         */
+        internal fun isInternal(ip: java.net.InetAddress): Boolean {
+            if (ip.isLoopbackAddress || ip.isAnyLocalAddress || ip.isLinkLocalAddress ||
+                ip.isSiteLocalAddress || ip.isMulticastAddress) return true
+            val b = ip.address
+            if (b.size == 4) {
+                val first = b[0].toInt() and 0xff
+                val second = b[1].toInt() and 0xff
+                if (first == 0) return true
+                if (first == 100 && second in 64..127) return true
+            } else if (b.size == 16) {
+                if ((b[0].toInt() and 0xfe) == 0xfc) return true
+            }
+            return false
         }
     }
 }

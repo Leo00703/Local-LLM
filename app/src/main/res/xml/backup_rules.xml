@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 and earlier (fullBackupContent). storage_prefs.xml holds the saved servers'
+  API keys and a folder URI that means nothing on another device; the caches are large and
+  rebuilt on demand. Chats are still backed up. To keep chats out of cloud backup as
+  well, set android:allowBackup="false" in the manifest.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="storage_prefs.xml" />
+    <exclude domain="file" path="kv_preamble/" />
+    <exclude domain="file" path="mmproj/" />
+</full-backup-content>

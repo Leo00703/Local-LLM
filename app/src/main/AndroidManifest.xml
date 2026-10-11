@@ -27,6 +27,8 @@
     <application
         android:name=".App"
         android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:allowNativeHeapPointerTagging="false"
         android:extractNativeLibs="true"
         android:icon="@mipmap/ic_launcher"

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ (dataExtractionRules). See backup_rules.xml for the reasoning. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="storage_prefs.xml" />
+        <exclude domain="file" path="kv_preamble/" />
+        <exclude domain="file" path="mmproj/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="storage_prefs.xml" />
+        <exclude domain="file" path="kv_preamble/" />
+        <exclude domain="file" path="mmproj/" />
+    </device-transfer>
+</data-extraction-rules>

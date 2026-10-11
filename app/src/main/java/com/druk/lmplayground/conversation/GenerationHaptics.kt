@@ -32,21 +32,34 @@ object GenerationHaptics {
         true
     }
 
+    // A tick fires up to ~16 times a second; the vibrator handle, its capabilities and the
+    // composed effect do not change between ticks, and each lookup is a binder call.
+    @Volatile private var cachedVibrator: Vibrator? = null
+    @Volatile private var tickPrimitiveSupported: Boolean? = null
+    @Volatile private var cachedTickScale = -1f
+    @Volatile private var cachedTickEffect: VibrationEffect? = null
+
     fun tick(context: Context, strength: Float = DEFAULT_STRENGTH) {
-        val vibrator = vibrator(context) ?: return
+        val vibrator = cachedVibrator ?: vibrator(context)?.also { cachedVibrator = it } ?: return
         if (!vibrator.hasVibrator()) return
         val scale = strength.coerceIn(0f, 1f)
         if (scale <= 0f) return
         try {
+            val tickSupported = tickPrimitiveSupported
+                ?: (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                    vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_TICK))
+                    .also { tickPrimitiveSupported = it }
             when {
                 // Best: a TICK primitive whose intensity we scale directly.
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
-                    vibrator.areAllPrimitivesSupported(
-                        VibrationEffect.Composition.PRIMITIVE_TICK,
-                    ) -> {
-                    val effect = VibrationEffect.startComposition()
-                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, scale)
-                        .compose()
+                tickSupported -> {
+                    var effect = cachedTickEffect
+                    if (effect == null || cachedTickScale != scale) {
+                        effect = VibrationEffect.startComposition()
+                            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, scale)
+                            .compose()
+                        cachedTickEffect = effect
+                        cachedTickScale = scale
+                    }
                     vibrator.vibrate(effect)
                 }
                 // Fallback: a short one-shot whose amplitude we scale (1..255).

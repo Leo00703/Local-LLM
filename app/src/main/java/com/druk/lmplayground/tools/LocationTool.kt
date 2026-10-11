@@ -43,7 +43,7 @@ class LocationTool(private val context: Context) : Tool {
         } catch (e: SecurityException) {
             """{"error":"Location permission is not granted."}"""
         } catch (e: Exception) {
-            """{"error":"${(e.message ?: "Could not read the location").replace("\"", "'")}"}"""
+            JSONObject().put("error", e.message ?: "Could not read the location").toString()
         }
     }
 

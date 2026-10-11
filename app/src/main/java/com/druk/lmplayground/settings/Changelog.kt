@@ -54,6 +54,15 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.128", "Safer tools, tidier network", listOf(
+        Change(ChangeType.FIX, "A tool you have switched off can no longer be run by the model, for example after it reads a page that tries to tell it to."),
+        Change(ChangeType.IMPROVED, "Fetching a web page refuses more private network ranges (local IPv6, VPN overlays such as Tailscale), works for addresses like httpbin.org, and reports an error page instead of presenting it as the page."),
+        Change(ChangeType.FIX, "Web search now says when it is being rate-limited instead of reporting \"no results\", and tool errors with line breaks reach the model intact."),
+        Change(ChangeType.IMPROVED, "Saved memory notes are marked as data, never instructions, when they are added to a chat."),
+        Change(ChangeType.IMPROVED, "Your server API keys and settings are no longer included in Android cloud backups or device transfers."),
+        Change(ChangeType.FIX, "After a failed request to a server, retrying no longer breaks servers that need user and assistant turns to alternate."),
+        Change(ChangeType.IMPROVED, "Server checks share one network connection pool, the haptic ticks do less work per token, and the networking library is updated."),
+    )),
     ChangelogEntry("1.9.127", "Smoother streaming", listOf(
         Change(ChangeType.IMPROVED, "Replies stream more smoothly: the screen is updated at most about 30 times a second instead of once per token, and a reply is parsed once per update instead of repeatedly."),
         Change(ChangeType.IMPROVED, "The collapsed reasoning preview only formats the few lines it shows, so long reasoning no longer slows the stream down."),

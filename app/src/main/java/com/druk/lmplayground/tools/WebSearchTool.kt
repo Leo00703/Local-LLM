@@ -53,6 +53,13 @@ class WebSearchTool(private val linkStore: WebLinkStore? = null) : Tool {
                 .build()
 
             val response = client.newCall(request).execute()
+            // DuckDuckGo answers 202 with a challenge page when it rate-limits: that is
+            // "search unavailable", not "no results".
+            if (response.code != 200) {
+                val code = response.code
+                response.close()
+                return errorJson("Search is not available right now (HTTP $code). Try again later.")
+            }
             val html = response.body?.string() ?: return errorJson("Empty response")
 
             val doc = Jsoup.parse(html)

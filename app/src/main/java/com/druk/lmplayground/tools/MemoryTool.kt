@@ -86,7 +86,7 @@ class MemoryTool(private val context: Context) : Tool {
         }
     }
 
-    private fun errorJson(message: String) = """{"error":"${message.replace("\"", "'")}"}"""
+    private fun errorJson(message: String) = JSONObject().put("error", message).toString()
 
     companion object {
         private const val MAX_LEN = 2000

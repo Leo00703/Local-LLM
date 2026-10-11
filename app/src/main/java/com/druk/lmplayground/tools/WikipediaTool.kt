@@ -79,9 +79,13 @@ class WikipediaTool : Tool {
     }
 
     private fun notFoundJson(query: String) =
-        """{"result":null,"query":"${query.replace("\"", "'")}","message":"No Wikipedia article found"}"""
+        JSONObject()
+            .put("result", JSONObject.NULL)
+            .put("query", query)
+            .put("message", "No Wikipedia article found")
+            .toString()
 
-    private fun errorJson(message: String) = """{"error":"${message.replace("\"", "'")}"}"""
+    private fun errorJson(message: String) = JSONObject().put("error", message).toString()
 
     companion object {
         private const val MAX_CHARS = 1500
