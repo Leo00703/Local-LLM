@@ -54,6 +54,12 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.127", "Smoother streaming", listOf(
+        Change(ChangeType.IMPROVED, "Replies stream more smoothly: the screen is updated at most about 30 times a second instead of once per token, and a reply is parsed once per update instead of repeatedly."),
+        Change(ChangeType.IMPROVED, "The collapsed reasoning preview only formats the few lines it shows, so long reasoning no longer slows the stream down."),
+        Change(ChangeType.IMPROVED, "The chat screen redraws far less while a reply is arriving, and the animated dots on the thinking card no longer redraw the whole card every frame."),
+        Change(ChangeType.FIX, "Pasting a very large text into the message box can no longer crash the app when it goes to the background; only the first 20,000 characters of an unsent draft are kept."),
+    )),
     ChangelogEntry("1.9.126", "Faster prompt processing", listOf(
         Change(ChangeType.IMPROVED, "Reading long prompts (documents, web pages, tool results) now uses all of your phone's fast CPU cores instead of four, so the first word of the answer arrives sooner."),
         Change(ChangeType.IMPROVED, "The engine keeps its worker threads alive between tokens instead of creating them again for every token, which trims overhead, mostly on fast small models."),

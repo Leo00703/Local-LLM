@@ -110,7 +110,8 @@ fun MarkdownContent(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        val segments = splitBlockMath(text)
+        // Pure in [text]: do the regex scan once per text, not on every recomposition.
+        val segments = remember(text) { splitBlockMath(text) }
         var first = true
         for (seg in segments) {
             if (!first) Spacer(Modifier.height(6.dp))
@@ -144,40 +145,63 @@ private fun splitBlockMath(text: String): List<Seg> {
     return out
 }
 
+/** One top-level block of a parsed message, ready to draw. */
+private sealed interface MdBlock {
+    class Code(val code: String, val language: String?) : MdBlock
+    class Table(val node: TableBlock, val ctx: InlineCtx) : MdBlock
+    class Rich(val text: AnnotatedString) : MdBlock
+    /** A node that draws nothing; kept so the spacing between blocks is unchanged. */
+    object Empty : MdBlock
+}
+
 @Composable
 private fun MarkdownBlocks(markdown: String, primary: Boolean) {
     val colorScheme = MaterialTheme.colorScheme
-    val ctx = InlineCtx(
-        colorScheme = colorScheme,
-        primary = primary,
-        codeBg = colorScheme.surfaceContainerHigh
-    )
-    val document = richParser.parse(markdown)
-    var node = document.firstChild
-    var first = true
-    while (node != null) {
-        if (!first) Spacer(Modifier.height(8.dp))
-        when (val n = node) {
-            is FencedCodeBlock -> CodeBlock(
-                code = n.literal.trimEnd('\n'),
-                language = n.info?.trim()?.takeIf { it.isNotEmpty() }
-            )
-            is IndentedCodeBlock -> CodeBlock(code = n.literal.trimEnd('\n'), language = null)
-            is TableBlock -> MarkdownTable(n, ctx)
-            else -> {
-                val styled = buildAnnotatedString { appendNode(n, ctx, isFirst = true, listDepth = 0) }
-                if (styled.isNotEmpty()) {
-                    SelectionContainer {
-                        Text(
-                            text = styled,
-                            style = MaterialTheme.typography.bodyLarge.copy(color = LocalContentColor.current)
-                        )
-                    }
+    // Parse and style once per (text, theme). The work is pure, but it used to run again on
+    // every recomposition of the message, which while streaming is every token, and then
+    // rebuild an AnnotatedString for every block of an answer that had not changed.
+    val blocks = remember(markdown, primary, colorScheme) {
+        val ctx = InlineCtx(
+            colorScheme = colorScheme,
+            primary = primary,
+            codeBg = colorScheme.surfaceContainerHigh
+        )
+        val out = ArrayList<MdBlock>()
+        var node = richParser.parse(markdown).firstChild
+        while (node != null) {
+            when (val n = node) {
+                is FencedCodeBlock -> out.add(
+                    MdBlock.Code(
+                        code = n.literal.trimEnd('\n'),
+                        language = n.info?.trim()?.takeIf { it.isNotEmpty() }
+                    )
+                )
+                is IndentedCodeBlock -> out.add(MdBlock.Code(code = n.literal.trimEnd('\n'), language = null))
+                is TableBlock -> out.add(MdBlock.Table(n, ctx))
+                else -> {
+                    val styled = buildAnnotatedString { appendNode(n, ctx, isFirst = true, listDepth = 0) }
+                    out.add(if (styled.isNotEmpty()) MdBlock.Rich(styled) else MdBlock.Empty)
                 }
             }
+            node = node.next
+        }
+        out
+    }
+    var first = true
+    for (block in blocks) {
+        if (!first) Spacer(Modifier.height(8.dp))
+        when (block) {
+            is MdBlock.Code -> CodeBlock(code = block.code, language = block.language)
+            is MdBlock.Table -> MarkdownTable(block.node, block.ctx)
+            is MdBlock.Rich -> SelectionContainer {
+                Text(
+                    text = block.text,
+                    style = MaterialTheme.typography.bodyLarge.copy(color = LocalContentColor.current)
+                )
+            }
+            MdBlock.Empty -> Unit
         }
         first = false
-        node = node.next
     }
 }
 

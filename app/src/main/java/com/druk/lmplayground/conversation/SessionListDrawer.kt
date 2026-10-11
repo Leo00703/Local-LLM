@@ -238,9 +238,13 @@ private fun SessionListContent(
 
     // Group sessions by folder. Sessions whose folderId no longer matches an
     // existing folder fall back to "unfiled" so nothing ever disappears.
-    val folderIds = folders.map { it.id }.toSet()
-    val grouped = sessions.groupBy { session ->
-        session.folderId?.takeIf { it in folderIds }
+    // The drawer is composed even while closed, so this ran on every recomposition of the
+    // chat (once per streamed token) for the whole session list.
+    val grouped = remember(sessions, folders) {
+        val folderIds = folders.map { it.id }.toSet()
+        sessions.groupBy { session ->
+            session.folderId?.takeIf { it in folderIds }
+        }
     }
     val unfiled = grouped[null].orEmpty()
     val hasFolders = folders.isNotEmpty()

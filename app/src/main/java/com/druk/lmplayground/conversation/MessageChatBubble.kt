@@ -58,6 +58,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -489,7 +490,7 @@ private fun ThinkingPeek(content: String, onClick: () -> Unit) {
                 contentAlignment = Alignment.BottomStart
             ) {
                 Text(
-                    text = messageFormatter(text = content, primary = false, flatCode = true),
+                    text = messageFormatter(text = peekTail(content), primary = false, flatCode = true),
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -511,6 +512,17 @@ private fun ThinkingPeek(content: String, onClick: () -> Unit) {
                 )
         )
     }
+}
+
+/** A peek shows the last three lines or so; formatting the whole reasoning on every token is wasted. */
+private const val PEEK_TAIL_CHARS = 700
+
+private fun peekTail(text: String): String {
+    if (text.length <= PEEK_TAIL_CHARS) return text
+    val cut = text.length - PEEK_TAIL_CHARS
+    // Start at a line boundary so the first visible line is not a torn one.
+    val newline = text.indexOf('\n', cut)
+    return if (newline in 0 until text.length - 1) text.substring(newline + 1) else text.substring(cut)
 }
 
 private fun formatResponseStats(message: Message): String {
@@ -600,7 +612,9 @@ private fun ThinkingCardLive(messageId: Long) {
         ),
         label = "dots"
     )
-    val dots = ".".repeat(dotCount.toInt().coerceIn(0, 3))
+    // The float changes every frame, the string four times per cycle: reading the derived
+    // string keeps this whole card from recomposing at frame rate while it is on screen.
+    val dots by remember { derivedStateOf { ".".repeat(dotCount.toInt().coerceIn(0, 3)) } }
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -970,7 +984,9 @@ private fun LiveStepRow(messageId: Long, liveReasoning: String) {
         ),
         label = "liveDots"
     )
-    val dots = ".".repeat(dotCount.toInt().coerceIn(0, 3))
+    // The float changes every frame, the string four times per cycle: reading the derived
+    // string keeps this whole card from recomposing at frame rate while it is on screen.
+    val dots by remember { derivedStateOf { ".".repeat(dotCount.toInt().coerceIn(0, 3)) } }
     val hasPeek = liveReasoning.isNotBlank()
     var expanded by remember(messageId) { mutableStateOf(false) }
     val chevron by animateFloatAsState(
@@ -1066,7 +1082,7 @@ private fun LivePeek(content: String, height: Dp) {
                 contentAlignment = Alignment.BottomStart
             ) {
                 Text(
-                    text = messageFormatter(text = content, primary = false, flatCode = true),
+                    text = messageFormatter(text = peekTail(content), primary = false, flatCode = true),
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -88,6 +88,13 @@ import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.round
 
+// The streamed message is written to the UI at most this often (about 30 fps). A token
+// arrives every 10-40 ms and a faster model, or MTP bursts, can exceed the screen's refresh
+// rate; each write re-parses and re-lays-out the reply, so extra ones are pure cost. The
+// latest text is always flushed when a generate call returns, before a tool runs and when
+// the turn ends.
+private const val UI_UPDATE_MIN_INTERVAL_MS = 33L
+
 // Minimum gap between per-token haptic ticks. ~60 ms (≈16/s) reads as
 // distinct typewriter taps rather than a continuous buzz on fast streams.
 private const val HAPTIC_MIN_INTERVAL_MS = 60L
@@ -2461,6 +2468,33 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     var lastHapticMs = 0L
                     // Throttle the live context-ring estimate update.
                     var lastCtxMs = 0L
+                    // Latest streamed state not yet written to the UI (see
+                    // UI_UPDATE_MIN_INTERVAL_MS); written by applyPending().
+                    var lastUiMs = 0L
+                    var pendingString: String? = null
+                    var pendingThinkingTokens = 0
+                    var pendingResponseTokens = 0
+                    var pendingThinkingStart = false
+
+                    /** Write the newest streamed text to the UI now (no-op when none is pending). */
+                    fun applyPending() {
+                        val text = pendingString ?: return
+                        val started = pendingThinkingStart
+                        val thinkingTokens = pendingThinkingTokens
+                        val responseTokens = pendingResponseTokens
+                        pendingString = null
+                        pendingThinkingStart = false
+                        Snapshot.withMutableSnapshot {
+                            if (started) {
+                                uiState.markThinkingStarted()
+                            }
+                            uiState.updateLastMessage(
+                                text,
+                                thinkingTokens = thinkingTokens,
+                                responseTokens = responseTokens
+                            )
+                        }
+                    }
                     override fun onFullResponse(response: String) {
                         totalTokens++
                         val nowMs = System.currentTimeMillis()
@@ -2507,16 +2541,13 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                             GenerationHaptics.tick(app)
                         }
 
-                        val finalString = string
-                        Snapshot.withMutableSnapshot {
-                            if (thinkingJustStarted) {
-                                uiState.markThinkingStarted()
-                            }
-                            uiState.updateLastMessage(
-                                finalString,
-                                thinkingTokens = currentThinkingTokens,
-                                responseTokens = totalTokens - currentThinkingTokens
-                            )
+                        pendingString = string
+                        pendingThinkingTokens = currentThinkingTokens
+                        pendingResponseTokens = totalTokens - currentThinkingTokens
+                        if (thinkingJustStarted) pendingThinkingStart = true
+                        if (nowMs - lastUiMs >= UI_UPDATE_MIN_INTERVAL_MS) {
+                            lastUiMs = nowMs
+                            applyPending()
                         }
                     }
                 }
@@ -2550,6 +2581,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     var toolBudgetSpent = false
                     while (true) {
                         val rc = llamaSession.generateAll(callback)
+                        // Whatever the throttle held back: a tool call below reads the
+                        // message text, and the reply must end up complete on screen.
+                        callback.applyPending()
                         if (rc != 2 || !this.isActive) break
                         if (toolRounds >= maxToolRounds) {
                             // The model asked for yet another tool but the budget is spent. Ending
@@ -2648,6 +2682,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                                 }
                             }
                             llamaSession.generateAll(callback)
+                            callback.applyPending()
                         } else {
                             // On-device engines cannot re-render their prompt without tools
                             // mid-turn; say why it stopped instead of ending in silence.
@@ -2696,6 +2731,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                             return@withContext
                         }
 
+                        // Cancelled (or failed) turns end without a generate call returning
+                        // normally: write the last streamed text before finalizing.
+                        callback.applyPending()
                         Snapshot.withMutableSnapshot {
                             uiState.finalizeLastMessage()
                             // Remote backends report authoritative token/timing

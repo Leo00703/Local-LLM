@@ -40,8 +40,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -114,6 +116,18 @@ private class AttachMenuPositionProvider(private val gapPx: Int) : PopupPosition
     }
 }
 
+/**
+ * Saves the unsent draft across process death, but only its first [MAX_SAVED_DRAFT_CHARS]
+ * characters: the whole value goes into the activity's saved-state Bundle, and a very large
+ * paste there ends in TransactionTooLargeException when the app is backgrounded.
+ */
+private const val MAX_SAVED_DRAFT_CHARS = 20_000
+
+private val DraftSaver: Saver<TextFieldValue, String> = Saver(
+    save = { it.text.take(MAX_SAVED_DRAFT_CHARS) },
+    restore = { TextFieldValue(text = it, selection = TextRange(it.length)) }
+)
+
 @Preview
 @Composable
 fun UserInputPreview() {
@@ -170,7 +184,7 @@ fun UserInput(
     onTakePhotoClick: (() -> Unit)? = null,
 ) {
 
-    var textState by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+    var textState by rememberSaveable(stateSaver = DraftSaver) {
         mutableStateOf(TextFieldValue())
     }
 

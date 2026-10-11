@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -362,7 +363,14 @@ class ConversationFragment : Fragment() {
                 // the jump-to-bottom button (rendered at the root, above all
                 // chrome) can re-arm it. New messages re-enable following.
                 var piningBottom by remember { mutableStateOf(false) }
-                LaunchedEffect(messages.size) { piningBottom = true }
+                // The list is only ever read through snapshotFlow / derived state here. A
+                // streamed token rewrites the last message, and a direct read of the list
+                // (size, isEmpty) in this scope would recompose the whole screen on every
+                // token; these only re-emit when the size, or emptiness, really changes.
+                LaunchedEffect(Unit) {
+                    snapshotFlow { messages.size }.collect { piningBottom = true }
+                }
+                val hasMessages by remember { derivedStateOf { messages.isNotEmpty() } }
                 val jumpEnabled by remember {
                     derivedStateOf { scrollState.canScrollForward }
                 }
@@ -634,7 +642,7 @@ class ConversationFragment : Fragment() {
                     //   - library has entries
                     //   - the session has no prompt selected yet
                     val pickerVisible = isModelReady &&
-                        messages.isEmpty() &&
+                        !hasMessages &&
                         recentSystemPrompts.isNotEmpty() &&
                         systemPrompt.isEmpty() &&
                         // Only on a genuinely new chat (no session yet), not the
@@ -655,7 +663,7 @@ class ConversationFragment : Fragment() {
                         // ---- Background (haze source): full-bleed content the
                         // frosted bars blur. Content padding keeps the first and
                         // last messages clear of the floating chrome.
-                        if (modelInfo == null && messages.isEmpty()) {
+                        if (modelInfo == null && !hasMessages) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -685,7 +693,7 @@ class ConversationFragment : Fragment() {
                                     } else null
                                 )
                             }
-                        } else if (messages.isEmpty() && currentFolderName != null) {
+                        } else if (!hasMessages && currentFolderName != null) {
                             // New chat started inside a folder: watermark its name so
                             // it's clear the chat will be filed there.
                             Box(
@@ -930,7 +938,7 @@ class ConversationFragment : Fragment() {
                         JumpToBottom(
                             enabled = jumpEnabled &&
                                 sessionModelHint == null &&
-                                (modelInfo != null || messages.isNotEmpty()),
+                                (modelInfo != null || hasMessages),
                             onClicked = {
                                 scope.launch {
                                     val last = scrollState.layoutInfo.totalItemsCount - 1

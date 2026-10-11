@@ -89,7 +89,10 @@ fun Messages(
         ) {
             itemsIndexed(
                 items = messages,
-                key = { _, msg -> msg.id }
+                key = { _, msg -> msg.id },
+                // User and assistant bubbles have different shapes; telling the lazy list
+                // lets it reuse a composition of the same kind when scrolling.
+                contentType = { _, msg -> msg.author }
             ) { index, content ->
                 val isLast = index == messages.lastIndex
                 val isUser = content.author == "User"
