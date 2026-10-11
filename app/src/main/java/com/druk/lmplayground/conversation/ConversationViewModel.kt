@@ -1320,7 +1320,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             kotlinx.coroutines.withTimeoutOrNull(5_000) { client?.awaitConnected() }
         }
         val native = com.druk.llamacpp.NativeErrors.summarize(
-            kotlinx.coroutines.withTimeoutOrNull(3_000) { llamaCpp.recentNativeErrors() }.orEmpty()
+            kotlinx.coroutines.withTimeoutOrNull(3_000) { llamaCpp?.recentNativeErrors() }.orEmpty()
         )
         val exit = com.druk.lmplayground.files.NativeDiagnostics.lastEngineExit(app, startedAtMs, await = died)
         val tail = if (exit.isNotEmpty() || died) {
