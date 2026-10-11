@@ -2,6 +2,7 @@ package com.druk.lmplayground.files
 
 import android.app.ActivityManager
 import android.content.Context
+import com.druk.llamacpp.NativeErrors
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
