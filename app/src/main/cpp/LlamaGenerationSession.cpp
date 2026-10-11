@@ -78,7 +78,123 @@ bool is_valid_utf8(const char * string) {
     return true;
 }
 
+// How many worker threads to use for single-token decode and for prompt batches.
+//
+// Decode is memory-bandwidth bound and stops scaling at about four threads, so that stays
+// min(4, cores - 2). Prompt processing (the wait before the first token of a long document,
+// web page or tool result) is compute bound and scales with every fast core, so it may use
+// all of them, still leaving two for the UI and system. A big.LITTLE part must not put a
+// barrier-synchronised pool on its efficiency cores (that only slows the whole pool), so a
+// core counts as fast only if the kernel's capacity figure AND its maximum frequency both put
+// it close to the best core; whichever of the two the device does not expose is ignored.
+// With neither readable both counts stay at the previous behaviour.
+static void plan_cpu_threads(int & n_decode, int & n_prefill) {
+    const int nproc = (int) sysconf(_SC_NPROCESSORS_ONLN);
+    n_decode = std::max(1, std::min(4, nproc - 2));
+    n_prefill = n_decode;
+    if (nproc < 2 || nproc > 64) return;
+
+    auto read_long = [](const char * path) -> long {
+        FILE * fp = fopen(path, "r");
+        if (fp == nullptr) return 0;
+        long v = 0;
+        if (fscanf(fp, "%ld", &v) != 1) v = 0;
+        fclose(fp);
+        return v;
+    };
+
+    // Number of cores within [pct]% of the best one for a per-core sysfs file, or -1 when
+    // the file is not readable for any core.
+    auto count_fast = [&](const char * fmt, int pct) -> int {
+        std::vector<long> value(nproc, 0);
+        long best = 0;
+        for (int i = 0; i < nproc; i++) {
+            char path[96];
+            snprintf(path, sizeof(path), fmt, i);
+            value[i] = read_long(path);
+            best = std::max(best, value[i]);
+        }
+        if (best <= 0) return -1;
+        int fast = 0;
+        for (int i = 0; i < nproc; i++) {
+            if (value[i] > 0 && value[i] * 100 >= best * pct) fast++;
+        }
+        return fast;
+    };
+
+    const int by_capacity = count_fast("/sys/devices/system/cpu/cpu%d/cpu_capacity", 70);
+    const int by_freq = count_fast("/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", 80);
+    if (by_capacity < 0 && by_freq < 0) return;
+
+    int fast = nproc;
+    if (by_capacity >= 0) fast = std::min(fast, by_capacity);
+    if (by_freq >= 0) fast = std::min(fast, by_freq);
+    LOGi("CPU cores: %d online, %d fast (capacity=%d freq=%d)", nproc, fast, by_capacity, by_freq);
+
+    const int cap = std::max(1, nproc - 2);
+    n_prefill = std::max(n_decode, std::min(fast, cap));
+    n_prefill = std::min(n_prefill, 8);
+}
+
 LlamaGenerationSession::LlamaGenerationSession() = default;
+
+void LlamaGenerationSession::initThreadpools(int n_threads, int n_threads_batch) {
+    ggml_backend_dev_t cpu_dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
+    if (cpu_dev == nullptr || ctx == nullptr) return;
+    ggml_backend_reg_t reg = ggml_backend_dev_backend_reg(cpu_dev);
+    if (reg == nullptr) return;
+
+    // The CPU backend is a dlopen'ed library (GGML_BACKEND_DL), so these are looked up by
+    // name, the same way llama.cpp's own common_threadpools does it.
+    auto new_fn = (ggml_threadpool_t (*)(struct ggml_threadpool_params *))
+        ggml_backend_reg_get_proc_address(reg, "ggml_threadpool_new");
+    auto free_fn = (void (*)(ggml_threadpool_t))
+        ggml_backend_reg_get_proc_address(reg, "ggml_threadpool_free");
+    if (new_fn == nullptr || free_fn == nullptr) {
+        LOGi("CPU backend has no threadpool API; using per-compute pools");
+        return;
+    }
+
+    struct ggml_threadpool_params tpp;
+    ggml_threadpool_params_init(&tpp, n_threads);
+    struct ggml_threadpool_params tpp_batch;
+    ggml_threadpool_params_init(&tpp_batch, n_threads_batch);
+
+    ggml_threadpool_t batch_pool = nullptr;
+    if (!ggml_threadpool_params_match(&tpp, &tpp_batch)) {
+        batch_pool = new_fn(&tpp_batch);
+        if (batch_pool == nullptr) {
+            LOGe("batch threadpool create failed (n_threads=%d); using per-compute pools", n_threads_batch);
+            return;
+        }
+        // The decode pool is not needed until the first token: start it paused (a
+        // kickoff resumes it on its own).
+        tpp.paused = true;
+    }
+    ggml_threadpool_t pool = new_fn(&tpp);
+    if (pool == nullptr) {
+        LOGe("threadpool create failed (n_threads=%d); using per-compute pools", n_threads);
+        if (batch_pool != nullptr) free_fn(batch_pool);
+        return;
+    }
+
+    threadpool = pool;
+    threadpool_batch = batch_pool;
+    threadpool_free_fn = free_fn;
+    llama_attach_threadpool(ctx, threadpool, threadpool_batch);
+    LOGi("Persistent threadpools: decode=%d prefill=%d", n_threads, n_threads_batch);
+}
+
+void LlamaGenerationSession::releaseThreadpools() {
+    // The context must already be freed: a pool cannot be destroyed under a compute.
+    if (threadpool_free_fn != nullptr) {
+        if (threadpool != nullptr) threadpool_free_fn(threadpool);
+        if (threadpool_batch != nullptr) threadpool_free_fn(threadpool_batch);
+    }
+    threadpool = nullptr;
+    threadpool_batch = nullptr;
+    threadpool_free_fn = nullptr;
+}
 
 LlamaGenerationSession::~LlamaGenerationSession() {
     // Free the speculative framework FIRST: it borrows ctx (target) and ctx_dft.
@@ -92,6 +208,7 @@ LlamaGenerationSession::~LlamaGenerationSession() {
     if (ctx_dft != nullptr) {
         llama_free(ctx_dft);
     }
+    releaseThreadpools();
     if (smpl != nullptr) {
         llama_sampler_free(smpl);
     }
@@ -173,8 +290,10 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     chat_tmpls = tmpls;
     mctx = mmctx;
 
-    int n_threads = std::max(1, std::min(4, (int) sysconf(_SC_NPROCESSORS_ONLN) - 2));
-    LOGi("Using %d threads", n_threads);
+    int n_threads = 1;
+    int n_threads_batch = 1;
+    plan_cpu_threads(n_threads, n_threads_batch);
+    LOGi("Using %d threads (%d for prompt processing)", n_threads, n_threads_batch);
 
     int n_ctx_train = llama_model_n_ctx_train(model);
     int n_ctx = std::min(params.n_ctx, n_ctx_train);
@@ -184,7 +303,7 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     ctx_params.n_ctx = n_ctx;
     ctx_params.n_batch = std::min(n_ctx, 512);
     ctx_params.n_threads       = n_threads;
-    ctx_params.n_threads_batch = n_threads;
+    ctx_params.n_threads_batch = n_threads_batch;
 
     // KV-cache quantization (user-selectable, CPU only). Q8_0 ~= half the KV
     // memory at near-zero quality loss; Q4_0 is smaller with a small quality
@@ -237,6 +356,7 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
         LOGe("%s: error: failed to create the llama_context\n" , __func__);
         return;
     }
+    initThreadpools(n_threads, n_threads_batch);
 
     // Experimental self-MTP speculative decoding: build a second "draft" context
     // of type MTP on the SAME model. llama_init_from_model returns null when the

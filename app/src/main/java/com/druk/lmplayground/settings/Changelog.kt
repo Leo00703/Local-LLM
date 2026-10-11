@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.126", "Faster prompt processing", listOf(
+        Change(ChangeType.IMPROVED, "Reading long prompts (documents, web pages, tool results) now uses all of your phone's fast CPU cores instead of four, so the first word of the answer arrives sooner."),
+        Change(ChangeType.IMPROVED, "The engine keeps its worker threads alive between tokens instead of creating them again for every token, which trims overhead, mostly on fast small models."),
+    )),
     ChangelogEntry("1.9.125", "Steadier chats and engine", listOf(
         Change(ChangeType.FIX, "Deleting the chat you have open now also clears it from the model's memory, so the next new chat no longer starts with the deleted conversation still in mind."),
         Change(ChangeType.FIX, "A chat can no longer get stuck on \"generating\" with an empty bubble after the engine failed to rebuild its session, and a context size that does not fit in memory now keeps the previous one and tells you."),

@@ -176,6 +176,18 @@ private:
     // prompt is fed from scratch.
     void clearKvCacheForFreshPrompt();
 
+    // Persistent CPU worker pools attached to [ctx]. Without them ggml builds and tears
+    // down a "disposable" pool (n_threads-1 pthread_create + join) for EVERY graph compute,
+    // i.e. for every generated token. One pool for single-token decode and, when the prefill
+    // thread count differs, a second one for prompt batches (each must match its n_threads
+    // exactly). Null when the CPU backend does not export them: ggml then falls back to the
+    // disposable pool, exactly as before.
+    void initThreadpools(int n_threads, int n_threads_batch);
+    void releaseThreadpools();
+    ggml_threadpool_t threadpool = nullptr;
+    ggml_threadpool_t threadpool_batch = nullptr;
+    void (*threadpool_free_fn)(ggml_threadpool_t) = nullptr;
+
     const struct llama_vocab * vocab = nullptr;
     llama_context * ctx = nullptr;
     // Experimental: MTP draft context on the SAME model (ctx_type=MTP), built in
