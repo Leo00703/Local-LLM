@@ -54,6 +54,16 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.129", "Quicker model list, steadier downloads and history", listOf(
+        Change(ChangeType.IMPROVED, "The model list, the model picker and the storage screen read your model folder in one query instead of one per file, so they open faster."),
+        Change(ChangeType.NEW, "Settings > Advanced has a new \"Download models on Wi-Fi only\" switch, so big downloads never use mobile data."),
+        Change(ChangeType.FIX, "Downloads stop retrying a link that answers with an error such as 404, stop when the storage is full instead of retrying forever, and a download that ends short is resumed instead of being kept as a corrupt model."),
+        Change(ChangeType.IMPROVED, "A reopened chat keeps its tool steps and the earlier versions of regenerated answers."),
+        Change(ChangeType.FIX, "Gemma 4 (LiteRT) models now remember the conversation after a regenerate, an edit, reopening a chat, a settings change, or switching a tool on or off."),
+        Change(ChangeType.FIX, "A chat that cannot be read (for example because of a very large attached file) now shows a message instead of crashing the app, and the HTML source preview of an attachment is limited to 200,000 characters so it cannot cause that."),
+        Change(ChangeType.IMPROVED, "The PDF preview opens the document once and keeps the last few pages, so scrolling a long PDF is faster."),
+        Change(ChangeType.FIX, "Messages sent within the same millisecond keep their order."),
+    )),
     ChangelogEntry("1.9.128", "Safer tools, tidier network", listOf(
         Change(ChangeType.FIX, "A tool you have switched off can no longer be run by the model, for example after it reads a page that tries to tell it to."),
         Change(ChangeType.IMPROVED, "Fetching a web page refuses more private network ranges (local IPv6, VPN overlays such as Tailscale), works for addresses like httpbin.org, and reports an error page instead of presenting it as the page."),

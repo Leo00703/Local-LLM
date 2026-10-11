@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MemoryNoteEntity::class,
         BenchmarkResultEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -268,6 +268,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Tool calls and regenerate variants of a message, as JSON columns. Plain nullable
+         * ADD COLUMNs (the same shape as MIGRATION_9_10), so existing rows are untouched.
+         */
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN toolCallsJson TEXT")
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN variantsJson TEXT")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -289,7 +300,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_11_12,
                         MIGRATION_12_13,
                         MIGRATION_13_14,
-                        MIGRATION_14_15
+                        MIGRATION_14_15,
+                        MIGRATION_15_16
                     )
                     .build().also { INSTANCE = it }
             }

@@ -29,6 +29,15 @@ class DownloadRepository(private val context: Context) {
 
     private val workManager = WorkManager.getInstance(context)
 
+    /** Any network, or only an unmetered one when the user asked for Wi-Fi-only downloads. */
+    private fun downloadConstraints(): Constraints =
+        Constraints.Builder()
+            .setRequiredNetworkType(
+                if (StoragePreferences(context).downloadWifiOnly) NetworkType.UNMETERED
+                else NetworkType.CONNECTED
+            )
+            .build()
+
     fun startDownload(model: ModelInfo, storageUri: Uri) {
         val remoteUri = model.remoteUri ?: return
         val workName = workNameFor(model)
@@ -41,9 +50,7 @@ class DownloadRepository(private val context: Context) {
             .putString(DownloadWorker.KEY_WORK_NAME, workName)
             .build()
 
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
+        val constraints = downloadConstraints()
 
         val request = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(inputData)
@@ -80,9 +87,7 @@ class DownloadRepository(private val context: Context) {
             .putString(DownloadWorker.KEY_WORK_NAME, workName)
             .build()
 
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
+        val constraints = downloadConstraints()
 
         val request = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(inputData)

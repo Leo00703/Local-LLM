@@ -13,7 +13,8 @@ interface ChatDao {
     @Query("SELECT * FROM chat_sessions ORDER BY pinned DESC, updatedAt DESC")
     fun getAllSessions(): LiveData<List<ChatSessionEntity>>
 
-    @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
+    // id breaks ties: a user turn and its reply placeholder can share a millisecond.
+    @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC, id ASC")
     suspend fun getMessages(sessionId: String): List<ChatMessageEntity>
 
     /** Every message's attachments JSON — used to find orphaned attachment file copies. */

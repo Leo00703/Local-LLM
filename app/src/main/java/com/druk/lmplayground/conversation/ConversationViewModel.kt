@@ -2958,7 +2958,72 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // attachmentsJson is the source of truth (supports multiple files);
             // the single-attachment columns are kept only for reading old rows.
             attachmentsJson = attachmentsToJson(attachments),
+            toolCallsJson = toolCallsToJson(toolCalls),
+            variantsJson = variantsToJson(variants, variantIndex),
         )
+    }
+
+    /** A tool result is capped: it is a whole web page, and the row must stay readable. */
+    private val maxStoredToolText = 20_000
+
+    private fun toolCallsToJson(calls: List<ToolCallInfo>?): String? {
+        if (calls.isNullOrEmpty()) return null
+        val arr = JSONArray()
+        for (c in calls) {
+            arr.put(
+                JSONObject()
+                    .put("name", c.name)
+                    .put("arguments", c.arguments.take(maxStoredToolText))
+                    .put("result", c.result.take(maxStoredToolText))
+                    .put("durationMs", c.durationMs)
+                    .put("pre", c.precedingThinking.take(maxStoredToolText))
+                    .put("preSec", c.precedingThinkingDurationSeconds)
+                    .put("preTok", c.precedingThinkingTokens)
+            )
+        }
+        return arr.toString()
+    }
+
+    private fun toolCallsFromJson(json: String?): List<ToolCallInfo>? {
+        if (json.isNullOrEmpty()) return null
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                ToolCallInfo(
+                    name = o.getString("name"),
+                    arguments = o.optString("arguments"),
+                    result = o.optString("result"),
+                    durationMs = o.optLong("durationMs"),
+                    precedingThinking = o.optString("pre"),
+                    precedingThinkingDurationSeconds = o.optInt("preSec"),
+                    precedingThinkingTokens = o.optInt("preTok"),
+                )
+            }.takeIf { it.isNotEmpty() }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun variantsToJson(variants: List<String>, selected: Int): String? {
+        if (variants.size < 2) return null
+        val arr = JSONArray()
+        variants.forEach { arr.put(it) }
+        return JSONObject().put("i", selected).put("v", arr).toString()
+    }
+
+    /** The answers and which one is shown, or an empty list when the reply was never regenerated. */
+    private fun variantsFromJson(json: String?): Pair<List<String>, Int> {
+        if (json.isNullOrEmpty()) return emptyList<String>() to 0
+        return try {
+            val o = JSONObject(json)
+            val arr = o.getJSONArray("v")
+            val list = (0 until arr.length()).map { arr.getString(it) }
+            if (list.size < 2) emptyList<String>() to 0
+            else list to o.optInt("i", list.lastIndex).coerceIn(0, list.lastIndex)
+        } catch (_: Throwable) {
+            emptyList<String>() to 0
+        }
     }
 
     private fun attachmentsToJson(list: List<Attachment>): String? {
@@ -3080,9 +3145,18 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     @MainThread
     fun loadSession(sessionId: String) {
         viewModelScope.launch {
-            val messages = chatRepository?.getMessages(sessionId) ?: return@launch
-            val sessionEntity = chatRepository.getSession(sessionId)
+            val messages = try {
+                chatRepository?.getMessages(sessionId)
+            } catch (e: Exception) {
+                // e.g. a row too big for Android's 2 MB CursorWindow (very large
+                // attachments). Opening it used to crash the app, every time.
+                android.util.Log.w("ConversationViewModel", "could not read chat $sessionId", e)
+                _userError.postValue(app.getString(com.druk.lmplayground.R.string.chat_load_failed))
+                null
+            } ?: return@launch
+            val sessionEntity = chatRepository?.getSession(sessionId)
             val uiMessages = messages.map { entity ->
+                val (variants, variantIndex) = variantsFromJson(entity.variantsJson)
                 Message(
                     author = entity.author,
                     content = entity.content,
@@ -3092,7 +3166,10 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     responseDurationSeconds = entity.responseDurationSeconds,
                     responseDecodeSeconds = entity.responseDecodeSeconds,
                     timestamp = entity.timestamp,
-                    attachments = attachmentsFrom(entity)
+                    toolCalls = toolCallsFromJson(entity.toolCallsJson),
+                    attachments = attachmentsFrom(entity),
+                    variants = variants,
+                    variantIndex = variantIndex,
                 )
             }
 

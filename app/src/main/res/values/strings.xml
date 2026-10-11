@@ -454,6 +454,8 @@
     <string name="advanced_subtitle">Power-user options</string>
     <string name="disable_repack_title">Disable weight repacking</string>
     <string name="disable_repack_desc">Load models memory-mapped to use far less RAM, at the cost of slower generation. Useful on low-memory devices.</string>
+    <string name="download_wifi_only_title">Download models on Wi-Fi only</string>
+    <string name="download_wifi_only_desc">Large model downloads wait for an unmetered network (Wi-Fi) instead of using mobile data. Applies to downloads you start from now on.</string>
     <string name="gpu_acceleration_title">GPU acceleration (experimental)</string>
     <string name="gpu_acceleration_desc">Run the model on the GPU (OpenCL) instead of the CPU, for faster prompt processing and image encoding. Experimental: some GPUs produce wrong output or crash; if that happens, turn this back off. Applies on the next model load.</string>
     <string name="attach_file">Attach file</string>
@@ -589,6 +591,7 @@
     <string name="system_prompt_too_large">System prompt is %1$d KB, exceeds the %2$d KB limit. Try a shorter prompt.</string>
     <string name="history_message_too_large">A saved message in this conversation is too large to reload. Start a new chat to continue.</string>
     <string name="inference_engine_unavailable">Inference engine is not available right now. Try again in a moment.</string>
+    <string name="chat_load_failed">This chat could not be opened. A very large attachment in it may be the cause.</string>
     <string name="session_create_failed">Could not start a chat on this model. There may not be enough free memory: try a smaller context size, or reload the model.</string>
     <string name="context_size_reverted">That context size does not fit in memory, so the previous one was kept.</string>
     <string name="model_load_failed_status">Couldn\'t load model</string>

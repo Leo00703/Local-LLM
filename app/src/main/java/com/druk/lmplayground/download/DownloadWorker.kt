@@ -53,7 +53,19 @@ class DownloadWorker(
         // because the scanner only accepts names ending in ".gguf"
         // (StorageRepository.getModelFiles).
         private const val PART_SUFFIX = ".part"
+
+        // Attempts before a network failure is final (exponential backoff from 30 s).
+        private const val MAX_ATTEMPTS = 8
+
+        private fun isOutOfSpace(e: Throwable): Boolean =
+            generateSequence(e) { it.cause }.any {
+                val m = it.message.orEmpty()
+                m.contains("ENOSPC") || m.contains("No space left", ignoreCase = true)
+            }
     }
+
+    /** A failure that retrying cannot fix: not an IOException, so it is not retried. */
+    private class PermanentDownloadException(message: String) : Exception(message)
 
     private val notificationManager = DownloadNotificationManager(applicationContext)
 
@@ -139,11 +151,17 @@ class DownloadWorker(
             // Keep the .part file so the WorkManager retry resumes from where
             // it stopped (HTTP Range request against the existing length).
             Log.e(TAG, "Download IO error: ${e.message}", e)
+            val outOfSpace = isOutOfSpace(e)
+            // A full disk does not fix itself, and a connection that has failed this many
+            // times is not coming back on its own: stop retrying (the partial stays, so
+            // starting the download again resumes it).
+            val giveUp = outOfSpace || runAttemptCount >= MAX_ATTEMPTS
+            val failureReason = if (outOfSpace) "Not enough free storage" else (e.message ?: "Network error")
             notificationManager.showNotification(
                 notificationId,
-                notificationManager.buildFailureNotification(modelName, e.message ?: "Network error")
+                notificationManager.buildFailureNotification(modelName, failureReason)
             )
-            return Result.retry()
+            return if (giveUp) failure(failureReason) else Result.retry()
         } catch (e: Exception) {
             // Non-recoverable: drop the partial so we don't leave a stale
             // ".part" lingering in the user's folder.
@@ -193,8 +211,20 @@ class DownloadWorker(
         val response = client.newCall(requestBuilder.build()).execute()
 
         if (!response.isSuccessful && response.code != 206) {
+            val code = response.code
+            val reason = response.message
             response.close()
-            throw IOException("HTTP ${response.code}: ${response.message}")
+            // The partial is longer than the file now behind the URL (re-uploaded): the
+            // range cannot be satisfied, so start the whole file over.
+            if (code == 416 && append) {
+                return downloadToPart(url, dir, filename, modelName, workName, notificationId, allowResume = false)
+            }
+            // A 4xx will not get better by waiting (a wrong or withdrawn URL); 408, 425 and 429
+            // are the "try again later" ones. Retrying the rest forever only hid the failure.
+            if (code in 400..499 && code != 408 && code != 425 && code != 429) {
+                throw PermanentDownloadException("HTTP $code: $reason")
+            }
+            throw IOException("HTTP $code: $reason")
         }
 
         // Asked to resume but the server ignored Range — restart from scratch.
@@ -288,6 +318,12 @@ class DownloadWorker(
                 }
             }
             outputStream.flush()
+            // A body that ended short of its announced length would be renamed to a .gguf
+            // and loaded later as a "corrupt model". Fail as a network error instead, which
+            // keeps the partial so the retry resumes from it.
+            if (totalBytes > 0 && bytesDownloaded != totalBytes) {
+                throw IOException("Download ended early: $bytesDownloaded of $totalBytes bytes")
+            }
         } finally {
             inputStream.close()
             outputStream.close()

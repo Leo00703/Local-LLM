@@ -62,6 +62,9 @@ class LiteRtEngine {
     private var convoTemp = 1.0
     private var convoSystemPrompt = ""
     private var convoTools: List<ToolProvider> = emptyList()
+    // Earlier turns the conversation is seeded with (ConversationConfig.initialMessages),
+    // so a rebuild does not start the chat from nothing.
+    private var convoInitialMessages: List<Message> = emptyList()
 
     /**
      * Load a `.litertlm` model. MTP is a global experimental flag that must be set
@@ -127,6 +130,18 @@ class LiteRtEngine {
         convoTemp = temperature
         convoSystemPrompt = systemPrompt
         convoTools = emptyList()   // a fresh session starts toolless; setTools re-adds them
+        convoInitialMessages = emptyList()   // ...and empty; replayHistory seeds it
+        rebuildConversation()
+    }
+
+    /**
+     * Seed the conversation with [history] (alternating user / model turns) by rebuilding it
+     * with those as its initial messages. Used to restore a chat the model has no native
+     * memory of: a saved chat that was reopened, a regenerate / edit, a new session after a
+     * parameter change.
+     */
+    fun setHistory(history: List<Message>) {
+        convoInitialMessages = history
         rebuildConversation()
     }
 
@@ -137,8 +152,11 @@ class LiteRtEngine {
      * changes, so a stable-tools chat keeps its history. automaticToolCalling stays
      * false, so the runtime returns tool calls to us instead of executing them.
      */
-    fun setTools(tools: List<ToolProvider>) {
+    fun setTools(tools: List<ToolProvider>, history: List<Message> = convoInitialMessages) {
         convoTools = tools
+        // The rebuild drops the native history, so hand it back as the new conversation's
+        // initial messages instead of losing the chat when a tool is switched on or off.
+        convoInitialMessages = history
         rebuildConversation()
     }
 
@@ -151,6 +169,7 @@ class LiteRtEngine {
                 // position 0 and folds it into Gemma's own chat template (Gemma has
                 // no system role, so the template merges it into the first user turn).
                 systemInstruction = convoSystemPrompt.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
+                initialMessages = convoInitialMessages,
                 tools = convoTools,
                 automaticToolCalling = false,
                 samplerConfig = SamplerConfig(topK = convoTopK, topP = convoTopP, temperature = convoTemp),

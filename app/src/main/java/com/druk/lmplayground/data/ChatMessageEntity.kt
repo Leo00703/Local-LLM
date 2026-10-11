@@ -42,5 +42,10 @@ data class ChatMessageEntity(
     // Source of truth from v10: a JSON array of all attachments on this message
     // (supports multiple files). The single columns above are read-only legacy
     // for rows written by v9.
-    val attachmentsJson: String? = null
+    val attachmentsJson: String? = null,
+    // JSON array of the tool calls of an assistant turn (name, arguments, result, timing and
+    // the reasoning that preceded each call), so a reopened chat still shows its process card.
+    val toolCallsJson: String? = null,
+    // {"i": selected index, "v": [answers]} once a reply has been regenerated.
+    val variantsJson: String? = null
 )

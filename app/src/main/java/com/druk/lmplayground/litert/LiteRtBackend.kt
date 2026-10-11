@@ -10,6 +10,7 @@ import com.google.ai.edge.litertlm.OpenApiTool
 import com.google.ai.edge.litertlm.ToolCall
 import com.google.ai.edge.litertlm.ToolProvider
 import com.google.ai.edge.litertlm.tool
+import com.druk.lmplayground.conversation.stripThinkTags
 import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
 import org.json.JSONObject
@@ -57,9 +58,25 @@ class LiteRtBackend(
         pendingEnableThinking = enableThinking
     }
 
+    // The finished turns of this chat (user text, final answer), kept so the conversation can
+    // be rebuilt, seeded with them, whenever LiteRT-LM needs a new one (a replay, or a tool
+    // being switched on or off). Tool round-trips and reasoning are not part of it.
+    private val history = ArrayList<Message>()
+
     override fun replayHistory(userMessages: Array<String>, assistantMessages: Array<String>) {
-        // TODO(step): deep replay — a fresh Conversation can't be seeded from a
-        // non-suspend method; history is not re-injected in this slice.
+        history.clear()
+        for (i in userMessages.indices) {
+            val answer = stripThinkTags(assistantMessages[i])
+            if (userMessages[i].isBlank() || answer.isBlank()) continue
+            history.add(Message.user(userMessages[i]))
+            history.add(Message.model(answer))
+        }
+        try {
+            engine.setHistory(history.toList())
+        } catch (e: Exception) {
+            // Without the earlier turns the chat still works, from here on.
+            android.util.Log.w("LiteRtBackend", "could not restore the chat history", e)
+        }
     }
 
     override fun setTools(toolsJson: String) {
@@ -79,7 +96,7 @@ class LiteRtBackend(
                 })
             }
         }
-        engine.setTools(providers)   // rebuilds the conversation with these tools
+        engine.setTools(providers, history.toList())   // rebuilds the conversation with these tools
     }
 
     /** Pending calls from the last [generateAll] that returned 2, as `[{id,name,arguments}]`. */
@@ -216,6 +233,11 @@ class LiteRtBackend(
         if (toolCalls.isNotEmpty()) {
             pendingToolCalls = toolCalls
             return 2
+        }
+        // A finished turn (also the end of a tool round): remember it for rebuilds.
+        if (pendingUserMessage.isNotBlank() && answerSb.isNotBlank()) {
+            history.add(Message.user(pendingUserMessage))
+            history.add(Message.model(answerSb.toString()))
         }
         return 0
     }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.os.StatFs
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.druk.lmplayground.models.ModelInfoProvider
@@ -38,12 +39,63 @@ class StorageRepository(
         prefs.modelStorageUri = uri
     }
 
+    /** One child of the model folder as the provider reports it. */
+    private class Child(val docId: String, val name: String, val sizeBytes: Long)
+
+    /**
+     * The folder's children with name and size in ONE provider query. DocumentFile asks the
+     * provider again for every property of every file (a query for each name, another for
+     * each length), which for a folder of a few dozen files is a hundred round trips, and
+     * this is read every time the model picker opens. Null when the query cannot be made, so
+     * callers can fall back to DocumentFile.
+     */
+    private fun queryChildren(treeUri: Uri): List<Child>? {
+        return try {
+            val parent = DocumentsContract.buildChildDocumentsUriUsingTree(
+                treeUri, DocumentsContract.getTreeDocumentId(treeUri)
+            )
+            val out = ArrayList<Child>()
+            context.contentResolver.query(
+                parent,
+                arrayOf(
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    DocumentsContract.Document.COLUMN_SIZE,
+                ),
+                null, null, null
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getString(0) ?: continue
+                    val name = c.getString(1) ?: continue
+                    out.add(Child(id, name, if (c.isNull(2)) 0L else c.getLong(2)))
+                }
+            } ?: return null
+            out
+        } catch (e: Exception) {
+            Log.w(TAG, "queryChildren failed, falling back to DocumentFile: ${e.message}")
+            null
+        }
+    }
+
     /**
      * Get list of model files from SAF storage.
      */
     fun getModelFiles(): List<ModelFile> {
         val treeUri = prefs.modelStorageUri ?: return emptyList()
-        
+
+        queryChildren(treeUri)?.let { children ->
+            return children
+                .filter { it.name.endsWith(".gguf") }
+                .map { child ->
+                    ModelFile(
+                        name = child.name,
+                        displayName = ModelInfoProvider.getDisplayName(child.name),
+                        sizeBytes = child.sizeBytes,
+                        uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, child.docId)
+                    )
+                }
+        }
+
         val documentFile = DocumentFile.fromTreeUri(context, treeUri)
         if (documentFile == null) {
             Log.d(TAG, "getModelFiles() - DocumentFile.fromTreeUri returned null")
@@ -104,10 +156,7 @@ class StorageRepository(
             )
         }
         
-        val files = documentFile.listFiles()
-        val usedBytes = files
-            .filter { it.name?.endsWith(".gguf") == true }
-            .sumOf { it.length() }
+        val usedBytes = getModelFiles().sumOf { it.sizeBytes }
 
         // Get storage stats from external storage as approximation
         val externalDir = context.getExternalFilesDir(null)
@@ -187,16 +236,19 @@ class StorageRepository(
             return null
         }
         
-        val documentFile = DocumentFile.fromTreeUri(context, treeUri)
-        val file = documentFile?.findFile(fileName)
-        
-        if (file == null) {
+        // One query for the lookup; DocumentFile.findFile reads every child's name.
+        val fileUri: Uri? = queryChildren(treeUri)
+            ?.firstOrNull { it.name == fileName }
+            ?.let { DocumentsContract.buildDocumentUriUsingTree(treeUri, it.docId) }
+            ?: DocumentFile.fromTreeUri(context, treeUri)?.findFile(fileName)?.uri
+
+        if (fileUri == null) {
             Log.e(TAG, "openModelFile() - file not found: $fileName")
             return null
         }
-        
+
         return try {
-            val pfd = context.contentResolver.openFileDescriptor(file.uri, "r")
+            val pfd = context.contentResolver.openFileDescriptor(fileUri, "r")
             if (pfd != null) {
                 val fd = pfd.fd
                 val fdPath = "fd:$fd"

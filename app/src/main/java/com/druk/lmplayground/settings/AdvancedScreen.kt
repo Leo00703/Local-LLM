@@ -97,6 +97,9 @@ fun AdvancedContent(
         // Self-contained (reads/writes StoragePreferences directly), so it needs
         // no AdvancedViewModel wiring. Experimental GPU (Vulkan) offload.
         GpuAccelerationRow()
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        // Self-contained as well: keeps big model downloads off mobile data.
+        DownloadWifiOnlyRow()
     }
 }
 

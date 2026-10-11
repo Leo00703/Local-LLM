@@ -94,6 +94,14 @@ class StoragePreferences(context: Context) {
         get() = prefs.getBoolean("mtp_enabled", true)
         set(value) = prefs.edit { putBoolean("mtp_enabled", value) }
 
+    /**
+     * Only start model downloads on an unmetered network (Wi-Fi). Off by default; a download
+     * that is waiting for Wi-Fi shows as "waiting for network". Read when a download is queued.
+     */
+    var downloadWifiOnly: Boolean
+        get() = prefs.getBoolean("download_wifi_only", false)
+        set(value) = prefs.edit { putBoolean("download_wifi_only", value) }
+
     // --- Remote (OpenAI-compatible) server ---
 
     /** User-given display name for the remote server (shown in the model picker). */

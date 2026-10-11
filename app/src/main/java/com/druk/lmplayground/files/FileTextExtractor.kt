@@ -45,6 +45,11 @@ sealed interface FileExtractionResult {
 object FileTextExtractor {
 
     private const val MAX_TEXT_CHARS = 1_000_000
+    // The raw HTML kept next to the extracted text is only for the "source" preview, and it is
+    // stored in the message row and held in memory for the whole chat. A megabyte of markup
+    // per attachment, two attachments, and the row no longer fits Android's 2 MB
+    // CursorWindow, so reopening that chat fails.
+    private const val MAX_RAW_PREVIEW_CHARS = 200_000
     // Hard ceiling on decompressed/raw BYTES read into memory from one file, so a
     // zip-bomb (a tiny .docx/.xlsx that inflates to gigabytes) or a huge HTML file
     // can't OOM-crash the app. Well above any real document's text payload.
@@ -454,7 +459,7 @@ object FileTextExtractor {
         // detected (not a hardcoded UTF-8) so non-UTF-8 pages don't mojibake.
         val charset = doc.charset() ?: Charsets.UTF_8
         val rawHtml = bytes.toString(charset).let {
-            if (it.length > MAX_TEXT_CHARS) it.take(MAX_TEXT_CHARS) else it
+            if (it.length > MAX_RAW_PREVIEW_CHARS) it.take(MAX_RAW_PREVIEW_CHARS) else it
         }
         return finalize(md, md.length > MAX_TEXT_CHARS, name, rawText = rawHtml)
     }
