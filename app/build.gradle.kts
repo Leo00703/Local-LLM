@@ -168,10 +168,13 @@ android {
 
     splits {
         abi {
-            isEnable = true
+            // AGP rejects ndk.abiFilters together with splits that do NOT also produce the
+            // universal APK, so with a single ABI (-Pabis=arm64-v8a) the split is switched
+            // off and the lone APK comes out as app-<type>.apk (CI renames it by ABI).
+            isEnable = buildAbis.size > 1
             reset()
             include(*buildAbis.toTypedArray())
-            isUniversalApk = buildAbis.size > 1
+            isUniversalApk = true
         }
     }
 
