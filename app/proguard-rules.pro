@@ -49,3 +49,10 @@
 
 # Keep Core
 -keep class com.druk.llamacpp.** { *; }
+
+# Strip verbose/debug logging from shrunk builds: it is pure overhead there, and some of
+# it carries tool results (web pages, location) that have no business in logcat.
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+}

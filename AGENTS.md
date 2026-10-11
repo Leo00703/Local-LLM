@@ -38,8 +38,12 @@ GitHub Actions build is the real compiler check. The loop that works:
 4. On failure, read the annotations (no log download needed): the workflow
    surfaces Gradle's "What went wrong" and CMake errors as `::error`
    annotations, queryable via the API.
-5. On success, download the `lmplayground-debug-apk` artifact, install
-   `app-arm64-v8a-debug.apk` on the phone, and test the behavior live.
+5. On success, download the `lmplayground-sideload-apk` artifact (the
+   R8-shrunk, non-debuggable build: much smaller and smoother) and install
+   `app-arm64-v8a-sideload.apk`; it has the debug application id and key, so it
+   installs over the debug build and keeps its data. `lmplayground-debug-apk`
+   (`app-arm64-v8a-debug.apk`) is always produced too; use it if the sideload
+   build step failed (it is non-gating, and its failure shows as a warning).
 6. Fix issues in follow-up commits (hotfix pattern below).
 
 Staged features are marked in commit titles, e.g. `(parity build 1/2)`,
@@ -88,9 +92,12 @@ Staged features are marked in commit titles, e.g. `(parity build 1/2)`,
 `build-debug-apk.yml` does, in order: checkout with recursive submodules →
 **mtmd fork patch** (below) → Java 21 (Zulu) + Android SDK → install pinned
 NDK 27.2.12479018 + CMake 3.31.5 → **OpenCL toolchain** (below) →
-`./gradlew assembleDebug` → upload `lmplayground-debug-apk`
-(arm64-v8a / x86_64 / universal — install the arm64-v8a one) and
-`native-debug-symbols-arm64` (for `ndk-stack` symbolication; `if-no-files-found: warn`).
+ccache restore → `./gradlew assembleDebug -Pabis=arm64-v8a` → (non-gating)
+`./gradlew assembleSideload -Pabis=arm64-v8a` → upload `lmplayground-debug-apk`,
+`lmplayground-sideload-apk` and `native-debug-symbols-arm64` (for `ndk-stack`
+symbolication; `if-no-files-found: warn`). CI builds arm64 only: the phone is arm64,
+and x86_64 + the universal APK would double the native compile. The OpenCL toolchain
+and the llama.cpp compile (ccache) are cached between runs.
 
 ### The two non-obvious build steps
 
@@ -132,7 +139,10 @@ NDK 27.2.12479018 + CMake 3.31.5 → **OpenCL toolchain** (below) →
   Gradle 8.13. `haze` is pinned at 1.6.10 specifically to stay on compileSdk 35
   (see the comment in `gradle/libs.versions.toml` — bump both together for
   1.7.x).
-- **ABI split**: `arm64-v8a` (phones), `x86_64` (emulators), plus universal.
+- **ABI split**: `arm64-v8a` (phones), `x86_64` (emulators), plus universal by
+  default; pass `-Pabis=arm64-v8a` (what CI does) to build the phone ABI only.
+  The `sideload` build type is `release` settings with the debug id/key (see
+  `app/build.gradle.kts`).
 - **versionCode** = `(major*10000 + minor*100 + patch) * 1000 + GITHUB_RUN_NUMBER`
   (local builds use 0) — ~1000 CI builds fit per patch version, which is why
   hotfixes can share a patch number.

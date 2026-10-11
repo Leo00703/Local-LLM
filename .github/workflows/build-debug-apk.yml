@@ -94,40 +94,118 @@ jobs:
     # loads the device's own vendor OpenCL driver (uses-native-library in the
     # manifest). Kernels embed via Python3 (already on the runner). This replaces
     # the earlier Vulkan path, which crashed on Adreno 830.
+    # The staged result (headers + ICD loader) never changes for a pinned tag/NDK, so it is
+    # cached: a hit skips two git clones and a CMake build (~1-2 min) on every push.
+    - name: Cache OpenCL toolchain
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/opencl-staged
+        key: opencl-toolchain-v2025.07.22-ndk27.2.12479018-r1
+
     - name: Set up OpenCL toolchain for the native build
       run: |
         set -eu
         NDK="$ANDROID_HOME/ndk/27.2.12479018"
         SYSROOT="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
         test -d "$SYSROOT"
-        sudo apt-get update
-        sudo apt-get install -y ninja-build
-        WORK="$RUNNER_TEMP/opencl"
-        mkdir -p "$WORK" && cd "$WORK"
-        git clone --depth 1 --branch v2025.07.22 https://github.com/KhronosGroup/OpenCL-Headers
-        cp -r OpenCL-Headers/CL "$SYSROOT/usr/include/"
-        git clone --depth 1 --branch v2025.07.22 https://github.com/KhronosGroup/OpenCL-ICD-Loader
-        cmake -S OpenCL-ICD-Loader -B OpenCL-ICD-Loader/build -G Ninja \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-          -DOPENCL_ICD_LOADER_HEADERS_DIR="$SYSROOT/usr/include" \
-          -DANDROID_ABI=arm64-v8a \
-          -DANDROID_PLATFORM=24 \
-          -DANDROID_STL=c++_static
-        cmake --build OpenCL-ICD-Loader/build
-        LIB="$WORK/OpenCL-ICD-Loader/build/libOpenCL.so"
-        test -f "$LIB"
+        STAGE="$RUNNER_TEMP/opencl-staged"
+        if [ ! -f "$STAGE/libOpenCL.so" ] || [ ! -d "$STAGE/CL" ]; then
+          echo "OpenCL toolchain not cached: building it."
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          WORK="$RUNNER_TEMP/opencl"
+          mkdir -p "$WORK" && cd "$WORK"
+          git clone --depth 1 --branch v2025.07.22 https://github.com/KhronosGroup/OpenCL-Headers
+          git clone --depth 1 --branch v2025.07.22 https://github.com/KhronosGroup/OpenCL-ICD-Loader
+          # Same as before the cache existed: headers go into the sysroot first and the
+          # loader is built against that include dir.
+          cp -r OpenCL-Headers/CL "$SYSROOT/usr/include/"
+          cmake -S OpenCL-ICD-Loader -B OpenCL-ICD-Loader/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DOPENCL_ICD_LOADER_HEADERS_DIR="$SYSROOT/usr/include" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=24 \
+            -DANDROID_STL=c++_static
+          cmake --build OpenCL-ICD-Loader/build
+          LIB="$WORK/OpenCL-ICD-Loader/build/libOpenCL.so"
+          test -f "$LIB"
+          mkdir -p "$STAGE"
+          cp -r OpenCL-Headers/CL "$STAGE/CL"
+          cp "$LIB" "$STAGE/libOpenCL.so"
+        fi
         # Link-only: staged into the NDK sysroot for find_package(OpenCL). We do
         # NOT bundle it in jniLibs — the app loads the device's own vendor OpenCL
         # driver at runtime (uses-native-library in the manifest), and a bundled
         # libOpenCL.so would shadow it with a loader that finds no GPU on Android.
-        cp "$LIB" "$SYSROOT/usr/lib/aarch64-linux-android/"
+        cp -r "$STAGE/CL" "$SYSROOT/usr/include/"
+        cp "$STAGE/libOpenCL.so" "$SYSROOT/usr/lib/aarch64-linux-android/"
         echo "OpenCL toolchain ready (link-only; runtime uses the device driver)."
 
+    # ccache for the llama.cpp / ggml compile. The sources are pinned and unchanged on almost
+    # every push, so after the first run the native step is mostly cache hits (the debug and
+    # sideload builds below also share it). The NDK is reinstalled each run, which changes the
+    # compiler's mtime, so the compiler is identified by its pinned version string instead.
+    - name: Install ccache
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq ccache
+
+    - name: Cache ccache
+      uses: actions/cache@v4
+      with:
+        path: .ccache
+        key: ccache-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/CMakeLists.txt', 'app/src/main/cpp/patches/**', '.gitmodules', 'app/build.gradle.kts') }}-${{ github.sha }}
+        restore-keys: |
+          ccache-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/CMakeLists.txt', 'app/src/main/cpp/patches/**', '.gitmodules', 'app/build.gradle.kts') }}-
+          ccache-${{ runner.os }}-
+
     - name: Build debug APK
+      env:
+        LMP_CCACHE: "1"
+        CCACHE_DIR: ${{ github.workspace }}/.ccache
+        CCACHE_MAXSIZE: 1G
+        CCACHE_COMPRESS: "1"
+        CCACHE_NOHASHDIR: "true"
+        CCACHE_COMPILERCHECK: "string:ndk-27.2.12479018"
       run: |
         set -o pipefail
-        ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
+        # arm64 only: the phone is arm64, and the x86_64 + universal APKs would double the
+        # native compile and the artifact. Run with no -Pabis for the full set.
+        ./gradlew assembleDebug -Pabis=arm64-v8a --stacktrace 2>&1 | tee build.log
+
+    # The same app as a non-debuggable, R8-shrunk build (see the "sideload" build type in
+    # app/build.gradle.kts): far smaller and noticeably smoother than the debug APK, and it
+    # installs over it with the same id and key. A separate, non-gating step: if R8 or the
+    # release lint choke on something, the debug APK above is still delivered.
+    - name: Build sideload APK (release settings)
+      id: sideload
+      continue-on-error: true
+      env:
+        LMP_CCACHE: "1"
+        CCACHE_DIR: ${{ github.workspace }}/.ccache
+        CCACHE_MAXSIZE: 1G
+        CCACHE_COMPRESS: "1"
+        CCACHE_NOHASHDIR: "true"
+        CCACHE_COMPILERCHECK: "string:ndk-27.2.12479018"
+      run: |
+        set -o pipefail
+        ./gradlew assembleSideload -Pabis=arm64-v8a --stacktrace 2>&1 | tee sideload.log
+
+    - name: Surface sideload build failure
+      if: steps.sideload.outcome == 'failure'
+      run: |
+        echo "::warning title=sideload::The sideload (release settings) build failed; the debug APK is unaffected."
+        awk '/What went wrong:/{f=1} f{print} /^\* Try:/{f=0}' sideload.log | head -n 20 | while IFS= read -r l; do
+          [ -n "$l" ] && echo "::warning title=sideload-gradle::$l"
+        done
+        grep -E "^e: |ERROR:|Missing class|R8:" sideload.log | head -n 20 | while IFS= read -r l; do
+          echo "::warning title=sideload-r8::$l"
+        done || true
+
+    - name: ccache statistics
+      if: always()
+      run: ccache -s || true
 
     # On failure, echo Gradle's "What went wrong" block and any native
     # tool-resolution lines into annotations so they can be read via the API.
@@ -156,15 +234,24 @@ jobs:
           [ -n "$l" ] && echo "::error title=gradle::$l"
         done
 
-    # ABI splits are enabled, so this produces app-arm64-v8a-debug.apk
-    # (for phones like the Xiaomi 15), app-x86_64-debug.apk (emulators),
-    # and app-universal-debug.apk. All are uploaded; install the arm64-v8a one.
+    # CI builds arm64-v8a only (-Pabis), so this produces app-arm64-v8a-debug.apk
+    # (for phones like the Xiaomi 15) and, from the sideload step,
+    # app-arm64-v8a-sideload.apk. Install either one; the sideload one is the lighter,
+    # smoother build.
     - name: Upload APKs
       uses: actions/upload-artifact@v4
       with:
         name: lmplayground-debug-apk
         path: app/build/outputs/apk/debug/*.apk
         if-no-files-found: error
+
+    - name: Upload sideload APK
+      if: steps.sideload.outcome == 'success'
+      uses: actions/upload-artifact@v4
+      with:
+        name: lmplayground-sideload-apk
+        path: app/build/outputs/apk/sideload/*.apk
+        if-no-files-found: warn
 
     # Native debug symbols for the arm64 libs we build (llama.cpp + JNI), so a
     # native tombstone can be symbolicated locally with ndk-stack. Broad globs so

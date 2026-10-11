@@ -13,6 +13,16 @@ plugins {
 // Pinned NDK version (android.ndkVersion + referenced by the OpenCL CI toolchain step).
 val ndkVersionPin = "27.2.12479018"
 
+// ABIs to build. Both by default; CI's debug/sideload builds pass -Pabis=arm64-v8a, since
+// the phone is arm64 and the x86_64 emulator + universal APKs would only double the native
+// compile (llama.cpp built twice) and the artifact upload.
+val buildAbis: List<String> = (findProperty("abis") as String?)
+    ?.split(',')
+    ?.map { it.trim() }
+    ?.filter { it.isNotEmpty() }
+    ?.takeIf { it.isNotEmpty() }
+    ?: listOf("arm64-v8a", "x86_64")
+
 // GPU backend = OpenCL (Qualcomm/Adreno-native), enabled per-ABI (arm64 only) in
 // src/main/cpp/CMakeLists.txt. The OpenCL headers + the Khronos ICD loader
 // (libOpenCL.so) are installed into the NDK sysroot by the "Set up OpenCL
@@ -64,11 +74,17 @@ android {
                 arguments += "-DBUILD_SHARED_LIBS=ON"
                 arguments += "-DGGML_BACKEND_DL=ON"
                 arguments += "-DGGML_CPU_ALL_VARIANTS=ON"
+                // CI installs ccache and sets LMP_CCACHE=1: llama.cpp is unchanged on almost
+                // every push, so the native compile becomes a cache hit. Off locally.
+                if (System.getenv("LMP_CCACHE") == "1") {
+                    arguments += "-DCMAKE_C_COMPILER_LAUNCHER=ccache"
+                    arguments += "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+                }
             }
         }
 
         ndk {
-            abiFilters += setOf("arm64-v8a", "x86_64")
+            abiFilters += buildAbis.toSet()
             // Emit a symbol table for our own native libs (llama.cpp + JNI) so a
             // native tombstone can be symbolicated with ndk-stack. CI uploads the
             // symbols next to the APK. Note: the prebuilt LiteRT .so from the AAR
@@ -125,6 +141,18 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"),
                     "proguard-rules.pro")
         }
+
+        // The build to actually carry on the phone: release settings (R8-shrunk,
+        // not debuggable, baseline profile) but the debug applicationId and keystore, so it
+        // installs over the debug build and keeps its data. A debug build ships ~88 MB of
+        // unshrunk dex and runs debuggable, which is noticeably slower for Compose.
+        create("sideload") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-sideload"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {
@@ -142,8 +170,8 @@ android {
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a", "x86_64")
-            isUniversalApk = true
+            include(*buildAbis.toTypedArray())
+            isUniversalApk = buildAbis.size > 1
         }
     }
 
@@ -171,6 +199,9 @@ android {
         // our test APK to build (has no effect on our AARs)
         excludes += "/META-INF/AL2.0"
         excludes += "/META-INF/LGPL2.1"
+        // pdfbox pulls in BouncyCastle for encrypted PDFs; its post-quantum parameter
+        // tables (~4 MB compressed) are never used by that path.
+        excludes += "/org/bouncycastle/pqc/**"
     }
 }
 
