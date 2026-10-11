@@ -858,9 +858,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // engine.load() blocks ~10s and touches native runtime; keep it off
             // the main thread.
             val loaded = withContext(Dispatchers.Default) {
+                var engine: com.druk.lmplayground.litert.LiteRtEngine? = null
                 try {
-                    val engine = com.druk.lmplayground.litert.LiteRtEngine()
-                    engine.load(
+                    val liteRt = com.druk.lmplayground.litert.LiteRtEngine()
+                    engine = liteRt
+                    liteRt.load(
                         path, app.cacheDir.path, useGpu, useMtp = useMtp,
                         maxNumTokens = ctx, enableVision = enableVision,
                         // Image-detail cap: snap the mtmd-era slider to a Gemma-4-valid
@@ -870,7 +872,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     )
                     val effectiveSystemPrompt = composeSystemPrompt("")
                     currentEffectiveSystemPrompt = effectiveSystemPrompt
-                    val model = com.druk.lmplayground.litert.LiteRtModel(engine, liteRtMaxCtx)
+                    val model = com.druk.lmplayground.litert.LiteRtModel(liteRt, liteRtMaxCtx)
                     val session = model.createSession(
                         params.contextSize, params.temperature, params.topP,
                         params.repetitionPenalty, params.topK, params.minP, params.seed,
@@ -881,6 +883,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     true
                 } catch (t: Throwable) {
                     android.util.Log.e("ConversationViewModel", "LiteRT load failed", t)
+                    // The engine may already hold a multi-GB model: free it, nothing else will.
+                    try { engine?.close() } catch (_: Throwable) {}
                     false
                 }
             }
@@ -1171,6 +1175,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     }
                     val llamaSession = createSessionWithParams(llamaModel, params, "")
                     if (llamaSession == null) {
+                        _userError.postValue(app.getString(com.druk.lmplayground.R.string.session_create_failed))
                         _loadedModelStatus.postValue("Failed to create session")
                         llamaModel.unloadModel()
                         return@withContext
@@ -1633,14 +1638,29 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 _contextUsedTokens.postValue(preambleTokenEstimate())
 
                 withContext(Dispatchers.Default) {
-                    val newSession = createSessionWithParams(model, params, systemPrompt)
-                    if (newSession != null) {
-                        this@ConversationViewModel.llamaSession = newSession
-                        prevSession?.destroy()
+                    // The conversation was just reset, so the old session has nothing left to
+                    // offer: free it FIRST, so a larger context does not have to fit in memory
+                    // next to it (the moment this rebuild used to fail).
+                    this@ConversationViewModel.llamaSession = null
+                    prevSession?.destroy()
+                    var session = createSessionWithParams(model, params, systemPrompt)
+                    if (session == null) {
+                        // Did not fit: go back to the size that was working, rather than leave
+                        // a "ready" chat with no engine session behind it.
+                        session = createSessionWithParams(model, oldParams, systemPrompt)
+                        if (session != null) {
+                            _generationParams.postValue(oldParams)
+                            if (modelFilename != null) {
+                                storagePreferences.setModelGenerationParams(modelFilename, oldParams.toMap())
+                            }
+                            _userError.postValue(app.getString(com.druk.lmplayground.R.string.context_size_reverted))
+                        }
+                    }
+                    if (session != null) {
+                        this@ConversationViewModel.llamaSession = session
                     } else {
-                        // Keep using the old session if we couldn't make a new one.
-                        prevSession?.destroy()
-                        this@ConversationViewModel.llamaSession = null
+                        _isModelReady.postValue(false)
+                        _userError.postValue(app.getString(com.druk.lmplayground.R.string.session_create_failed))
                     }
                 }
             }
@@ -2293,7 +2313,20 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             persistMessage(sessionId, message)
 
             withContext(Dispatchers.Default) {
-                val llamaSession = llamaSession ?: return@withContext
+                val llamaSession = llamaSession
+                if (llamaSession == null) {
+                    // No engine session (a rebuild failed, or the model went away). Without
+                    // this the turn just ended here: an empty bubble stayed on screen and
+                    // _isGenerating stayed on, which blocks every later send.
+                    _userError.postValue(app.getString(com.druk.lmplayground.R.string.inference_engine_unavailable))
+                    Snapshot.withMutableSnapshot {
+                        if ((uiState.messages.lastOrNull() as? Message)?.id == ourMessageId) {
+                            uiState.removeLastMessage()
+                        }
+                    }
+                    _isGenerating.postValue(false)
+                    return@withContext
+                }
 
                 // Re-hydrate per-tool enablement from prefs before every turn so
                 // a tool toggled in Settings -> Tools (global default) or a
@@ -3331,11 +3364,41 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     @MainThread
     fun deleteSession(sessionId: String) {
         viewModelScope.launch {
+            val isCurrent = _currentSessionId.value == sessionId
+            // Stop a turn that is still writing into this chat before its rows go away.
+            if (isCurrent) stopGeneratingForReset()
             chatRepository?.deleteSession(sessionId)
-            if (_currentSessionId.value == sessionId) {
-                _currentSessionId.value = null
-                uiState.resetMessages()
-            }
+            if (isCurrent) startFreshChatAfterDelete()
+        }
+    }
+
+    /** Cancel and wait for any in-flight generation (shared by the delete paths). */
+    private suspend fun stopGeneratingForReset() {
+        generatingJob?.cancel()
+        generatingJob?.join()
+        generatingJob = null
+    }
+
+    /**
+     * The open chat was deleted: show an empty chat AND give the engine a clean session.
+     * Resetting only the screen (as this used to) left the deleted conversation in the
+     * model's KV cache / the remote history, so the next "new" chat answered with it
+     * still in context. Same reset as [newConversation].
+     */
+    private suspend fun startFreshChatAfterDelete() {
+        _currentSessionId.value = null
+        _sessionModelHint.value = null
+        uiState.resetMessages()
+        toolRegistry.webLinkStore.clear()
+        _contextUsedTokens.postValue(0)
+        val model = llamaModel ?: return
+        val prevSession = llamaSession
+        llamaSession = null
+        withContext(Dispatchers.Default) {
+            prevSession?.destroy()
+            val params = _generationParams.value ?: GenerationParams()
+            val newSession = createSessionWithParams(model, params) ?: return@withContext
+            this@ConversationViewModel.llamaSession = newSession
         }
     }
 
@@ -3377,11 +3440,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 ?.filter { it.folderId == folderId }
                 ?.map { it.id }
                 .orEmpty()
+            val current = _currentSessionId.value
+            val isCurrent = current != null && current in affected
+            if (isCurrent) stopGeneratingForReset()
             chatRepository?.deleteFolderAndChats(folderId)
-            if (_currentSessionId.value in affected) {
-                _currentSessionId.value = null
-                uiState.resetMessages()
-            }
+            if (isCurrent) startFreshChatAfterDelete()
         }
     }
 
@@ -3791,6 +3854,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
     fun unloadModel() {
         viewModelScope.launch {
+          // Same lock as every load: an unload that lands while a load is still running used
+          // to find nothing to free, clear the screen, and then watch the load finish.
+          modelLifecycleMutex.withLock {
             // Tear down native handles only when something is actually
             // loaded — but always clear the user-visible LiveData state
             // below. The failed-load case (e.g. RAM gate refused) leaves
@@ -3828,6 +3894,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             _visionAddOn.postValue(null)
             _toolEnabledStates.postValue(emptyMap())
             _contextUsedTokens.postValue(0)
+          }
         }
     }
 
@@ -3921,7 +3988,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // preamble built for a different day's date line.
             val systemPrompt = currentEffectiveSystemPrompt
             val fingerprint = sha1Hex(
-                "$modelKey $systemPrompt $toolsJson"
+                "$modelKey\u0000$systemPrompt\u0000$toolsJson"
             )
             val dir = kvPreambleDir().apply { mkdirs() }
             val path = java.io.File(dir, fingerprint).absolutePath

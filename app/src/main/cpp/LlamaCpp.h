@@ -66,6 +66,12 @@ public:
 
     void init(llama_model *model, const struct common_chat_templates *chat_tmpls, mtmd_context *mmctx, const SamplerParams &params, bool gpu_enabled);
 
+    // True once init() produced a usable llama_context (and its sampler chain). When the
+    // context cannot be allocated (out of memory at a large n_ctx, a backend refusing the
+    // KV type) init() returns early and leaves ctx null; every report/perf entry point
+    // dereferences ctx, so such a session must never reach the Java side.
+    bool isReady() const { return ctx != nullptr && smpl != nullptr; }
+
     void printReport();
 
     // Returns: 0 = more tokens, 1 = done, 2 = tool calls detected

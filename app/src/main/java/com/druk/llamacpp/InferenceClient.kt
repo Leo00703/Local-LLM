@@ -54,11 +54,17 @@ class InferenceClient(
         val conn = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, binder: IBinder) {
                 val svc = ILlamaService.Stub.asInterface(binder)
-                // Pre-warm: trigger backend init so the first user-facing
-                // call doesn't pay the System.loadLibrary cost.
-                try { svc.initBackend() } catch (t: Throwable) {
-                    Log.w(TAG, "initBackend failed during bind", t)
-                }
+                // Pre-warm: trigger backend init so the first user-facing call doesn't
+                // pay the System.loadLibrary cost. initBackend is a synchronous binder
+                // call that loads the native libraries and probes the CPU/GPU backends in
+                // :llama (hundreds of ms), and this callback runs on the main thread, so
+                // it goes on its own thread. It is idempotent and any later call that
+                // needs the backend waits on the same lazy init, so nothing depends on it.
+                Thread({
+                    try { svc.initBackend() } catch (t: Throwable) {
+                        Log.w(TAG, "initBackend failed during bind", t)
+                    }
+                }, "llama-prewarm").apply { isDaemon = true }.start()
                 installDeathRecipient(binder)
                 // Sticky-Crashed: if we already crashed, keep the state at
                 // Crashed and just stash the new binder. The consumer must

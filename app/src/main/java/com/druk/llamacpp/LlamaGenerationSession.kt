@@ -179,8 +179,12 @@ class LlamaGenerationSession internal constructor(
             // and synchronously wait for its worker to acknowledge —
             // otherwise tokens may still trickle in after we return.
             try { svc.cancelGeneration(sessionId) } catch (_: Throwable) {}
-            withContext(NonCancellable) {
-                withTimeoutOrNull(GEN_CANCEL_DRAIN_MS) { finished.await() }
+            // A dead service never answers: waiting out the whole drain budget would only
+            // hold up the crash cleanup, which is itself waiting on this cancellation.
+            if (svc.asBinder().isBinderAlive) {
+                withContext(NonCancellable) {
+                    withTimeoutOrNull(GEN_CANCEL_DRAIN_MS) { finished.await() }
+                }
             }
             throw e
         }

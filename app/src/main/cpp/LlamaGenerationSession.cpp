@@ -16,6 +16,7 @@
 #include "nlohmann/json.hpp"
 
 #include <algorithm>
+#include <iterator>
 #include <cassert>
 #include <cinttypes>
 #include <cmath>
@@ -762,6 +763,10 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
         auto it = messages.begin();
         if (it->role == "system") ++it;
         if (it == messages.end()) break;
+        // The last message is the turn being added. Dropping it too (a single message that
+        // alone exceeds the window, behind a system prompt) would answer an empty
+        // conversation; stop here and let generate() report the overflow instead.
+        if (std::next(it) == messages.end()) break;
         messages.erase(it);
 
         it = messages.begin();
@@ -802,6 +807,9 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
     prompt_tokens.resize(n_prompt_tokens);
     if (llama_tokenize(vocab, prompt.c_str(), prompt.size(), prompt_tokens.data(), prompt_tokens.size(), is_first, true) < 0) {
         LOGe("failed to tokenize the prompt");
+        // Roll the turn back like every other failure above: left in [messages] it would
+        // be rendered again, as a dangling user message, into the next turn's prompt.
+        messages.pop_back();
         return 1;
     }
 
@@ -1120,10 +1128,23 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
             // every tool round (huge on phone CPU where prompt-eval
             // dominates wall time).
             if (last_prompt_end_pos > 0 && !last_full_prompt.empty()) {
-                llama_memory_seq_rm(
-                    llama_get_memory(ctx), 0, last_prompt_end_pos, -1);
-                prev_rendered_prompt = last_full_prompt;
-                prev_len = (int)last_full_prompt.size();
+                if (llama_memory_seq_rm(
+                        llama_get_memory(ctx), 0, last_prompt_end_pos, -1)) {
+                    prev_rendered_prompt = last_full_prompt;
+                    prev_len = (int)last_full_prompt.size();
+                } else {
+                    // Recurrent / hybrid memory (Qwen3.5, Granite hybrid, LFM2) cannot drop a
+                    // tail that includes its final state, so the model's raw tool-call tokens
+                    // are still in the cache. Claiming a clean prompt-only prefix would feed
+                    // the tool result after them and show the call to the model twice;
+                    // start the next prompt from an empty cache instead.
+                    LOGi("Tool-call rollback not possible on this memory; re-evaluating the prompt");
+                    llama_memory_clear(llama_get_memory(ctx), true);
+                    prev_rendered_prompt.clear();
+                    prev_len = 0;
+                    last_full_prompt.clear();
+                    last_prompt_end_pos = 0;
+                }
             }
 
             LOGi("Tool calls detected: %zu calls (KV preserved at pos %d)",

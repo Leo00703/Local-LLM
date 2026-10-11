@@ -112,12 +112,22 @@ LlamaGenerationSession* LlamaModel::createGenerationSession(const SamplerParams 
     if (model == nullptr) {
         return nullptr;
     }
-    templates_in_use = true;
     auto *session = new LlamaGenerationSession();
     // gpu_enabled gates KV-cache quantization: the OpenCL GPU can't do quantized
     // KV (its Flash Attention kernels are F16/F32 only), so on the GPU the
     // session keeps the KV cache F16 regardless of the user's KV setting.
     session->init(model, chat_tmpls.get(), mctx, params, gpu_enabled);
+    if (!session->isReady()) {
+        // No context was allocated. Handing this object out would crash :llama on the
+        // first getReport()/printReport() (llama_n_ctx(nullptr)); report the failure so
+        // the caller can say "could not create a session" instead.
+        LOG_ERR("%s: could not create a llama_context (n_ctx=%d); no session\n",
+                __func__, params.n_ctx);
+        delete session;
+        return nullptr;
+    }
+    // Only a session that exists borrows the template object (see setChatTemplateOverride).
+    templates_in_use = true;
     return session;
 }
 
@@ -133,7 +143,11 @@ int LlamaModel::getRecommendedContextSize(int64_t deviceRamBytes, int kvBytesPer
         return 0;
     }
     const int FLOOR = 2048;      // smallest usable context we ever return
-    const int HARD_CAP = 32768;  // don't auto-pick more than this on a phone
+    // Default, not a ceiling (the slider still goes to the trained context): the KV buffer
+    // is zero-filled when the context is created, so n_ctx is resident RAM immediately,
+    // not a lazily-touched reservation. 16k keeps a long-document chat workable while
+    // roughly halving what a 32k default commits (and the load-time memset).
+    const int HARD_CAP = 16384;
 
     int n_ctx_train = llama_model_n_ctx_train(model);
     int n_layer     = llama_model_n_layer(model);
@@ -150,10 +164,31 @@ int LlamaModel::getRecommendedContextSize(int64_t deviceRamBytes, int kvBytesPer
         return (safe_train < 8192) ? safe_train : 8192;
     }
 
-    int head_dim = n_embd / n_head;
-    // KV cache bytes/token = 2 (K+V) * n_layer * (n_head_kv * head_dim) * bytes_per_elem.
+    // Per-head K and V widths. n_embd / n_head is only right for models whose head
+    // dimension follows from the hidden size; Qwen3 (80 vs a real 128) and Gemma (256)
+    // set it explicitly, so read it from the GGUF metadata and fall back to the quotient.
+    int head_dim_k = n_embd / n_head;
+    int head_dim_v = head_dim_k;
+    {
+        char arch[64] = {0};
+        if (llama_model_meta_val_str(model, "general.architecture", arch, sizeof(arch)) > 0) {
+            auto read_len = [&](const char *suffix) -> int {
+                const std::string key = std::string(arch) + "." + suffix;
+                char val[32] = {0};
+                if (llama_model_meta_val_str(model, key.c_str(), val, sizeof(val)) <= 0) return 0;
+                const long v = strtol(val, nullptr, 10);
+                return (v > 0 && v <= 4096) ? (int) v : 0;
+            };
+            const int k = read_len("attention.key_length");
+            const int v = read_len("attention.value_length");
+            if (k > 0) head_dim_k = k;
+            head_dim_v = v > 0 ? v : head_dim_k;
+        }
+    }
+    // KV cache bytes/token = n_layer * n_head_kv * (K width + V width) * bytes_per_elem.
     // bytes_per_elem is passed as x16 fixed-point (F16=32, Q8_0=17, Q4_0=9) for integer math.
-    int64_t per_token_bytes = 2LL * n_layer * (int64_t) n_head_kv * head_dim * kvBytesPerElemX16 / 16;
+    int64_t per_token_bytes =
+        (int64_t) n_layer * (int64_t) n_head_kv * (int64_t) (head_dim_k + head_dim_v) * kvBytesPerElemX16 / 16;
     if (per_token_bytes <= 0) {
         return (safe_train < 8192) ? safe_train : 8192;
     }

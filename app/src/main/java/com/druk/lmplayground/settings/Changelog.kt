@@ -54,6 +54,15 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.125", "Steadier chats and engine", listOf(
+        Change(ChangeType.FIX, "Deleting the chat you have open now also clears it from the model's memory, so the next new chat no longer starts with the deleted conversation still in mind."),
+        Change(ChangeType.FIX, "A chat can no longer get stuck on \"generating\" with an empty bubble after the engine failed to rebuild its session, and a context size that does not fit in memory now keeps the previous one and tells you."),
+        Change(ChangeType.FIX, "Tool calls on hybrid models (like Qwen 3.5) no longer show the call to the model twice."),
+        Change(ChangeType.FIX, "A model that cannot start a chat for lack of memory now says so instead of crashing the engine."),
+        Change(ChangeType.FIX, "Leaving a model loaded for many hours no longer risks the app being stopped by Android 15's time limit for background work."),
+        Change(ChangeType.IMPROVED, "The suggested context window is now computed from each model's real attention size and starts at up to 16k tokens instead of 32k, which uses much less memory and loads faster. You can still raise it."),
+        Change(ChangeType.IMPROVED, "The app no longer waits for the engine to warm up at start-up, and recovery after an engine crash mid-reply is immediate."),
+    )),
     ChangelogEntry("1.9.124", "Finding out why the engine stops", listOf(
         Change(ChangeType.FIX, "When the engine stops while a model is loading, the message now says how it ended (a crash or the system freeing memory) and how far it got, instead of showing nothing."),
     )),

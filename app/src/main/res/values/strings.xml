@@ -589,6 +589,8 @@
     <string name="system_prompt_too_large">System prompt is %1$d KB, exceeds the %2$d KB limit. Try a shorter prompt.</string>
     <string name="history_message_too_large">A saved message in this conversation is too large to reload. Start a new chat to continue.</string>
     <string name="inference_engine_unavailable">Inference engine is not available right now. Try again in a moment.</string>
+    <string name="session_create_failed">Could not start a chat on this model. There may not be enough free memory: try a smaller context size, or reload the model.</string>
+    <string name="context_size_reverted">That context size does not fit in memory, so the previous one was kept.</string>
     <string name="model_load_failed_status">Couldn\'t load model</string>
     <string name="model_load_failed_title">Couldn\'t load model</string>
     <string name="model_load_failed_message">Couldn\'t load %1$s. The file may be corrupt, or it uses an architecture this version of the app doesn\'t support yet. Try a different model, or update the app.</string>

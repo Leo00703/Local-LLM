@@ -122,6 +122,19 @@ class LlamaService : Service() {
 
     override fun onBind(intent: Intent?): IBinder = binder
 
+    /**
+     * Android 15 limits a dataSync foreground service to about six hours per day, then calls
+     * this and expects the service to stop within a few seconds, or kills the whole app with
+     * ForegroundServiceDidNotStopInTimeException. A model left loaded overnight gets there.
+     * Dropping the foreground state is enough: the model stays loaded (the binding keeps the
+     * process), and the next generation promotes the service again (see startGeneration).
+     */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        Log.w(TAG, "foreground service time limit reached (type=$fgsType); leaving foreground")
+        demoteFromForeground()
+        stopSelf()
+    }
+
     override fun onDestroy() {
         // Mark every model and session for destroy, then tear down what
         // we can synchronously. Anything still pending (worker alive)
@@ -417,6 +430,9 @@ class LlamaService : Service() {
         }
 
         override fun startGeneration(sessionId: Int, cb: ILlamaGenerationCallback) {
+            // Back to the foreground after a time-limit demotion (no-op when already there;
+            // a refusal is logged and the service just stays bound-only).
+            if (!isForeground && models.isNotEmpty()) promoteToForeground()
             val entry = sessions[sessionId] ?: run {
                 try { cb.onGenerationFinished(-1) } catch (_: RemoteException) {}
                 return
