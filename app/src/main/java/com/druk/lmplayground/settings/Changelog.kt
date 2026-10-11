@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.124", "Finding out why the engine stops", listOf(
+        Change(ChangeType.FIX, "When the engine stops while a model is loading, the message now says how it ended (a crash or the system freeing memory) and how far it got, instead of showing nothing."),
+    )),
     ChangelogEntry("1.9.123", "Why a model failed to load", listOf(
         Change(ChangeType.IMPROVED, "When a model cannot be loaded, the message now also shows what the engine reported (for example an unsupported operation or not enough memory), even if the engine had to stop itself, instead of only saying that the file may be corrupt."),
     )),

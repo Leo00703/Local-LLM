@@ -1,5 +1,6 @@
 package com.druk.llamacpp
 
+import android.app.ApplicationExitInfo
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -47,5 +48,41 @@ class NativeErrorsTest {
     @Test
     fun surroundingWhitespaceAndWindowsLineEndingsAreIgnored() {
         assertEquals("one\ntwo", NativeErrors.summarize("  one  \r\n\r\n  two\r\n"))
+    }
+
+    private val mb = 1024L * 1024L
+
+    @Test
+    fun aNativeCrashNamesTheSignal() {
+        assertEquals(
+            "The engine process crashed natively (SIGSEGV, signal 11), using 3100 MB.",
+            NativeErrors.describeProcessExit(ApplicationExitInfo.REASON_CRASH_NATIVE, 11, 3100 * mb, null),
+        )
+    }
+
+    @Test
+    fun aLowMemoryKillSaysSo() {
+        assertEquals(
+            "The engine process was killed by Android to free memory, using 5200 MB.",
+            NativeErrors.describeProcessExit(ApplicationExitInfo.REASON_LOW_MEMORY, 9, 5200 * mb, ""),
+        )
+    }
+
+    @Test
+    fun anUnknownSignalIsStillShownAsANumber() {
+        assertEquals(
+            "The engine process was killed (signal 42).",
+            NativeErrors.describeProcessExit(ApplicationExitInfo.REASON_SIGNALED, 42, 0, null),
+        )
+    }
+
+    @Test
+    fun theSystemsOwnDescriptionIsKept() {
+        assertEquals(
+            "The engine process crashed (uncaught exception), using 12 MB. [java.lang.OutOfMemoryError]",
+            NativeErrors.describeProcessExit(
+                ApplicationExitInfo.REASON_CRASH, 0, 12 * mb, "java.lang.OutOfMemoryError",
+            ),
+        )
     }
 }

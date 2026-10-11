@@ -1040,6 +1040,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 _visionAddOn.postValue(null)
                 _computeBackend.postValue(null)
                 _loadedModelStatus.postValue("Loading...")
+                val loadStartedAtMs = System.currentTimeMillis()
 
                 val fileHandle = storageRepository.openModelFile(modelInfo.filename)
                 if (fileHandle == null) {
@@ -1268,6 +1269,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 } catch (t: Throwable) {
                     // Surface the failure to the user instead of leaving
                     // the picker stuck on "Loading…" forever.
+                    // Stop the estimate first: the diagnosis below can take seconds, and the
+                    // ticking job would overwrite the failure status with a stuck "89%".
+                    progressJob.cancel()
                     _modelLoadingProgress.postValue(0f)
                     val statusMsg = app.getString(
                         com.druk.lmplayground.R.string.model_load_failed_status
@@ -1276,14 +1280,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     fileHandle.close()
                     if (t !is kotlinx.coroutines.CancellationException) {
                         android.util.Log.w("ConversationViewModel", "loadModel failed", t)
-                        // Say why, not just that: the native side remembers the ERROR lines of
-                        // the failed load (or the message the engine aborted with, which survives
-                        // the process being killed). Bounded: a dead service is rebound first.
-                        val detail = com.druk.llamacpp.NativeErrors.summarize(
-                            kotlinx.coroutines.withTimeoutOrNull(8_000) {
-                                withContext(Dispatchers.IO) { llamaCpp.recentNativeErrors() }
-                            }.orEmpty()
-                        )
+                        val detail = describeLoadFailure(loadStartedAtMs)
                         val message = app.getString(
                             com.druk.lmplayground.R.string.model_load_failed_message,
                             modelInfo.name,
@@ -1303,6 +1300,35 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
           }
         }
+    }
+
+    /**
+     * Why the model that was just being loaded did not load, as a few plain lines, or "".
+     *
+     * A clean failure leaves ERROR lines in the engine's memory. A process that died instead
+     * (SIGSEGV, a low-memory kill, a ggml abort) leaves nothing in memory, and the client then
+     * sits in its sticky Crashed state where every call is refused, so it has to be stepped
+     * out of first to reach the rebound process (which reads back ggml's abort note at start).
+     * For a death, Android's exit record names the cause and the log tail says how far the
+     * load got.
+     */
+    private suspend fun describeLoadFailure(startedAtMs: Long): String = withContext(Dispatchers.IO) {
+        val client = (app as? App)?.inferenceClient
+        val died = client != null && client.state.value is InferenceState.Crashed
+        if (died) {
+            client?.acknowledgeCrash()
+            kotlinx.coroutines.withTimeoutOrNull(5_000) { client?.awaitConnected() }
+        }
+        val native = com.druk.llamacpp.NativeErrors.summarize(
+            kotlinx.coroutines.withTimeoutOrNull(3_000) { llamaCpp.recentNativeErrors() }.orEmpty()
+        )
+        val exit = com.druk.lmplayground.files.NativeDiagnostics.lastEngineExit(app, startedAtMs, await = died)
+        val tail = if (exit.isNotEmpty() || died) {
+            com.druk.llamacpp.NativeErrors.summarize(
+                com.druk.lmplayground.files.NativeDiagnostics.engineLogTail(), maxLines = 6, maxChars = 160,
+            )
+        } else ""
+        listOf(native, exit, tail).filter { it.isNotEmpty() }.joinToString("\n")
     }
 
     /**

@@ -36,6 +36,50 @@ object NativeDiagnostics {
     }
 
     /**
+     * How the `:llama` process last ended, from Android's own exit records (API 30+), or ""
+     * when it has not ended since [sinceMs] or the record cannot be read. This is the only
+     * trace of a SIGSEGV or a low-memory kill, which leave no log line and no abort note.
+     * The record is written a moment after the process dies, so [await] retries briefly.
+     */
+    fun lastEngineExit(context: Context, sinceMs: Long, await: Boolean = false): String {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            ?: return ""
+        repeat(if (await) 6 else 1) { attempt ->
+            try {
+                am.getHistoricalProcessExitReasons(context.packageName, 0, 8)
+                    .firstOrNull { it.processName.endsWith(":llama") && it.timestamp >= sinceMs }
+                    ?.let {
+                        return NativeErrors.describeProcessExit(it.reason, it.status, it.rss, it.description)
+                    }
+            } catch (_: Throwable) {
+                return ""
+            }
+            if (attempt < 5) Thread.sleep(500)
+        }
+        return ""
+    }
+
+    /**
+     * The last few native log lines of this app (from logcat, own uid) that say how far the
+     * engine got before it died: the load stage, then the top frames of a crash if one was
+     * written. Short enough for a dialog. Blocking: call off the main thread.
+     */
+    fun engineLogTail(maxLines: Int = 6): String {
+        val main = runLogcat(listOf("logcat", "-d", "-b", "main", "-v", "brief", "-t", "4000"))
+        val progress = main
+            .filter { l -> !l.contains("DEBUG") && PROGRESS.any { l.contains(it, ignoreCase = true) } }
+            .map { it.substringAfter("): ", it).trim() }
+            .takeLast(maxLines)
+        val crash = lastTombstoneTop(runLogcat(listOf("logcat", "-d", "-b", "crash", "-v", "brief", "-t", "600")))
+            .lineSequence()
+            .filter { it.contains("Abort message") || Regex("#0[0-3]\\b").containsMatchIn(it) }
+            .map { it.substringAfter("): ", it).trim() }
+            .take(4)
+            .toList()
+        return (progress + crash).joinToString("\n")
+    }
+
+    /**
      * The native crash tombstone (abort message + top backtrace frames, which
      * name the crashing function) plus the last clip/mtmd progress lines. Empty
      * string if logcat can't be read. Runs blocking processes — call off-main.
