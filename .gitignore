@@ -43,3 +43,6 @@ fastlane/README.md
 
 # Paparazzi raw snapshots (organized copies live in fastlane/metadata/)
 app/src/test/snapshots/
+
+# graphify output (rebuilt locally with `graphify update .`)
+graphify-out/

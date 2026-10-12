@@ -1,0 +1,14 @@
+# Third-party / generated content that would drown the app's own code in the graph.
+# llama.cpp is a pinned submodule (patched at build time); the app's glue lives in app/src/main/cpp/*.cpp.
+app/src/main/cpp/llama.cpp/
+app/src/main/cpp/patches/
+app/src/main/cpp/clblast/
+# Build output and tooling
+build/
+.gradle/
+.cxx/
+graphify-out/
+docs/
+fastlane/
+*.apk
+*.keystore

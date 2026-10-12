@@ -257,6 +257,13 @@ app/src/main/java/com/druk/
 - **No `git checkout -- .`** in this harness (denied as a destructive blanket revert): fix a
   half-applied script by running the remaining edits, not by reverting everything.
 
+## Code map (graphify, optional)
+
+`graphify update .` builds a knowledge graph of the app's own code into `graphify-out/` (git-ignored,
+~20 s, no LLM). Use `graphify query/path/explain` or `graphify-out/GRAPH_REPORT.md` to orient yourself
+in an unfamiliar area; use grep for exact symbols and values. Details and caveats in `CLAUDE.md`;
+`.graphifyignore` excludes the llama.cpp submodule. Install: `uv tool install graphifyy`.
+
 ## gh CLI + environment quirks
 
 - `gh`'s default repo resolution can point at **upstream**
