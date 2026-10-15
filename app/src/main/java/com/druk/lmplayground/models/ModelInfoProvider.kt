@@ -896,7 +896,7 @@ object ModelInfoProvider {
     private val NAME_ACRONYMS = setOf(
         "mtp", "qat", "moe", "oss", "gpt", "glm", "lfm", "qwq", "fp8", "fp16",
         "bf16", "awq", "gptq", "gguf", "mlx", "it", "rl", "sft", "dpo", "ocr",
-        "vl", "rag",
+        "vl", "rag", "ud", "vlm", "llm", "asr", "tts", "int4", "int8", "fp4", "nvfp4", "mxfp4",
     )
     // Canonical capitalisation for known model families / publishers.
     private val NAME_FAMILY_CASING = mapOf(
@@ -909,6 +909,9 @@ object ModelInfoProvider {
         "command" to "Command", "aya" to "Aya", "minicpm" to "MiniCPM",
         "olmo" to "OLMo", "smollm" to "SmolLM", "hunyuan" to "Hunyuan",
         "kimi" to "Kimi", "exaone" to "EXAONE", "stablelm" to "StableLM",
+        "spark" to "Spark", "falcon" to "Falcon", "jamba" to "Jamba",
+        "devstral" to "Devstral", "codestral" to "Codestral", "hermes" to "Hermes",
+        "internlm" to "InternLM",
     )
     private val PARAM_SIZE = Regex("^\\d+(\\.\\d+)?[bmk]$")          // 4b, 0.5b, 350m
     private val ACTIVE_PARAMS = Regex("^a\\d+(\\.\\d+)?b$")          // a3b, a1b
@@ -926,6 +929,11 @@ object ModelInfoProvider {
     // Words a server adds that say nothing about the model.
     private val NOISE_TOKENS = setOf("gguf", "latest")
     private val PLAIN_VERSION = Regex("^\\d[\\d.]*$")                // 3.5, 4
+    // Word breaks inside an id: "-" and "_" as before, plus spaces (an alias such as
+    // "lfm 2.5 24b a2b ud (Q4_K_XL)").
+    private val WORD_BREAK = Regex("[-_\\s]+")
+    // What is left of a bracketed quantization once it has been lifted out.
+    private val EMPTY_BRACKETS = Regex("[(\\[]\\s*[)\\]]")
 
     /**
      * Turn a raw server model id into a friendly display name, e.g.
@@ -949,8 +957,8 @@ object ModelInfoProvider {
         val quant = QUANT_LABEL.findAll(core).lastOrNull()
         if (quant != null) core = core.removeRange(quant.range)
         // Keep dots (version numbers) but break on - and _.
-        val tokens = core.split('-', '_')
-            .map { it.trim('.') }
+        val tokens = EMPTY_BRACKETS.replace(core, " ").split(WORD_BREAK)
+            .map { it.trim('.', '(', ')', '[', ']') }
             .filter { it.isNotBlank() && it.lowercase() !in NOISE_TOKENS }
         // Repos like bartowski's repeat the publisher ("Qwen_Qwen3.5-4B"): drop a family word
         // that the next word already starts with.

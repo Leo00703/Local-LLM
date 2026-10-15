@@ -98,4 +98,25 @@ class PrettifyModelIdTest {
         assertEquals("Qwen 3 4B", pretty("qwen3-4b"))
         assertEquals("QWQ 32B", pretty("qwq-32b"))
     }
+
+    // --- server aliases with spaces and lower-case sigla ---------------------------------
+
+    @Test
+    fun anAliasWithSpacesGetsTheSameTreatment() {
+        assertEquals("LFM 2.5 24B A2B UD (Q4_K_XL)", pretty("lfm 2.5 24b a2b ud (Q4_K_XL)"))
+        // A hyphenated "UD-Q4_K_XL" is one quant label and stays together.
+        assertEquals("LFM 2.5 24B A2B (UD-Q4_K_XL)", pretty("LFM2.5-24B-A2B-UD-Q4_K_XL.gguf"))
+    }
+
+    @Test
+    fun theUnslothDynamicTagIsUpperCasedWhenItIsPartOfTheName() {
+        assertEquals("Qwen 3 30B A3B UD", pretty("qwen3-30b-a3b-ud"))
+    }
+
+    @Test
+    fun brandsAndSiglaKeepTheirCasing() {
+        assertEquals("Spark 2.5 4B", pretty("spark2.5-4b"))
+        assertEquals("GPT OSS 20B", pretty("gpt-oss-20b"))
+        assertEquals("Ornith 1 8B MTP", pretty("ornith-1-8b-mtp"))
+    }
 }

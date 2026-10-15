@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.132", "Cleaner server model names", listOf(
+        Change(ChangeType.IMPROVED, "Server model names are tidier: sizes and tags such as 24B, A2B, UD and MTP are upper-cased, brands like LFM, GPT, Gemma, Qwen and Spark are capitalized, and names written with spaces are handled too, for example \"LFM 2.5 24B A2B UD (Q4_K_XL)\"."),
+    )),
     ChangelogEntry("1.9.131", "Longer tool chains", listOf(
         Change(ChangeType.IMPROVED, "A model can now make up to 30 tool calls in one reply (on-device models were stopped after 5), so longer research with search and page reads is no longer cut short."),
     )),
