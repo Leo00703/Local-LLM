@@ -84,6 +84,20 @@ object ModelInfoProvider {
     // vision encoder runs on the CPU one image took ~64s against ~14s for Q8_0 on the
     // same phone (measured upstream), at the same answer quality and 400Mb less.
     // Both quantizations of a Gemma 4 size share the one projector.
+    // MTP drafters (speculative decoding) of the Gemma 4 family. One file per backbone,
+    // shared by every quantization of it. The E2B / E4B ones come from the repos the
+    // deprecated Q4_K_M builds were taken from (verified: both resolve and are the
+    // 97,817,664 / 98,653,248 byte files); 12B's is the Q4_0 one from ggml-org (253,708,960).
+    private val DRAFTER_GEMMA4_E2B = DrafterAddOn(
+        "mtp-gemma-4-E2B-it.gguf",
+        hf("unsloth/gemma-4-E2B-it-GGUF", "mtp-gemma-4-E2B-it.gguf"), "93Mb")
+    private val DRAFTER_GEMMA4_E4B = DrafterAddOn(
+        "mtp-gemma-4-E4B-it.gguf",
+        hf("unsloth/gemma-4-E4B-it-GGUF", "mtp-gemma-4-E4B-it.gguf"), "94Mb")
+    private val DRAFTER_GEMMA4_12B = DrafterAddOn(
+        "mtp-gemma-4-12B-it-Q4_0.gguf",
+        hf("ggml-org/gemma-4-12B-it-GGUF", "mtp-gemma-4-12B-it-Q4_0.gguf"), "242Mb")
+
     private val ADDON_GEMMA4_E2B = VisionAddOn(
         "mmproj-gemma-4-E2B-it-Q8_0.gguf",
         hf("ggml-org/gemma-4-E2B-it-GGUF", "mmproj-gemma-4-E2B-it-Q8_0.gguf"), "557Mb")
@@ -497,6 +511,7 @@ object ModelInfoProvider {
             name = "Gemma 4 E2B",
             filename = "gemma-4-E2B_q4_0-it.gguf",
             visionAddOn = ADDON_GEMMA4_E2B,
+            drafterAddOn = DRAFTER_GEMMA4_E2B,
             remoteUri = Uri.parse("https://huggingface.co/google/gemma-4-E2B-it-qat-q4_0-gguf/resolve/main/gemma-4-E2B_q4_0-it.gguf"),
             releaseDate = LocalDate.parse("2026-03-25"),
             description = "Google \u00B7 QAT on-device model \u00B7 3.35Gb",
@@ -507,6 +522,7 @@ object ModelInfoProvider {
             name = "Gemma 4 E4B",
             filename = "gemma-4-E4B_q4_0-it.gguf",
             visionAddOn = ADDON_GEMMA4_E4B,
+            drafterAddOn = DRAFTER_GEMMA4_E4B,
             remoteUri = Uri.parse("https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf/resolve/main/gemma-4-E4B_q4_0-it.gguf"),
             releaseDate = LocalDate.parse("2026-03-25"),
             description = "Google \u00B7 QAT on-device model \u00B7 5.15Gb",
@@ -516,6 +532,7 @@ object ModelInfoProvider {
         ModelInfo(
             name = "Gemma 4 12B",
             filename = "gemma-4-12b-it-qat-q4_0.gguf",
+            drafterAddOn = DRAFTER_GEMMA4_12B,
             remoteUri = Uri.parse("https://huggingface.co/google/gemma-4-12B-it-qat-q4_0-gguf/resolve/main/gemma-4-12b-it-qat-q4_0.gguf"),
             releaseDate = LocalDate.parse("2026-06-03"),
             description = "Google \u00B7 QAT advanced chat model \u00B7 6.98Gb",
@@ -529,6 +546,7 @@ object ModelInfoProvider {
             name = "Gemma 4 E2B (Q4_K_M)",
             filename = "gemma-4-E2B-it-Q4_K_M.gguf",
             visionAddOn = ADDON_GEMMA4_E2B,
+            drafterAddOn = DRAFTER_GEMMA4_E2B,
             remoteUri = Uri.parse("https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-03-25"),
             description = "Google \u00B7 Efficient on-device model \u00B7 3.11Gb",
@@ -540,6 +558,7 @@ object ModelInfoProvider {
             name = "Gemma 4 E4B (Q4_K_M)",
             filename = "gemma-4-E4B-it-Q4_K_M.gguf",
             visionAddOn = ADDON_GEMMA4_E4B,
+            drafterAddOn = DRAFTER_GEMMA4_E4B,
             remoteUri = Uri.parse("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf"),
             releaseDate = LocalDate.parse("2026-03-25"),
             description = "Google \u00B7 Efficient on-device model \u00B7 4.98Gb",

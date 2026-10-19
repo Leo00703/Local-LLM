@@ -202,11 +202,12 @@ LlamaGenerationSession::~LlamaGenerationSession() {
         common_speculative_free(spec);
         spec = nullptr;
     }
-    if (ctx != nullptr) {
-        llama_free(ctx);
-    }
+    // The draft context first: a Gemma 4 drafter context borrows the target's KV cache.
     if (ctx_dft != nullptr) {
         llama_free(ctx_dft);
+    }
+    if (ctx != nullptr) {
+        llama_free(ctx);
     }
     releaseThreadpools();
     if (smpl != nullptr) {
@@ -284,7 +285,7 @@ void LlamaGenerationSession::recreateToolSampler(const common_chat_params &rende
          render.grammar.size(), (int)render.grammar_lazy, render.grammar_triggers.size());
 }
 
-void LlamaGenerationSession::init(llama_model *model, const struct common_chat_templates *tmpls, mtmd_context *mmctx, const SamplerParams &params, bool gpu_enabled) {
+void LlamaGenerationSession::init(llama_model *model, llama_model *drafter, const struct common_chat_templates *tmpls, mtmd_context *mmctx, const SamplerParams &params, bool gpu_enabled) {
 
     vocab = llama_model_get_vocab(model);
     chat_tmpls = tmpls;
@@ -336,7 +337,11 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
     // why prefill works but the multi-output verify decode fails when n_rs_seq is
     // exactly n_draft). Size it to n_draft + margin. Only when speculative is
     // requested, so a normal session is unchanged (n_rs_seq stays 0).
-    if (params.speculative_enabled) {
+    // Only for such a model: a pure-attention target (Gemma 4 with a drafter) rolls back by
+    // partial KV removal, and a non-zero n_rs_seq would make common_context_can_seq_rm
+    // report "bounded recurrent rollback" and skip the real probe.
+    if (params.speculative_enabled && drafter == nullptr &&
+        (llama_model_is_hybrid(model) || llama_model_is_recurrent(model))) {
         ctx_params.n_rs_seq = (params.spec_n_draft > 0 ? params.spec_n_draft : 3) + 1;
     }
 
@@ -372,17 +377,34 @@ void LlamaGenerationSession::init(llama_model *model, const struct common_chat_t
         // rollback snapshots, a single output row per decode.
         llama_context_params mtp_params = ctx_params;
         mtp_params.ctx_type        = LLAMA_CONTEXT_TYPE_MTP;
-        mtp_params.type_k          = GGML_TYPE_F16;
-        mtp_params.type_v          = GGML_TYPE_F16;
-        mtp_params.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;
         mtp_params.n_rs_seq        = 0;
-        mtp_params.n_outputs_max   = 1;
-        ctx_dft = llama_init_from_model(model, mtp_params);
-        if (ctx_dft) {
-            LOGi("MTP: draft context created (model has an MTP head); n_draft=%d",
-                 params.spec_n_draft);
+        if (drafter != nullptr) {
+            // Gemma 4: the head is a separate assistant model whose layers READ the target's
+            // KV cache (ctx_other), as the server sets it up in
+            // common_speculative_init_result. It owns no KV of its own, so the target's KV
+            // type and flash-attention settings are kept, and its context holds as many
+            // tokens as the target's.
+            mtp_params.ctx_other = ctx;
+            mtp_params.n_ctx     = llama_n_ctx(ctx);
+            ctx_dft = llama_init_from_model(drafter, mtp_params);
+            if (ctx_dft) {
+                LOGi("MTP: drafter context created on the shared KV cache; n_draft=%d",
+                     params.spec_n_draft);
+            } else {
+                LOGe("MTP: the drafter does not fit this model; using normal decode");
+            }
         } else {
-            LOGe("MTP: requested but this model has no MTP head; using normal decode");
+            mtp_params.type_k          = GGML_TYPE_F16;
+            mtp_params.type_v          = GGML_TYPE_F16;
+            mtp_params.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;
+            mtp_params.n_outputs_max   = 1;
+            ctx_dft = llama_init_from_model(model, mtp_params);
+            if (ctx_dft) {
+                LOGi("MTP: draft context created (model has an MTP head); n_draft=%d",
+                     params.spec_n_draft);
+            } else {
+                LOGe("MTP: requested but this model has no MTP head; using normal decode");
+            }
         }
     }
 

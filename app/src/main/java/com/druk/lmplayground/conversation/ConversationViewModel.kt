@@ -45,7 +45,7 @@ import com.druk.lmplayground.models.ChatTemplateOverrides
 import com.druk.lmplayground.models.DeviceCapability
 import com.druk.lmplayground.models.MmprojPairing
 import com.druk.lmplayground.models.ModelInfo
-import com.druk.lmplayground.models.SelfMtpModels
+import com.druk.lmplayground.models.MtpModels
 import com.druk.lmplayground.models.ThinkingMode
 import com.druk.lmplayground.models.VisionAddOn
 import com.druk.lmplayground.models.canThink
@@ -1181,6 +1181,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                             "chat template override for ${modelInfo.filename}: applied=$applied"
                         )
                     }
+                    // Gemma 4: the MTP drafter has to be loaded before the first session
+                    // exists, if speculative decoding was left on for this model.
+                    if (params.speculative && MtpModels.needsDrafter(modelInfo.filename)) {
+                        loadDrafterInto(llamaModel, modelInfo)
+                    }
                     val llamaSession = createSessionWithParams(llamaModel, params, "")
                     if (llamaSession == null) {
                         _userError.postValue(app.getString(com.druk.lmplayground.R.string.session_create_failed))
@@ -1552,7 +1557,13 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     ): GenerationBackend? {
         val effective = composeSystemPrompt(systemPrompt)
         currentEffectiveSystemPrompt = effective
-        val speculative = params.speculative && SelfMtpModels.supports(_loadedModel.value?.filename)
+        // Qwen 3.5 carries its MTP head; Gemma 4 only drafts once its drafter file is loaded
+        // into THIS model object. Anything else decodes normally.
+        val loadedFile = _loadedModel.value?.filename
+        val speculative = params.speculative && (
+            MtpModels.hasOwnHead(loadedFile) ||
+                (MtpModels.needsDrafter(loadedFile) && drafterReadyFor === model)
+            )
         return try {
             model.createSession(
                 params.contextSize,
@@ -1628,6 +1639,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             }
         }
 
+        // Gemma 4 needs its MTP drafter file the first time speculative decoding is on.
+        if (params.speculative && !oldParams.speculative) ensureDrafterThenRebuild()
+
         // If context size changed, must recreate session (resets conversation)
         if (oldParams.contextSize != params.contextSize) {
             // LiteRT's context (maxNumTokens) is baked in at engine load, so a
@@ -1701,6 +1715,94 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         ?: return@withContext
                     swapInSessionWithReplay(newSession, prevSession, messages)
                 }
+            }
+        }
+    }
+
+    /**
+     * Load the Gemma 4 MTP drafter that goes with [info] into [model]: copy it out of the
+     * models folder to a real path (the native loader reads by path), then hand it to the
+     * engine. False when the file is not on disk or the engine refuses it. Blocking, so
+     * call it off the main thread.
+     */
+    private fun loadDrafterInto(model: GenerationModel, info: ModelInfo): Boolean {
+        val addOn = info.drafterAddOn ?: return false
+        if (drafterReadyFor === model) return true
+        val path = try {
+            storageRepository.resolveDrafterToPath(addOn.filename)
+        } catch (t: Throwable) {
+            android.util.Log.w("ConversationViewModel", "drafter copy failed", t)
+            null
+        } ?: return false
+        val ok = try {
+            model.loadDrafterModel(path)
+        } catch (t: Throwable) {
+            android.util.Log.w("ConversationViewModel", "drafter load failed", t)
+            false
+        }
+        if (ok) drafterReadyFor = model
+        android.util.Log.i("ConversationViewModel", "MTP drafter ${addOn.filename}: loaded=$ok")
+        return ok
+    }
+
+    /**
+     * Gemma 4: turning Speculative Decoding on needs the MTP drafter file. Fetch it when it
+     * is not on disk, load it into the model, then rebuild the session so it drafts from the
+     * next message on. The switch is already saved; until the drafter is ready the chat
+     * simply decodes normally.
+     */
+    @MainThread
+    private fun ensureDrafterThenRebuild() {
+        val info = _loadedModel.value ?: return
+        val model = llamaModel ?: return
+        val addOn = info.drafterAddOn ?: return
+        if (!MtpModels.needsDrafter(info.filename) || drafterReadyFor === model) return
+        if (drafterJob?.isActive == true) return
+        drafterJob = viewModelScope.launch {
+            try {
+                val present = withContext(Dispatchers.IO) {
+                    storageRepository.getModelFiles().any { it.name == addOn.filename }
+                }
+                if (!present) {
+                    val storageUri = storageRepository.getStorageUri()
+                    if (storageUri == null) {
+                        _userError.postValue(app.getString(com.druk.lmplayground.R.string.mtp_drafter_no_storage))
+                        return@launch
+                    }
+                    _userError.postValue(
+                        app.getString(com.druk.lmplayground.R.string.mtp_drafter_downloading, addOn.sizeLabel)
+                    )
+                    // Wait until the job is registered, otherwise a finished job left over from
+                    // an earlier download could be read as this one's result.
+                    val enqueued = downloadRepo.startDrafterDownload(info, storageUri)
+                    if (enqueued != null) withContext(Dispatchers.IO) { enqueued.result.get() }
+                    val finished = downloadRepo.observeDrafter(info)
+                        .first { infos -> infos.firstOrNull()?.state?.isFinished == true }
+                    val ok = finished.first().state == WorkInfo.State.SUCCEEDED &&
+                        withContext(Dispatchers.IO) {
+                            storageRepository.getModelFiles().any { it.name == addOn.filename }
+                        }
+                    if (!ok) {
+                        _userError.postValue(app.getString(com.druk.lmplayground.R.string.mtp_drafter_failed))
+                        return@launch
+                    }
+                }
+                if (llamaModel !== model) return@launch   // another model was loaded meanwhile
+                val loaded = withContext(Dispatchers.IO) { loadDrafterInto(model, info) }
+                if (!loaded) {
+                    _userError.postValue(app.getString(com.druk.lmplayground.R.string.mtp_drafter_failed))
+                    return@launch
+                }
+                // Rebuild the session (history is replayed) so it is created with the drafter.
+                withContext(Dispatchers.Main) {
+                    if (llamaModel === model) _generationParams.value?.let { updateGenerationParams(it) }
+                }
+                _userError.postValue(app.getString(com.druk.lmplayground.R.string.mtp_drafter_ready))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                android.util.Log.w("ConversationViewModel", "MTP drafter setup failed", t)
+                _userError.postValue(app.getString(com.druk.lmplayground.R.string.mtp_drafter_failed))
             }
         }
     }
@@ -2040,6 +2142,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     }
 
     private val downloadRepo by lazy { DownloadRepository(app) }
+
+    // The local model object whose Gemma 4 MTP drafter is loaded (see loadDrafterInto).
+    // Compared by identity: a reloaded model is a new object and needs the drafter again.
+    @Volatile private var drafterReadyFor: GenerationModel? = null
+    private var drafterJob: kotlinx.coroutines.Job? = null
 
     /**
      * Fetch the loaded model's image add-on, once the user has agreed to it in the chat.

@@ -21,7 +21,7 @@ data class GenerationParams(
     // Local llama.cpp models with a built-in MTP head (Qwen 3.5): draft tokens with the
     // model's own head and verify them in one pass. Off by default (measured slower than
     // normal decoding on the CPU of the test phone); a session-level flag, so changing it
-    // rebuilds the session. See SelfMtpModels for which models can use it.
+    // rebuilds the session. See MtpModels for which models can use it.
     val speculative: Boolean = false
 ) {
     fun toMap(): Map<String, Float> = mapOf(

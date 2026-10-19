@@ -330,6 +330,16 @@ class LlamaService : Service() {
         override fun setChatTemplateOverride(modelId: Int, template: String): Boolean =
             models[modelId]?.nativeModel?.setChatTemplateOverride(template) == true
 
+        override fun loadDrafterModel(modelId: Int, path: String): Boolean {
+            val entry = models[modelId] ?: return false
+            // Same lock as createSession: a session being built must not see the drafter
+            // pointer change under it.
+            synchronized(entry.lock) {
+                if (entry.pendingDestroy) return false
+                return entry.nativeModel.loadDrafter(path)
+            }
+        }
+
         override fun unloadModel(modelId: Int) {
             val entry = models[modelId] ?: return
             // Mark for destroy first (DON'T remove from `models` yet).

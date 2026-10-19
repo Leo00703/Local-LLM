@@ -81,7 +81,7 @@ import com.druk.lmplayground.settings.SettingsFragment
 import com.druk.lmplayground.MainActivity
 import com.druk.lmplayground.R
 import com.druk.lmplayground.models.SelectModelDialog
-import com.druk.lmplayground.models.SelfMtpModels
+import com.druk.lmplayground.models.MtpModels
 import com.druk.lmplayground.storage.StorageViewModel
 import com.druk.lmplayground.theme.PlaygroundTheme
 import dev.chrisbanes.haze.HazeStyle
@@ -1015,7 +1015,10 @@ class ConversationFragment : Fragment() {
                                 mtpEnabled = liteRtMtpEnabled,
                                 isLiteRt = modelInfo?.filename?.endsWith(".litertlm") == true,
                                 onMtpChanged = { viewModel.setLiteRtMtpEnabled(it) },
-                                supportsSelfMtp = SelfMtpModels.supports(modelInfo?.filename),
+                                mtpAvailable = MtpModels.hasOwnHead(modelInfo?.filename) ||
+                                    (MtpModels.needsDrafter(modelInfo?.filename) && modelInfo?.drafterAddOn != null),
+                                mtpDrafterSizeLabel = modelInfo?.drafterAddOn?.sizeLabel
+                                    ?.takeIf { MtpModels.needsDrafter(modelInfo?.filename) },
                                 savedPrompts = savedPrompts,
                                 activePromptId = systemPromptId,
                                 onSelectSavedPrompt = { id, text -> viewModel.applySystemPrompt(id, text) },

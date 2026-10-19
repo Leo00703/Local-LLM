@@ -74,6 +74,12 @@ interface ILlamaService {
      * refuses (returns false) once one exists.
      */
     boolean setChatTemplateOverride(int modelId, String template);
+    /**
+     * Load the MTP assistant ("drafter") GGUF at [path], a plain filesystem path the service
+     * can read, for a target without its own MTP head (Gemma 4). Call before the first
+     * createSession; sessions created with speculativeEnabled then draft with it.
+     */
+    boolean loadDrafterModel(int modelId, String path);
     void unloadModel(int modelId);
 
     // ── Session lifecycle ────────────────────────────────────────────────

@@ -806,6 +806,20 @@ Java_com_druk_llamacpp_jni_NativeLlamaModel_getMmprojError(JNIEnv *env, jobject 
 
 extern "C"
 JNIEXPORT jboolean JNICALL
+Java_com_druk_llamacpp_jni_NativeLlamaModel_loadDrafter(JNIEnv *env, jobject thiz, jstring path) {
+    jclass clazz = env->GetObjectClass(thiz);
+    jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");
+    auto* model = (LlamaModel*) env->GetLongField(thiz, fid);
+    if (model == nullptr || path == nullptr) return JNI_FALSE;
+    const char *chars = env->GetStringUTFChars(path, nullptr);
+    if (chars == nullptr) return JNI_FALSE;
+    const std::string text(chars);
+    env->ReleaseStringUTFChars(path, chars);
+    return model->loadDrafter(text) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
 Java_com_druk_llamacpp_jni_NativeLlamaModel_setChatTemplateOverride(JNIEnv *env, jobject thiz, jstring tmpl) {
     jclass clazz = env->GetObjectClass(thiz);
     jfieldID fid = env->GetFieldID(clazz, "nativeHandle", "J");

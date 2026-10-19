@@ -45,6 +45,13 @@ data class VisionAddOn(
 )
 
 /**
+ * The MTP assistant ("drafter") a Gemma 4 model needs for speculative decoding: a small
+ * companion GGUF (60-250 MB) downloaded on demand when the user turns Speculative
+ * Decoding on. Same shape as [VisionAddOn], so it reuses the same download job.
+ */
+typealias DrafterAddOn = VisionAddOn
+
+/**
  * Static model definition - does not contain download status.
  * Chat template parameters (prefix, suffix, stop sequences) are read
  * from the GGUF file's embedded Jinja template at load time.
@@ -80,6 +87,8 @@ data class ModelInfo(
     // Distinct from [mmprojFilename], which means "a projector is present next to this
     // model" and is what turns vision on; this only says one CAN be downloaded.
     val visionAddOn: VisionAddOn? = null,
+    // Catalog Gemma 4 models only: where the MTP drafter comes from (see [DrafterAddOn]).
+    val drafterAddOn: DrafterAddOn? = null,
 ) {
     val isCustom: Boolean get() = remoteUri == null
     val isVision: Boolean get() = mmprojFilename != null

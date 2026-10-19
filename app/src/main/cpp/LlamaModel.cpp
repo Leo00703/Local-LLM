@@ -80,6 +80,42 @@ void LlamaModel::loadModel(const std::string &modelPath,
     chat_tmpls = common_chat_templates_init(model, "");
 }
 
+bool LlamaModel::loadDrafter(const std::string &path) {
+    if (model == nullptr || path.empty()) {
+        return false;
+    }
+    if (drafter != nullptr && loaded_drafter_path == path) {
+        return true;   // already loaded
+    }
+    if (templates_in_use && drafter != nullptr) {
+        // A session may hold a context built from the current drafter; replacing it under
+        // that session would leave the context dangling. (Loading the FIRST drafter is fine
+        // with sessions around: none of them has a context built from it.)
+        LOG_ERR("%s: refused, a session already uses the loaded drafter\n", __func__);
+        return true;
+    }
+    if (drafter != nullptr) {
+        llama_model_free(drafter);
+        drafter = nullptr;
+        loaded_drafter_path.clear();
+    }
+    llama_model_params dparams = llama_model_default_params();
+    // The assistant is small (60-250 MB): keep it on the CPU and do not repack, so loading
+    // it costs no extra buffers. Its layers share the target's KV cache, which stays
+    // wherever the target put it.
+    dparams.n_gpu_layers    = 0;
+    dparams.use_extra_bufts = false;
+    dparams.load_mtp        = true;
+    drafter = llama_model_load_from_file(path.c_str(), dparams);
+    if (drafter == nullptr) {
+        LOG_ERR("%s: failed to load the MTP drafter '%s'\n", __func__, path.c_str());
+        return false;
+    }
+    loaded_drafter_path = path;
+    LOG_INF("%s: MTP drafter loaded from '%s'\n", __func__, path.c_str());
+    return true;
+}
+
 bool LlamaModel::setChatTemplateOverride(const std::string &tmpl) {
     if (model == nullptr) {
         return false;
@@ -116,7 +152,7 @@ LlamaGenerationSession* LlamaModel::createGenerationSession(const SamplerParams 
     // gpu_enabled gates KV-cache quantization: the OpenCL GPU can't do quantized
     // KV (its Flash Attention kernels are F16/F32 only), so on the GPU the
     // session keeps the KV cache F16 regardless of the user's KV setting.
-    session->init(model, chat_tmpls.get(), mctx, params, gpu_enabled);
+    session->init(model, drafter, chat_tmpls.get(), mctx, params, gpu_enabled);
     if (!session->isReady()) {
         // No context was allocated. Handing this object out would crash :llama on the
         // first getReport()/printReport() (llama_n_ctx(nullptr)); report the failure so
@@ -403,6 +439,13 @@ void LlamaModel::unloadModel() {
     loaded_mmproj_path.clear();
     loaded_mmproj_max_tokens = -1;
     chat_tmpls.reset();
+    // The drafter's contexts read the target's KV cache, and every session (and with it its
+    // contexts) is gone by the time the model is unloaded: free it before the target.
+    if (drafter != nullptr) {
+        llama_model_free(drafter);
+        drafter = nullptr;
+    }
+    loaded_drafter_path.clear();
     if (model != nullptr) {
         llama_model_free(model);
         model = nullptr;

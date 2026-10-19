@@ -64,7 +64,9 @@ public:
 
     ~LlamaGenerationSession();
 
-    void init(llama_model *model, const struct common_chat_templates *chat_tmpls, mtmd_context *mmctx, const SamplerParams &params, bool gpu_enabled);
+    // [drafter] is the separate MTP assistant model of a Gemma 4 target (null for self-MTP
+    // models such as Qwen 3.5, and when speculation is off). It must outlive the session.
+    void init(llama_model *model, llama_model *drafter, const struct common_chat_templates *chat_tmpls, mtmd_context *mmctx, const SamplerParams &params, bool gpu_enabled);
 
     // True once init() produced a usable llama_context (and its sampler chain). When the
     // context cannot be allocated (out of memory at a large n_ctx, a backend refusing the
@@ -356,12 +358,23 @@ public:
     // replacement cannot be built; an empty string restores the GGUF's own template.
     bool setChatTemplateOverride(const std::string &tmpl);
 
+    // Load the MTP assistant ("drafter") GGUF that goes with this model, for targets that
+    // do not carry their own MTP head (Gemma 4). Plain filesystem path. Idempotent for the
+    // same path; replacing an already-loaded drafter with another is refused once a session
+    // exists ([templates_in_use] is the marker), because that session may hold a context
+    // built from it. Callers serialize this with createSession (the service's model lock).
+    bool loadDrafter(const std::string &path);
+    bool hasDrafter() const { return drafter != nullptr; }
+
     bool isLoaded() const { return model != nullptr; }
 
     void unloadModel();
 
 private:
     llama_model *model = nullptr;
+    // MTP assistant of a Gemma 4 target (see loadDrafter); freed before [model].
+    llama_model *drafter = nullptr;
+    std::string loaded_drafter_path;
     common_chat_templates_ptr chat_tmpls;
     // Set once any session has been handed [chat_tmpls]; from then on the template
     // object must not be replaced (see setChatTemplateOverride).

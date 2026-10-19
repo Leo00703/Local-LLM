@@ -39,6 +39,12 @@ interface GenerationModel {
      * default false for backends that have no local template (remote, LiteRT).
      */
     fun setChatTemplateOverride(template: String): Boolean = false
+    /**
+     * Load the MTP assistant ("drafter") GGUF at [path] that a Gemma 4 target needs for
+     * speculative decoding. Only for on-device llama.cpp models, before the first session;
+     * default false for backends that have none (remote, LiteRT).
+     */
+    fun loadDrafterModel(path: String): Boolean = false
     fun unloadModel()
     fun createSession(
         contextSize: Int,

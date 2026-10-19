@@ -123,9 +123,12 @@ fun GenerationParamsSheet(
     // selector: LiteRT's KV cache is fixed precision, not user-quantizable).
     isLiteRt: Boolean = false,
     onMtpChanged: (Boolean) -> Unit = {},
-    // Local llama.cpp model that can use its own MTP head (Qwen 3.5). Shows the
-    // speculative-decoding switch bound to the per-model params (not the LiteRT preference).
-    supportsSelfMtp: Boolean = false,
+    // Local llama.cpp model that can use MTP (Qwen 3.5 with its own head, Gemma 4 with a
+    // downloadable drafter). Shows the speculative-decoding switch bound to the per-model
+    // params (not the LiteRT preference). [mtpDrafterSizeLabel] is set for Gemma 4: the
+    // size of the helper file the switch downloads the first time.
+    mtpAvailable: Boolean = false,
+    mtpDrafterSizeLabel: String? = null,
     // Saved system-prompt library, shown in the Prompt tab so the user can
     // pick / edit / delete / create prompts without leaving the sheet.
     savedPrompts: List<SystemPromptEntity> = emptyList(),
@@ -631,7 +634,7 @@ fun GenerationParamsSheet(
             // Self-MTP for local llama.cpp models that carry an MTP head (Qwen 3.5).
             // Part of the per-model params, so changing it rebuilds the session and
             // replays the conversation (no model reload). Experimental, off by default.
-            if (!isRemote && !isLiteRt && supportsSelfMtp) {
+            if (!isRemote && !isLiteRt && mtpAvailable) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -645,7 +648,9 @@ fun GenerationParamsSheet(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = stringResource(R.string.speculative_decoding_llama_subtitle),
+                            text = if (mtpDrafterSizeLabel != null)
+                                stringResource(R.string.speculative_decoding_drafter_subtitle, mtpDrafterSizeLabel)
+                            else stringResource(R.string.speculative_decoding_llama_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

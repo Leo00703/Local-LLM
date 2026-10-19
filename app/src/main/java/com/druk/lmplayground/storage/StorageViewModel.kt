@@ -129,7 +129,8 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
         // them as models, but keep their names for pairing with the real models.
         val mmprojNames = modelFiles.map { it.name }.filter { MmprojPairing.isMmproj(it) }
         val unknownFiles = modelFiles.filter {
-            it.name !in ModelInfoProvider.knownFilenames && !MmprojPairing.isMmproj(it.name)
+            it.name !in ModelInfoProvider.knownFilenames && !MmprojPairing.isMmproj(it.name) &&
+                !com.druk.lmplayground.models.MtpModels.isDrafterFile(it.name)
         }
         return unknownFiles.mapNotNull { file ->
             val cached = prefs.getCustomModelMetadata(file.name)

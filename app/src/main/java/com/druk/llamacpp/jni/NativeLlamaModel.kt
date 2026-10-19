@@ -57,5 +57,11 @@ class NativeLlamaModel {
      */
     external fun setChatTemplateOverride(template: String): Boolean
 
+    /**
+     * Load the MTP assistant GGUF of a Gemma 4 target from a plain filesystem [path]. Only
+     * meaningful before the first session exists; returns whether a drafter is loaded afterwards.
+     */
+    external fun loadDrafter(path: String): Boolean
+
     external fun unloadModel()
 }

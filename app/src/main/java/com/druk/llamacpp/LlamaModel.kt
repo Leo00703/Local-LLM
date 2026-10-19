@@ -33,6 +33,9 @@ class LlamaModel internal constructor(
     override fun setChatTemplateOverride(template: String): Boolean =
         client.withService { it.setChatTemplateOverride(modelId, template) }
 
+    override fun loadDrafterModel(path: String): Boolean =
+        client.withService { it.loadDrafterModel(modelId, path) }
+
     override fun unloadModel() {
         try {
             client.withService { it.unloadModel(modelId) }

@@ -246,6 +246,15 @@ app/src/main/java/com/druk/
   profile from `app/src/main/baseline-prof.txt`). It is built by CI as a non-gating step and has
   NOT been exercised on a device by CI: LiteRT-LM and jlatexmath are kept whole in
   `proguard-rules.pro` for that reason. If it misbehaves, install the debug APK and report it.
+- **MTP speculative decoding (local llama.cpp models)**: one per-model switch (`GenerationParams.speculative`,
+  default off, in the params sheet) for two kinds of model, told apart by `models/MtpModels`: Qwen 3.5/3.6 carry
+  their MTP head in the same GGUF (draft context on the same model), Gemma 4 needs the separate assistant GGUF
+  (`ModelInfo.drafterAddOn`, `mtp-gemma-4-*.gguf`, 93-242 MB) that is copied to `filesDir/drafter`, loaded with
+  `loadDrafterModel` BEFORE the first session and read as the target's KV cache (`ctx_other`). Speculation runs only
+  on turns without tools (grammar sampler) and without images; every other turn decodes normally. The LiteRT
+  switch is separate (`StoragePreferences.mtpEnabled`, default on). History: the self-MTP of Qwen 3.5 measured
+  slightly slower than normal decoding on the test phone's CPU (1.9.76-1.9.78); the Gemma 4 and the sampled
+  (temperature > 0) paths have not been measured on a device.
 - **Download retries**: `PermanentDownloadException` (4xx other than 408/425/429) and
   ENOSPC / eight failed attempts end the retry loop; a body shorter than its announced length
   is an IOException so the resume continues instead of renaming a truncated file.

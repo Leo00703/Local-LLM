@@ -276,16 +276,27 @@ class StorageRepository(
      * work. The copy is cached (reused when name + size match) and only the
      * active projector is kept to bound disk use.
      */
-    fun resolveMmprojToPath(mmprojFilename: String): String? {
+    fun resolveMmprojToPath(mmprojFilename: String): String? =
+        resolveSiblingToPath(mmprojFilename, "mmproj")
+
+    /**
+     * Same for the MTP drafter of a Gemma 4 model: the native loader reads it by plain path,
+     * so it is copied out of SAF once into its own folder and only the active drafter is
+     * kept there (a different model's drafter replaces it).
+     */
+    fun resolveDrafterToPath(drafterFilename: String): String? =
+        resolveSiblingToPath(drafterFilename, "drafter")
+
+    private fun resolveSiblingToPath(mmprojFilename: String, subdir: String): String? {
         val treeUri = prefs.modelStorageUri ?: return null
         val documentFile = DocumentFile.fromTreeUri(context, treeUri) ?: return null
         val src = documentFile.findFile(mmprojFilename)
         if (src == null) {
-            Log.e(TAG, "resolveMmprojToPath - mmproj not found: $mmprojFilename")
+            Log.e(TAG, "resolveSiblingToPath - $subdir file not found: $mmprojFilename")
             return null
         }
         val srcLen = src.length()
-        val dir = java.io.File(context.filesDir, "mmproj")
+        val dir = java.io.File(context.filesDir, subdir)
         val dest = java.io.File(dir, mmprojFilename)
         if (dest.exists() && srcLen > 0 && dest.length() == srcLen) {
             return dest.absolutePath // cached copy is current

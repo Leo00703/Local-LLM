@@ -16,6 +16,7 @@ import androidx.work.Operation
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.druk.lmplayground.models.ModelInfo
+import com.druk.lmplayground.models.VisionAddOn
 import com.druk.lmplayground.storage.DownloadProgress
 import com.druk.lmplayground.storage.StoragePreferences
 import kotlinx.coroutines.flow.Flow
@@ -77,12 +78,33 @@ class DownloadRepository(private val context: Context) {
      */
     fun startVisionAddOnDownload(model: ModelInfo, storageUri: Uri): Operation? {
         val addOn = model.visionAddOn ?: return null
-        val workName = addOnWorkNameFor(model)
+        return enqueueAddOn(addOn, addOnWorkNameFor(model), addOnLabel(model), storageUri)
+    }
 
+    /**
+     * Download the MTP drafter of a Gemma 4 catalog model (see [ModelInfo.drafterAddOn]).
+     * One job per FILE, not per model: the E2B QAT and Q4_K_M builds share a drafter, and a
+     * second request while it downloads just keeps the first. Null when the model has none.
+     */
+    fun startDrafterDownload(model: ModelInfo, storageUri: Uri): Operation? {
+        val addOn = model.drafterAddOn ?: return null
+        return enqueueAddOn(addOn, drafterWorkNameFor(addOn.filename), drafterLabel(model), storageUri)
+    }
+
+    /** Work states of [model]'s drafter download, including the terminal ones. */
+    fun observeDrafter(model: ModelInfo): Flow<List<WorkInfo>> =
+        workManager.getWorkInfosForUniqueWorkFlow(drafterWorkNameFor(model.drafterAddOn?.filename.orEmpty()))
+
+    private fun enqueueAddOn(
+        addOn: VisionAddOn,
+        workName: String,
+        label: String,
+        storageUri: Uri,
+    ): Operation {
         val inputData = Data.Builder()
             .putString(DownloadWorker.KEY_URL, addOn.url)
             .putString(DownloadWorker.KEY_FILENAME, addOn.filename)
-            .putString(DownloadWorker.KEY_MODEL_NAME, addOnLabel(model))
+            .putString(DownloadWorker.KEY_MODEL_NAME, label)
             .putString(DownloadWorker.KEY_STORAGE_URI, storageUri.toString())
             .putString(DownloadWorker.KEY_WORK_NAME, workName)
             .build()
@@ -93,7 +115,7 @@ class DownloadRepository(private val context: Context) {
             .setInputData(inputData)
             .setConstraints(constraints)
             .addTag(DownloadWorker.TAG_MODEL_DOWNLOAD)
-            .addTag(addOnLabel(model))
+            .addTag(label)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
 
@@ -194,6 +216,10 @@ class DownloadRepository(private val context: Context) {
     private fun workNameFor(model: ModelInfo): String = "download_${model.filename}"
 
     private fun addOnWorkNameFor(model: ModelInfo): String = workNameFor(model) + "_mmproj"
+
+    private fun drafterWorkNameFor(drafterFilename: String): String = "download_$drafterFilename"
+
+    private fun drafterLabel(model: ModelInfo): String = "${model.name} (MTP)"
 
     /** Progress-map key and notification title of the add-on's job. */
     private fun addOnLabel(model: ModelInfo): String = "${model.name} (vision)"

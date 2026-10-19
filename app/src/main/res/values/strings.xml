@@ -534,6 +534,11 @@
     <string name="kv_cache_gpu_note">On the GPU the KV cache always runs at full precision (F16). Quantization applies on the CPU only.</string>
     <string name="speculative_decoding_label">Speculative Decoding (MTP)</string>
     <string name="speculative_decoding_llama_subtitle">Experimental. The model drafts a few tokens ahead with its own MTP head and checks them in one pass. Works only on models that include an MTP head, and only on replies without tools or images; otherwise it decodes normally. May not be faster on every phone. Rebuilds the chat session when changed.</string>
+    <string name="speculative_decoding_drafter_subtitle">Experimental. Uses a small helper file (%1$s, downloaded the first time you turn this on) to guess a few tokens ahead, then checks them in one pass. Only on replies without tools or images, and it may not be faster on every phone. Rebuilds the chat session when changed.</string>
+    <string name="mtp_drafter_downloading">Downloading the MTP helper (%1$s)...</string>
+    <string name="mtp_drafter_ready">Speculative decoding is ready for this model.</string>
+    <string name="mtp_drafter_failed">Could not get the MTP helper file. Speculative decoding stays off for now.</string>
+    <string name="mtp_drafter_no_storage">Choose a models folder in Settings first; the MTP helper is saved there.</string>
     <string name="speculative_decoding_subtitle">Drafts several tokens per step for faster decoding. Reloads the model when changed.</string>
     <!-- Per-tool copy -->
     <string name="tool_run_javascript_title">Run JavaScript</string>

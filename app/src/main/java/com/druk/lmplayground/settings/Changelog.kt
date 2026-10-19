@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.135", "MTP for Gemma 4", listOf(
+        Change(ChangeType.NEW, "Speculative Decoding (MTP) now also works for Gemma 4 on the on-device engine (E2B, E4B and 12B). Turning it on downloads a small helper file the first time, about 93 to 242 MB. It is off by default and experimental: it only applies to replies without tools or images, and it may not be faster on every phone."),
+    )),
     ChangelogEntry("1.9.134", "MTP for Qwen 3.5", listOf(
         Change(ChangeType.NEW, "Speculative Decoding (MTP) is now in the chat settings for Qwen 3.5 models that include an MTP head. It is off by default and experimental: it only applies to replies without tools or images, and it may not be faster on every phone."),
         Change(ChangeType.IMPROVED, "Speculative decoding now also works with the normal creativity setting and with thinking on, not only at temperature 0."),
