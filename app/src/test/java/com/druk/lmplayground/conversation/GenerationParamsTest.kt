@@ -125,6 +125,15 @@ class GenerationParamsTest {
     }
 
     @Test
+    fun `speculative is off by default and survives a roundtrip`() {
+        assertEquals(false, GenerationParams().speculative)
+        val on = GenerationParams(speculative = true)
+        assertEquals(1f, on.toMap()["speculative"])
+        assertEquals(on, GenerationParams.fromMap(on.toMap()))
+        assertEquals(false, GenerationParams.fromMap(mapOf("temperature" to 0.5f)).speculative)
+    }
+
+    @Test
     fun `default image detail lies on the slider grid`() {
         val d = GenerationParams().imageMaxTokens
         assertEquals(0, (d - GenerationParams.IMAGE_DETAIL_MIN) % GenerationParams.IMAGE_DETAIL_STEP)

@@ -17,7 +17,12 @@ data class GenerationParams(
     // Default Q8_0 — ~half the KV memory at near-zero quality loss. Applied at
     // context creation; the native side auto-falls back to F16 if the device
     // can't do Flash Attention + quantized KV. Ignored by remote backends.
-    val kvCacheType: Int = 1
+    val kvCacheType: Int = 1,
+    // Local llama.cpp models with a built-in MTP head (Qwen 3.5): draft tokens with the
+    // model's own head and verify them in one pass. Off by default (measured slower than
+    // normal decoding on the CPU of the test phone); a session-level flag, so changing it
+    // rebuilds the session. See SelfMtpModels for which models can use it.
+    val speculative: Boolean = false
 ) {
     fun toMap(): Map<String, Float> = mapOf(
         "contextSize" to contextSize.toFloat(),
@@ -29,7 +34,8 @@ data class GenerationParams(
         "seed" to seed.toFloat(),
         "thinkingBudget" to thinkingBudget.toFloat(),
         "imageMaxTokens" to imageMaxTokens.toFloat(),
-        "kvCacheType" to kvCacheType.toFloat()
+        "kvCacheType" to kvCacheType.toFloat(),
+        "speculative" to (if (speculative) 1f else 0f)
     )
 
     companion object {
@@ -41,6 +47,10 @@ data class GenerationParams(
         const val IMAGE_DETAIL_MIN = 96
         const val IMAGE_DETAIL_MAX = 320
         const val IMAGE_DETAIL_STEP = 32
+
+        // Draft tokens per MTP verify step. 3 is what the benchmark settled on: a larger
+        // verify batch costs more than it gains on Qwen 3.5's recurrent layers.
+        const val SPEC_N_DRAFT = 3
 
         fun fromMap(map: Map<String, Float>): GenerationParams {
             val contextSize = map["contextSize"]?.toInt() ?: 4096
@@ -56,7 +66,8 @@ data class GenerationParams(
                 // Saved values from before the floor was raised (64) are lifted to it.
                 imageMaxTokens = (map["imageMaxTokens"]?.toInt() ?: 256)
                     .coerceIn(IMAGE_DETAIL_MIN, IMAGE_DETAIL_MAX),
-                kvCacheType = map["kvCacheType"]?.toInt() ?: 1
+                kvCacheType = map["kvCacheType"]?.toInt() ?: 1,
+                speculative = (map["speculative"] ?: 0f) >= 0.5f
             )
         }
     }

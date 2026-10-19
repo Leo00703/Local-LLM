@@ -123,6 +123,9 @@ fun GenerationParamsSheet(
     // selector: LiteRT's KV cache is fixed precision, not user-quantizable).
     isLiteRt: Boolean = false,
     onMtpChanged: (Boolean) -> Unit = {},
+    // Local llama.cpp model that can use its own MTP head (Qwen 3.5). Shows the
+    // speculative-decoding switch bound to the per-model params (not the LiteRT preference).
+    supportsSelfMtp: Boolean = false,
     // Saved system-prompt library, shown in the Prompt tab so the user can
     // pick / edit / delete / create prompts without leaving the sheet.
     savedPrompts: List<SystemPromptEntity> = emptyList(),
@@ -621,6 +624,35 @@ fun GenerationParamsSheet(
                     Switch(
                         checked = mtpEnabled,
                         onCheckedChange = onMtpChanged
+                    )
+                }
+            }
+
+            // Self-MTP for local llama.cpp models that carry an MTP head (Qwen 3.5).
+            // Part of the per-model params, so changing it rebuilds the session and
+            // replays the conversation (no model reload). Experimental, off by default.
+            if (!isRemote && !isLiteRt && supportsSelfMtp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            text = stringResource(R.string.speculative_decoding_label),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.speculative_decoding_llama_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = editedParams.speculative,
+                        onCheckedChange = { editedParams = editedParams.copy(speculative = it) }
                     )
                 }
             }

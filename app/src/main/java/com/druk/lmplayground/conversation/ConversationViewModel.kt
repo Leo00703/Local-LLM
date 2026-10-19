@@ -45,6 +45,7 @@ import com.druk.lmplayground.models.ChatTemplateOverrides
 import com.druk.lmplayground.models.DeviceCapability
 import com.druk.lmplayground.models.MmprojPairing
 import com.druk.lmplayground.models.ModelInfo
+import com.druk.lmplayground.models.SelfMtpModels
 import com.druk.lmplayground.models.ThinkingMode
 import com.druk.lmplayground.models.VisionAddOn
 import com.druk.lmplayground.models.canThink
@@ -1551,6 +1552,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     ): GenerationBackend? {
         val effective = composeSystemPrompt(systemPrompt)
         currentEffectiveSystemPrompt = effective
+        val speculative = params.speculative && SelfMtpModels.supports(_loadedModel.value?.filename)
         return try {
             model.createSession(
                 params.contextSize,
@@ -1562,7 +1564,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 params.seed,
                 params.thinkingBudget,
                 effective,
-                params.kvCacheType
+                params.kvCacheType,
+                // Self-MTP only for models that can have a head; native falls back to normal
+                // decoding when this particular GGUF has none.
+                speculativeEnabled = speculative,
+                specNDraft = if (speculative) GenerationParams.SPEC_N_DRAFT else 0
             )
         } catch (e: InferenceUnavailableException) {
             // The :llama service died (or hasn't bound yet). Surface a

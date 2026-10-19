@@ -533,6 +533,7 @@
     <string name="compute_backend_label">Compute backend</string>
     <string name="kv_cache_gpu_note">On the GPU the KV cache always runs at full precision (F16). Quantization applies on the CPU only.</string>
     <string name="speculative_decoding_label">Speculative Decoding (MTP)</string>
+    <string name="speculative_decoding_llama_subtitle">Experimental. The model drafts a few tokens ahead with its own MTP head and checks them in one pass. Works only on models that include an MTP head, and only on replies without tools or images; otherwise it decodes normally. May not be faster on every phone. Rebuilds the chat session when changed.</string>
     <string name="speculative_decoding_subtitle">Drafts several tokens per step for faster decoding. Reloads the model when changed.</string>
     <!-- Per-tool copy -->
     <string name="tool_run_javascript_title">Run JavaScript</string>

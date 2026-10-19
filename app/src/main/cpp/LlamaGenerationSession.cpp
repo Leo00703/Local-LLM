@@ -1063,16 +1063,23 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
     int n_ctx = llama_n_ctx(ctx);
     int n_ctx_used = llama_memory_seq_pos_max(llama_get_memory(ctx), 0);
 
-    // Increment 2 per-turn gate: speculate only on plain greedy chat/benchmark.
-    // Excludes tool grammar (gsmpl), the reasoning-budget sampler, temp>0 (the
-    // greedy verify assumes an exact argmax match), and image turns (whose prompt
-    // decode bypasses our llama_decode + the MTP process() calls).
+    // Per-turn gate. Speculation is off for tool turns (the grammar sampler gsmpl
+    // must see every token in order) and for image turns (whose prompt decode
+    // bypasses our llama_decode + the MTP process() calls).
+    //
+    // Temperature > 0 and the reasoning-budget sampler used to be excluded too, which
+    // meant a chat with the default settings (temperature 0.8, thinking on) never
+    // speculated. The verify step samples row i through the full chain `smpl` and
+    // compares it with the drafted token, stopping at the first mismatch; because rows
+    // are sampled (and accepted by the chain) strictly in order and never beyond the
+    // mismatch, the chain state (penalties history, budget counter, RNG) advances exactly
+    // as in normal decoding, so each emitted token is still a sample of the chain. A
+    // sampled row matches the draft with probability p(draft), so acceptance is lower
+    // than greedy. Not measured on a device yet.
     spec_active = spec_supported
         && !spec_disabled_this_turn
         && (gsmpl == nullptr)
-        && !budget_sampler_added
-        && !tools_enabled
-        && (sampler_params.temperature == 0.0f);
+        && !tools_enabled;
 
     if (skip_next_decode) {
         // Speculative continuation: last_token is the pending verify seed, not in

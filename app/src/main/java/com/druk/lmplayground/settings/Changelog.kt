@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.134", "MTP for Qwen 3.5", listOf(
+        Change(ChangeType.NEW, "Speculative Decoding (MTP) is now in the chat settings for Qwen 3.5 models that include an MTP head. It is off by default and experimental: it only applies to replies without tools or images, and it may not be faster on every phone."),
+        Change(ChangeType.IMPROVED, "Speculative decoding now also works with the normal creativity setting and with thinking on, not only at temperature 0."),
+    )),
     ChangelogEntry("1.9.133", "Newer AI engine", listOf(
         Change(ChangeType.IMPROVED, "The on-device AI engine (llama.cpp) is updated to a newer version, adding support for more recent models."),
     )),
