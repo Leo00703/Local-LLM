@@ -1,0 +1,79 @@
+From: Leonardo Galli <leogalli00703@gmail.com>
+Subject: [PATCH] mtmd: add a skip_audio context parameter
+
+A combined vision+audio projector (Gemma 4 / EmbeddingGemma 2) always loaded its audio
+encoder. The chat path of the app is vision-only and must not pay for it, while the
+embedding path needs it, so the choice becomes a parameter (default false, i.e. upstream
+behaviour). The Gemma 3n special case is kept.
+
+Replaces the former CI `sed` that forced `skip_audio = true` for every caller.
+---
+diff --git a/tools/mtmd/clip.cpp b/tools/mtmd/clip.cpp
+index f437040cf..7454d381d 100644
+--- a/tools/mtmd/clip.cpp
++++ b/tools/mtmd/clip.cpp
+@@ -4013,7 +4013,7 @@ struct clip_init_result clip_init(const char * fname, struct clip_context_params
+             /* skip_tensors */ false,
+             ctx_params.progress_callback,
+             ctx_params.progress_callback_user_data);
+-        bool skip_audio = false;
++        bool skip_audio = ctx_params.skip_audio;
+ 
+         if (loader.has_vision) {
+             ctx_vision = new clip_ctx(ctx_params);
+@@ -4026,7 +4026,7 @@ struct clip_init_result clip_init(const char * fname, struct clip_context_params
+ 
+             // TODO: we don't support audio for Gemma 3N, but GGUF contains audio tensors
+             // we can remove this check when we implement audio support for Gemma 3N
+-            skip_audio = ctx_vision->model.proj_type == PROJECTOR_TYPE_GEMMA3NV;
++            skip_audio = skip_audio || ctx_vision->model.proj_type == PROJECTOR_TYPE_GEMMA3NV;
+         }
+ 
+         if (loader.has_audio && !skip_audio) {
+diff --git a/tools/mtmd/clip.h b/tools/mtmd/clip.h
+index 9e12702ce..569a25f30 100644
+--- a/tools/mtmd/clip.h
++++ b/tools/mtmd/clip.h
+@@ -58,6 +58,7 @@ struct clip_context_params {
+     bool no_alloc;
+     mtmd_progress_callback progress_callback;
+     void * progress_callback_user_data;
++    bool skip_audio; // Android patch: leave the audio encoder of a combined projector unloaded
+ };
+ 
+ struct clip_init_result {
+diff --git a/tools/mtmd/mtmd.cpp b/tools/mtmd/mtmd.cpp
+index 9e7b1cc80..0c515eea3 100644
+--- a/tools/mtmd/mtmd.cpp
++++ b/tools/mtmd/mtmd.cpp
+@@ -472,6 +472,7 @@ mtmd_context_params mtmd_context_params_default() {
+         /* batch_max_tokens  */ 1024,
+         /* progress_callback */ nullptr,
+         /* progress_callback_user_data */ nullptr,
++        /* skip_audio        */ false,
+     };
+     return params;
+ }
+@@ -577,6 +578,7 @@ struct mtmd_context {
+             /* no_alloc          */ no_alloc,
+             /* progress_callback */ ctx_params.progress_callback,
+             /* progress_callback_user_data */ ctx_params.progress_callback_user_data,
++            /* skip_audio        */ ctx_params.skip_audio,
+         };
+ 
+         auto res = clip_init(mmproj_fname, ctx_clip_params);
+diff --git a/tools/mtmd/mtmd.h b/tools/mtmd/mtmd.h
+index bcd76a9d7..6df0d8b7f 100644
+--- a/tools/mtmd/mtmd.h
++++ b/tools/mtmd/mtmd.h
+@@ -122,6 +122,10 @@ struct mtmd_context_params {
+     // If it returns false, model loading is immediately aborted.
+     mtmd_progress_callback progress_callback;
+     void * progress_callback_user_data;
++
++    // Android patch: do not load the audio encoder of a combined vision+audio projector
++    // (default: false). Vision-only callers use it to save memory and load time.
++    bool skip_audio;
+ };
+ 
+ MTMD_API const char * mtmd_default_marker(void);

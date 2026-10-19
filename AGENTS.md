@@ -65,7 +65,7 @@ Staged features are marked in commit titles, e.g. `(parity build 1/2)`,
   *how verified*. Prefer verifying behavior against upstream/external sources
   (e.g. the llama.cpp server source) before writing code, and say so.
 - **Trailer** (every commit, no exceptions):
-  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
+  `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`
 - **In-app changelog** (easy to forget — it's part of the commit):
   prepend a `ChangelogEntry` to `CHANGELOG` in
   `app/src/main/java/com/druk/lmplayground/settings/Changelog.kt` for every
@@ -103,27 +103,22 @@ and the llama.cpp compile (ccache) are cached between runs.
 
 1. **llama.cpp patches (applied at build time, in `build-debug-apk.yml`,
    `pull-request-check.yml` and `deploy-internal.yml`)**. llama.cpp is a **pinned
-   submodule of ggml-org itself** (`ggml-org/llama.cpp`, release tag `b11393`,
-   commit `dbe4c3ed4`). The app's Android changes (the `fd:N` SAF path support and
-   tolerance for duplicated vocab tokens) live as patch files in
-   `app/src/main/cpp/patches/llama.cpp/` (see the README there, which also lists
-   the bump procedure) and CI runs `git apply` on them right after the checkout;
-   the step fails if one no longer applies. Before v1.9.121 the submodule was the
-   `andriydruk/llama.cpp-android` fork, which carried the same two patches (plus a
-   vendored `tools/parakeet` for voice dictation, not built here); its newest
-   branch is `android-b11200`, so staying on it would have meant never moving past
-   b11200. A committed edit inside the submodule would be reset by
-   `submodules: recursive`, which is why the patches are files. The same applies
-   to the second patch, a `sed` replacement in
-   `app/src/main/cpp/llama.cpp/tools/mtmd/clip.cpp`:
-   `skip_audio = ctx_vision->model.proj_type == PROJECTOR_TYPE_GEMMA3NV;` →
-   `skip_audio = true;` (vision-only app; the pinned mtmd aborts on combined
-   vision+audio projectors). The step greps before and after and **fails the
-   build if the patch doesn't take**. Consequence: if you change the pinned
-   llama.cpp commit, you must update the patch steps in all three workflows to match
-   the new source (or drop a step if the pinned version fixed the bug).
-   (Commit `bcf5dd8` exists purely to replicate this patch onto the main-branch
-   workflows.)
+   submodule of ggml-org itself** (`ggml-org/llama.cpp`, release tag `b11455`,
+   commit `abeada335`, the first tag that contains EmbeddingGemma 2, PR #30054). The app's
+   Android changes live as patch files in `app/src/main/cpp/patches/llama.cpp/` (see the README
+   there, which also lists the bump procedure) and CI runs `git apply` on them right after the
+   checkout; the step fails if one no longer applies. They are: `0001` (`fd:N` SAF path
+   support), `0002` (tolerance for duplicated vocab tokens) and `0003` (a `skip_audio` field in
+   `mtmd_context_params`: default false = upstream; `LlamaModel.cpp` sets it to true for chat so a
+   combined vision+audio projector does not load its audio encoder, while the embedding path
+   will leave it false to use the audio encoder of EmbeddingGemma 2). Before 1.9.133 the third
+   one was a CI `sed` that forced `skip_audio = true` for every caller, written for b9496 where
+   Gemma 4 audio projector types were unknown and clip aborted; they are handled since
+   (`PROJECTOR_TYPE_GEMMA4A/UA`). Before v1.9.121 the submodule was the
+   `andriydruk/llama.cpp-android` fork (newest branch `android-b11200`). A committed edit inside
+   the submodule would be reset by `submodules: recursive`, which is why the patches are files.
+   If you change the pinned commit, check that every patch still applies (a quick way without a
+   checkout: `GIT_INDEX_FILE=/tmp/idx git read-tree <commit>` then `git apply --cached --check`).
 2. **OpenCL toolchain**. GPU backend = OpenCL, arm64 only (replaces Vulkan,
    which crashed on Adreno 830). CI installs the Khronos OpenCL headers into
    the NDK sysroot and builds the Khronos ICD loader (`libOpenCL.so`) for

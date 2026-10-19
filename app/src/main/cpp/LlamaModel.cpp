@@ -273,6 +273,9 @@ bool LlamaModel::loadMmproj(const std::string &mmprojPath) {
         mparams.device = ggml_backend_dev_by_name(clip_backend);
     }
     mparams.print_timings = false;
+    // Chat is vision-only: do not load the audio encoder of a combined vision+audio
+    // projector (patch 0003-mtmd-add-skip_audio-context-param; it used to be a CI sed).
+    mparams.skip_audio = true;
     // Is the CLIP encoder going to run on a GPU backend? Only if GPU is enabled AND
     // init picked a GPU device (MTMD_BACKEND_DEVICE set and != "CPU").
     bool clip_on_vulkan = mparams.use_gpu && clip_backend != nullptr;
