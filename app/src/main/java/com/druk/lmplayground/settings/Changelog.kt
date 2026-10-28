@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.136", "Spark-X2.6", listOf(
+        Change(ChangeType.NEW, "Spark-X2.6 4B and 1.7B from XHToken are in the model list: the newer versions of Spark-X2.5, reasoning models that can use tools and have a thinking switch. They run on the current AI engine, no update needed."),
+    )),
     ChangelogEntry("1.9.135", "MTP for Gemma 4", listOf(
         Change(ChangeType.NEW, "Speculative Decoding (MTP) now also works for Gemma 4 on the on-device engine (E2B, E4B and 12B). Turning it on downloads a small helper file the first time, about 93 to 242 MB. It is off by default and experimental: it only applies to replies without tools or images, and it may not be faster on every phone."),
     )),
