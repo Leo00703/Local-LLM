@@ -54,6 +54,10 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.137", "LFM3", listOf(
+        Change(ChangeType.NEW, "LFM3 1.7B from Liquid AI is in the model list: a 1.1 GB reasoning model with tool calling, a thinking switch and a very long context."),
+        Change(ChangeType.IMPROVED, "The AI engine is updated to the newest version, which also brings support for other new model families."),
+    )),
     ChangelogEntry("1.9.136", "Spark-X2.6", listOf(
         Change(ChangeType.NEW, "Spark-X2.6 4B and 1.7B from XHToken are in the model list: the newer versions of Spark-X2.5, reasoning models that can use tools and have a thinking switch. They run on the current AI engine, no update needed."),
     )),

@@ -580,7 +580,7 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
         messages.pop_back();
         return 1;
     }
-    std::string full_prompt = result.prompt;
+    std::string full_prompt = result.prompt.str();
     additional_stops = result.additional_stops;
 
     // Parser init (mirror addMessage) so finalizeResponse can extract reasoning AND
@@ -592,9 +592,7 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
     // on every vision model it ships, 5c85b0b).
     if (!result.parser.empty()) {
         parser_params = common_chat_parser_params(result);
-        parser_params.reasoning_format = COMMON_REASONING_FORMAT_DEEPSEEK;
-        parser_params.parse_tool_calls = tools_enabled;
-        parser_params.parser.load(result.parser);
+        parser_params.parser = result.parser;
         parser_initialized = true;
     } else {
         parser_initialized = false;
@@ -758,7 +756,7 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
         messages.pop_back();
         return 1;
     }
-    std::string full_prompt = result.prompt;
+    std::string full_prompt = result.prompt.str();
     additional_stops = result.additional_stops;
 
     // Initialize the PEG parser from the freshly-rendered template so
@@ -768,22 +766,11 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
     // redo this setup later in the function.
     if (!result.parser.empty()) {
         parser_params = common_chat_parser_params(result);
-        // Always extract reasoning into reasoning_content, regardless of the
-        // thinking toggle. Passing NONE makes the gpt-oss/harmony parser leave
-        // the raw "<|channel|>analysis<|message|>...<|end|>" markup in the
-        // content — gpt-oss emits an analysis channel even at minimal reasoning
-        // effort, so "thinking off" must still parse the channels, not dump
-        // them. The UI already detects <think> blocks even when the toggle is
-        // off (some models always think) and renders them as a collapsible
-        // section, so extracting always keeps content clean without losing the
-        // reasoning. Models that emit no reasoning when thinking is off yield an
-        // empty reasoning_content here, so their output is unchanged.
-        parser_params.reasoning_format = COMMON_REASONING_FORMAT_DEEPSEEK;
-        // Tool-call parsing follows the session's tools state (set via
-        // setTools / a non-empty tools_enabled). When tools are disabled the
-        // parser ignores tool_call grammars in the model output.
-        parser_params.parse_tool_calls = tools_enabled;
-        parser_params.parser.load(result.parser);
+        // The arena already extracts reasoning into reasoning_content and parses
+        // tool calls only when renderTemplate() was given tools: both are decided
+        // when the template is applied (reasoning_format, tools), not here. Older
+        // llama.cpp read them from common_chat_parser_params at parse time.
+        parser_params.parser = result.parser;
         parser_initialized = true;
     } else {
         parser_initialized = false;
@@ -861,7 +848,7 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
             for (size_t i = 0; i + 1 < messages.size(); i++) {
                 if (messages[i].role != "assistant") continue;
                 try {
-                    auto parsed = common_chat_parse(messages[i].content, false, parser_params);
+                    auto parsed = common_chat_parse(common_chat_input(messages[i].content), false, parser_params);
                     if (!parsed.reasoning_content.empty()) {
                         messages[i].content = parsed.content;
                         messages[i].reasoning_content.clear();
@@ -887,7 +874,7 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
                 messages.pop_back();
                 return 1;
             }
-            full_prompt = result.prompt;
+            full_prompt = result.prompt.str();
             additional_stops = result.additional_stops;
             prompt = full_prompt;
             is_first = true;
@@ -928,7 +915,7 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
             messages.pop_back();
             return 1;
         }
-        full_prompt = result.prompt;
+        full_prompt = result.prompt.str();
         additional_stops = result.additional_stops;
         prompt = full_prompt;
         is_first = true;
@@ -1048,7 +1035,7 @@ void LlamaGenerationSession::finalizeResponse() {
 
     if (parser_initialized) {
         try {
-            auto parsed = common_chat_parse(response, /*is_partial=*/false, parser_params);
+            auto parsed = common_chat_parse(common_chat_input(response), /*is_partial=*/false, parser_params);
             prev_had_thinking = !parsed.reasoning_content.empty();
         } catch (const std::exception &e) {
             LOGe("PEG parse failed in finalizeResponse: %s", e.what());
@@ -1063,7 +1050,7 @@ void LlamaGenerationSession::finalizeResponse() {
 
     try {
         auto result = renderTemplate(prev_enable_thinking, /*addGenerationPrompt=*/false);
-        prev_rendered_prompt = result.prompt;
+        prev_rendered_prompt = result.prompt.str();
         prev_len = (int)prev_rendered_prompt.size();
     } catch (const std::exception &e) {
         LOGe("Failed to render chat template in finalizeResponse: %s", e.what());
@@ -1239,7 +1226,7 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
         common_chat_msg parsed;
         bool parsed_ok = false;
         try {
-            parsed = common_chat_parse(response, /*is_partial=*/false, parser_params);
+            parsed = common_chat_parse(common_chat_input(response), /*is_partial=*/false, parser_params);
             parsed_ok = true;
         } catch (const std::exception &e) {
             // Some templates' tool-call parsers throw on their own model's
@@ -1341,7 +1328,7 @@ LlamaGenerationSession::emitToken(llama_token tok, const ResponseCallback& callb
     // accumulation (response.substring(sentLength)) depends on.
     if (parser_initialized) {
         try {
-            auto parsed = common_chat_parse(response, /*is_partial=*/true, parser_params);
+            auto parsed = common_chat_parse(common_chat_input(response), /*is_partial=*/true, parser_params);
             std::string normalized;
             if (!parsed.reasoning_content.empty()) {
                 normalized = "<think>" + parsed.reasoning_content;
@@ -1629,7 +1616,7 @@ std::string LlamaGenerationSession::renderPreambleString(bool enableThinking) {
     }
     try {
         auto result = renderTemplate(enableThinking, /*addGenerationPrompt=*/false);
-        preamble = result.prompt;
+        preamble = result.prompt.str();
     } catch (const std::exception &e) {
         LOGi("renderPreambleString A failed (%s), trying fallback", e.what());
     } catch (...) {
@@ -1665,7 +1652,7 @@ std::string LlamaGenerationSession::renderPreambleString(bool enableThinking) {
         messages.push_back(user);
         try {
             auto result = renderTemplate(enableThinking, /*addGenerationPrompt=*/false);
-            const auto &rendered = result.prompt;
+            const auto &rendered = result.prompt.str();
             auto pos = rendered.find(probe);
             if (pos == std::string::npos) {
                 LOGi("renderPreambleString fallback: probe not found in rendered output");
@@ -1918,7 +1905,7 @@ int LlamaGenerationSession::submitToolResults(const char *resultsJson, bool enab
         return 1;
     }
 
-    std::string full_prompt = result.prompt;
+    std::string full_prompt = result.prompt.str();
     additional_stops = result.additional_stops;
     response.clear();
 
@@ -1985,9 +1972,7 @@ int LlamaGenerationSession::submitToolResults(const char *resultsJson, bool enab
         // Same rationale as in addMessage: always extract reasoning so
         // channel markers from gpt-oss/harmony parsers don't leak into
         // content even when thinking is off.
-        parser_params.reasoning_format = COMMON_REASONING_FORMAT_DEEPSEEK;
-        parser_params.parse_tool_calls = tools_enabled;
-        parser_params.parser.load(result.parser);
+        parser_params.parser = result.parser;
         parser_initialized = true;
     }
 

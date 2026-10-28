@@ -103,8 +103,13 @@ and the llama.cpp compile (ccache) are cached between runs.
 
 1. **llama.cpp patches (applied at build time, in `build-debug-apk.yml`,
    `pull-request-check.yml` and `deploy-internal.yml`)**. llama.cpp is a **pinned
-   submodule of ggml-org itself** (`ggml-org/llama.cpp`, release tag `b11455`,
-   commit `abeada335`, the first tag that contains EmbeddingGemma 2, PR #30054). The app's
+   submodule of ggml-org itself** (`ggml-org/llama.cpp`, release tag `b11971`,
+   commit `74a4fb003`, bumped from b11455 for LFM3, PR #31252, which needs b11960 or newer; b11455 was the
+   first tag with EmbeddingGemma 2, PR #30054). The b11455 -> b11971 bump also moved the chat API
+   (`common_chat_params::prompt` is a `common_chat_prompt`, `::parser` a `common_peg_arena`,
+   `common_chat_parse` takes a `common_chat_input`, `common_chat_templates_get_caps` returns a
+   `common_json`; `reasoning_format` / `parse_tool_calls` left `common_chat_parser_params`), which the
+   glue in `LlamaGenerationSession.cpp` / `LlamaModel.cpp` follows. The app's
    Android changes live as patch files in `app/src/main/cpp/patches/llama.cpp/` (see the README
    there, which also lists the bump procedure) and CI runs `git apply` on them right after the
    checkout; the step fails if one no longer applies. They are: `0001` (`fd:N` SAF path

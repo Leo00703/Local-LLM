@@ -318,6 +318,15 @@ object ModelInfoProvider {
             supportedLanguages = LFM25_LANGS
         ),
         ModelInfo(
+            name = "LFM3 1.7B",
+            filename = "LFM3-1.7B-Q4_K_M.gguf",
+            remoteUri = Uri.parse("https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF/resolve/main/LFM3-1.7B-Q4_K_M.gguf"),
+            releaseDate = LocalDate.parse("2026-10-27"),
+            description = "Liquid AI · Reasoning model · 1.10Gb",
+            logoRes = R.drawable.logo_liquid,
+            supportedLanguages = LFM25_LANGS
+        ),
+        ModelInfo(
             name = "Ministral 3 3B Instruct",
             filename = "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
             visionAddOn = ADDON_MINISTRAL_3B_INSTRUCT,
@@ -691,6 +700,7 @@ object ModelInfoProvider {
         "LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
         "LFM2.5-1.2B-Thinking-Q4_K_M.gguf",
         "LFM2.5-2.6B-Q4_K_M.gguf",
+        "LFM3-1.7B-Q4_K_M.gguf",
         "MiniCPM5-1B-Q4_K_M.gguf",
         "MiniCPM5-2B-Q4_K_M.gguf",
         "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
@@ -738,6 +748,7 @@ object ModelInfoProvider {
         "LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
         "LFM2.5-1.2B-Thinking-Q4_K_M.gguf",
         "LFM2.5-2.6B-Q4_K_M.gguf",
+        "LFM3-1.7B-Q4_K_M.gguf",
         "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
         "MiniCPM5-1B-Q4_K_M.gguf",
         "MiniCPM5-2B-Q4_K_M.gguf",
