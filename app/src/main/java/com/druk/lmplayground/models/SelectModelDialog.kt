@@ -56,6 +56,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -125,6 +127,17 @@ fun SelectModelDialog(
     // chatPaneStartOffset is no longer needed for centering. Back press and
     // taps on the scrim dismiss; taps on the card are consumed.
     BackHandler(onBack = onDismissRequest)
+
+    // The overlay sits in the chat pane, not above the IME, so an open
+    // keyboard covers the lower half of the list. Close it (and drop the
+    // input's focus so it doesn't pop back) whenever the picker appears.
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(Unit) {
+        focusManager.clearFocus()
+        keyboard?.hide()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()

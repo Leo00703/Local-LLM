@@ -54,6 +54,11 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.138", "Stability fixes", listOf(
+        Change(ChangeType.FIX, "Fixed a crash that could happen when you switched model or unloaded it while a message was still being prepared, especially with images on a slow phone."),
+        Change(ChangeType.FIX, "The keyboard now closes when you open the model picker, so it no longer hides half of the list."),
+        Change(ChangeType.FIX, "A new chat now always shows up in the chat list instead of appearing just above the visible part."),
+    )),
     ChangelogEntry("1.9.137", "LFM3", listOf(
         Change(ChangeType.NEW, "LFM3 1.7B from Liquid AI is in the model list: a 1.1 GB reasoning model with tool calling, a thinking switch and a very long context."),
         Change(ChangeType.IMPROVED, "The AI engine is updated to the newest version, which also brings support for other new model families."),

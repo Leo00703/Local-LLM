@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -43,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -252,6 +254,25 @@ private fun SessionListContent(
     // back to root so the list never strands the user in a missing folder.
     val activeFolder = currentFolderId?.let { id -> folders.find { it.id == id } }
 
+    val listState = rememberLazyListState()
+    // A new chat is inserted at the top, but the list keeps its first visible
+    // row anchored by key, so the new row lands just above the viewport. Bring
+    // the current chat into view when it changes or the list's head does.
+    LaunchedEffect(currentSessionId, sessions.firstOrNull()?.id, activeFolder?.id) {
+        val index = if (activeFolder != null) {
+            grouped[activeFolder.id].orEmpty().indexOfFirst { it.id == currentSessionId }
+        } else {
+            unfiled.indexOfFirst { it.id == currentSessionId }.let { if (it < 0) it else folders.size + it }
+        }
+        if (index < 0) return@LaunchedEffect
+        val layout = listState.layoutInfo
+        val row = layout.visibleItemsInfo.firstOrNull { it.index == index }
+        val fullyVisible = row != null &&
+            row.offset >= layout.viewportStartOffset &&
+            row.offset + row.size <= layout.viewportEndOffset
+        if (!fullyVisible) listState.animateScrollToItem(index)
+    }
+
     Column(
         modifier = Modifier.fillMaxHeight()
     ) {
@@ -304,6 +325,7 @@ private fun SessionListContent(
         }
 
         LazyColumn(
+            state = listState,
             // .imePadding() so the list shrinks when the soft keyboard opens —
             // otherwise the LazyColumn extends behind the IME and its bottom
             // items are unreachable.
