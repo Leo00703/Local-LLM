@@ -26,10 +26,9 @@ import kotlin.concurrent.withLock
 /**
  * Bound service that owns the llama.cpp native state.
  *
- * In step 3 this still runs in the main app process (same UID, same
- * memory). In step 5 the manifest declaration adds `android:process=":llama"`
- * so this service hosts the JNI in a separate OS process — at which point
- * a SIGSEGV inside llama.cpp only kills `:llama`, not the UI.
+ * The manifest declares it with `android:process=":llama"`, so the JNI lives
+ * in a separate OS process: a SIGSEGV inside llama.cpp only kills `:llama`,
+ * not the UI.
  *
  * The service hands out positive int handles (`modelId`, `sessionId`).
  * Native pointers never leave this process. Map entries are guarded by

@@ -202,7 +202,7 @@ fun GenerationParamsSheet(
             tonalElevation = if (frosted) 0.dp else 6.dp,
             shadowElevation = 8.dp,
         ) {
-          Box(modifier = if (frosted) Modifier.hazeEffect(hazeState!!, hazeStyle) else Modifier) {
+          Box(modifier = hazeState?.let { Modifier.hazeEffect(it, hazeStyle) } ?: Modifier) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 DragHandle(
                     onDrag = { delta -> dragOffsetY = (dragOffsetY + delta).coerceAtLeast(0f) },

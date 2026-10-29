@@ -26,11 +26,11 @@ object MtpModels {
 
     /** The MTP head is inside the model file (Qwen 3.5 / 3.6). */
     fun hasOwnHead(filename: String?): Boolean =
-        isLocalModelFile(filename) && OWN_HEAD.containsMatchIn(filename!!)
+        filename != null && isLocalModelFile(filename) && OWN_HEAD.containsMatchIn(filename)
 
     /** The MTP head is a separate assistant file that has to be downloaded (Gemma 4). */
     fun needsDrafter(filename: String?): Boolean =
-        isLocalModelFile(filename) && GEMMA4.containsMatchIn(filename!!)
+        filename != null && isLocalModelFile(filename) && GEMMA4.containsMatchIn(filename)
 
     fun supports(filename: String?): Boolean = hasOwnHead(filename) || needsDrafter(filename)
 

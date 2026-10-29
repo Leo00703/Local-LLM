@@ -46,9 +46,8 @@ private const val THOUGHT_CHANNEL = "thought"
  * The two engines never run resident at the same time (one is unloaded before the
  * other loads) to avoid two native runtimes + two OpenCL contexts co-existing.
  *
- * NOTE: this is the Step 1 wrapper. It compiles and pins the exact LiteRT-LM API
- * but is not yet driven by a service. The `:litert` AIDL service + on-device load
- * and the real Message->token-text mapping land in the following steps.
+ * It runs in the app process (there is no crash-isolating `:litert` service); the
+ * chat path reaches it through [LiteRtBackend], which owns its lifecycle.
  */
 class LiteRtEngine {
 

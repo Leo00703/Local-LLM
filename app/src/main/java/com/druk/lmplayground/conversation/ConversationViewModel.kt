@@ -96,6 +96,8 @@ import kotlin.math.round
 // the turn ends.
 private const val UI_UPDATE_MIN_INTERVAL_MS = 33L
 
+private const val TAG = "ConversationViewModel"
+
 // Minimum gap between per-token haptic ticks. ~60 ms (≈16/s) reads as
 // distinct typewriter taps rather than a continuous buzz on fast streams.
 private const val HAPTIC_MIN_INTERVAL_MS = 60L
@@ -832,7 +834,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             val overhead = baseOverhead + (if (enableVision) 500_000_000L else 0L)
             if (modelBytes > 0 && memInfo.availMem < modelBytes + overhead) {
                 android.util.Log.w(
-                    "ConversationViewModel",
+                    TAG,
                     "LiteRT load refused: availMem=${memInfo.availMem} < model=$modelBytes + overhead=$overhead (gpu=$useGpu mtp=$useMtp vision=$enableVision)"
                 )
                 _loadedModelStatus.postValue(
@@ -890,7 +892,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     llamaSession = session
                     true
                 } catch (t: Throwable) {
-                    android.util.Log.e("ConversationViewModel", "LiteRT load failed", t)
+                    android.util.Log.e(TAG, "LiteRT load failed", t)
                     // The engine may already hold a multi-GB model: free it, nothing else will.
                     try { engine?.close() } catch (_: Throwable) {}
                     false
@@ -1173,11 +1175,11 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         val applied = try {
                             llamaModel.setChatTemplateOverride(template)
                         } catch (t: Throwable) {
-                            android.util.Log.w("ConversationViewModel", "chat template override failed", t)
+                            android.util.Log.w(TAG, "chat template override failed", t)
                             false
                         }
                         android.util.Log.i(
-                            "ConversationViewModel",
+                            TAG,
                             "chat template override for ${modelInfo.filename}: applied=$applied"
                         )
                     }
@@ -1297,7 +1299,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     _loadedModelStatus.postValue(statusMsg)
                     fileHandle.close()
                     if (t !is kotlinx.coroutines.CancellationException) {
-                        android.util.Log.w("ConversationViewModel", "loadModel failed", t)
+                        android.util.Log.w(TAG, "loadModel failed", t)
                         val detail = describeLoadFailure(loadStartedAtMs)
                         val message = app.getString(
                             com.druk.lmplayground.R.string.model_load_failed_message,
@@ -1357,9 +1359,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
      * `replayHistory` leaves the UI with `_isModelReady=true` but
      * `llamaSession=null`, and the next Send breaks.
      *
-     * Returns `null` if all payloads are within budget. Returns a
-     * user-facing localized error string (already posted to
-     * `_userError`) if anything is too large; the caller MUST then
+     * Returns `true` if every payload fits. Otherwise posts a localized
+     * error to `_userError` and returns `false`; the caller MUST then
      * abort without mutating session state.
      */
     private fun validateReplaySize(systemPrompt: String, messages: List<Message>): Boolean {
@@ -1448,7 +1449,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             return false
         } catch (e: InferenceUnavailableException) {
             android.util.Log.w(
-                "ConversationViewModel",
+                TAG,
                 "replayHistory failed: service unavailable", e
             )
             try { newSession.destroy() } catch (_: Throwable) {}
@@ -1585,7 +1586,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // The :llama service died (or hasn't bound yet). Surface a
             // recoverable error to the UI rather than letting the AIDL
             // exception propagate and crash the app process.
-            android.util.Log.w("ConversationViewModel", "createSession failed: service unavailable", e)
+            android.util.Log.w(TAG, "createSession failed: service unavailable", e)
             _userError.postValue(
                 app.getString(com.druk.lmplayground.R.string.inference_engine_unavailable)
             )
@@ -1731,17 +1732,17 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         val path = try {
             storageRepository.resolveDrafterToPath(addOn.filename)
         } catch (t: Throwable) {
-            android.util.Log.w("ConversationViewModel", "drafter copy failed", t)
+            android.util.Log.w(TAG, "drafter copy failed", t)
             null
         } ?: return false
         val ok = try {
             model.loadDrafterModel(path)
         } catch (t: Throwable) {
-            android.util.Log.w("ConversationViewModel", "drafter load failed", t)
+            android.util.Log.w(TAG, "drafter load failed", t)
             false
         }
         if (ok) drafterReadyFor = model
-        android.util.Log.i("ConversationViewModel", "MTP drafter ${addOn.filename}: loaded=$ok")
+        android.util.Log.i(TAG, "MTP drafter ${addOn.filename}: loaded=$ok")
         return ok
     }
 
@@ -1801,7 +1802,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
-                android.util.Log.w("ConversationViewModel", "MTP drafter setup failed", t)
+                android.util.Log.w(TAG, "MTP drafter setup failed", t)
                 _userError.postValue(app.getString(com.druk.lmplayground.R.string.mtp_drafter_failed))
             }
         }
@@ -2117,7 +2118,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 if (model.loadMmproj(path)) null
                 else model.getMmprojError().ifBlank { "projector failed to load" }
             } catch (t: Throwable) {
-                android.util.Log.e("ConversationViewModel", "projector load failed", t)
+                android.util.Log.e(TAG, "projector load failed", t)
                 t.message ?: "projector load error"
             }
         }
@@ -2192,7 +2193,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
-                android.util.Log.w("ConversationViewModel", "image add-on download failed", t)
+                android.util.Log.w(TAG, "image add-on download failed", t)
                 _userError.postValue(app.getString(com.druk.lmplayground.R.string.vision_addon_failed))
             } finally {
                 _visionAddOnDownloading.postValue(false)
@@ -2498,14 +2499,14 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                                     ?.also { llamaSession.setImageData(it) } != null
                             }.getOrDefault(false)
                             if (!staged) {
-                                android.util.Log.w("ConversationViewModel", "remote image staging failed, sending text-only")
+                                android.util.Log.w(TAG, "remote image staging failed, sending text-only")
                                 _userError.postValue(
                                     app.getString(com.druk.lmplayground.R.string.image_attach_failed)
                                 )
                             }
                         } else if (!ensureProjectorLoaded()) {
                             // Projector rejected — surface WHY (native reason).
-                            android.util.Log.w("ConversationViewModel", "image turn: projector not loaded, text-only")
+                            android.util.Log.w(TAG, "image turn: projector not loaded, text-only")
                             _userError.postValue(visionLoadFailedMessage())
                         } else {
                             val staged = runCatching {
@@ -2515,7 +2516,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                                         ?.also { llamaSession.setImageData(it) } != null
                             }.getOrDefault(false)
                             if (!staged) {
-                                android.util.Log.w("ConversationViewModel", "image staging failed, sending text-only")
+                                android.util.Log.w(TAG, "image staging failed, sending text-only")
                                 _userError.postValue(
                                     app.getString(com.druk.lmplayground.R.string.image_attach_failed)
                                 )
@@ -2550,7 +2551,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                     // before the first token, so it doesn't sit at the old value.
                     _contextUsedTokens.postValue(ctxBaseline + promptTokenEstimate)
                 } catch (e: InferenceUnavailableException) {
-                    android.util.Log.w("ConversationViewModel", "addMessage failed: service unavailable", e)
+                    android.util.Log.w(TAG, "addMessage failed: service unavailable", e)
                     _userError.postValue(
                         app.getString(com.druk.lmplayground.R.string.inference_engine_unavailable)
                     )
@@ -2711,10 +2712,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         toolRounds++
 
                         val toolCallsJson = llamaSession.getToolCallsJson()
-                        android.util.Log.d(
-                            "ConversationVM",
-                            "Tool calls (round $toolRounds): $toolCallsJson",
-                        )
+                        // Round and duration only: the arguments and results can hold web
+                        // page text, the user's location or saved memory notes.
+                        android.util.Log.d(TAG, "Tool round $toolRounds started")
 
                         val toolStartTime = System.currentTimeMillis()
                         // Run the (blocking) tool execution on IO and await it so
@@ -2732,10 +2732,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                             }
                         }
                         val toolDurationMs = System.currentTimeMillis() - toolStartTime
-                        android.util.Log.d(
-                            "ConversationVM",
-                            "Tool results (${toolDurationMs}ms): $toolResults",
-                        )
+                        android.util.Log.d(TAG, "Tool round $toolRounds finished in ${toolDurationMs}ms")
 
                         val toolCallInfoList = buildToolCallInfoList(
                             toolCallsJson, toolResults, toolDurationMs,
@@ -2784,7 +2781,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         }
                     }
                     if (toolBudgetSpent && this.isActive) {
-                        android.util.Log.w("ConversationVM", "Tool budget of $maxToolRounds rounds spent")
+                        android.util.Log.w(TAG, "Tool budget of $maxToolRounds rounds spent")
                         if (remoteBackend != null) {
                             // Answer the calls still pending with "limit reached", stop offering
                             // tools, and let the model write its answer from what it has gathered.
@@ -2812,7 +2809,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                         }
                     }
                 } catch (e: InferenceUnavailableException) {
-                    android.util.Log.w("ConversationViewModel", "generateAll failed: service unavailable", e)
+                    android.util.Log.w(TAG, "generateAll failed: service unavailable", e)
                     _userError.postValue(
                         app.getString(com.druk.lmplayground.R.string.inference_engine_unavailable)
                     )
@@ -3263,7 +3260,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 // e.g. a row too big for Android's 2 MB CursorWindow (very large
                 // attachments). Opening it used to crash the app, every time.
-                android.util.Log.w("ConversationViewModel", "could not read chat $sessionId", e)
+                android.util.Log.w(TAG, "could not read chat $sessionId", e)
                 _userError.postValue(app.getString(com.druk.lmplayground.R.string.chat_load_failed))
                 null
             } ?: return@launch
@@ -3731,7 +3728,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             val sessionReport = llamaSession?.getReport() ?: return null
             modelReport + "\n" + sessionReport
         } catch (e: InferenceUnavailableException) {
-            android.util.Log.w("ConversationViewModel", "getReport failed: service unavailable", e)
+            android.util.Log.w(TAG, "getReport failed: service unavailable", e)
             null
         }
     }
@@ -3880,10 +3877,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // --- LiteRT proof-of-life (dev, Step 2 of the LiteRT-LM pivot). Loads a Gemma 4
-    // .litertlm and streams a few tokens on the CPU backend to confirm the
-    // LiteRT-LM engine actually runs on this device. Runs IN-PROCESS for now; the
-    // crash-isolating :litert service comes later. The model is expected at
+    // --- LiteRT proof-of-life (dev). Loads a Gemma 4 .litertlm and streams a few
+    // tokens on the CPU backend to confirm the LiteRT-LM engine actually runs on this
+    // device. Runs in the app process. The model is expected at
     // getExternalFilesDir()/litert/gemma-4-E2B-it.litertlm (adb-pushed for the test). ---
     private val _liteRtTest = MutableLiveData("")
     val liteRtTest: LiveData<String> = _liteRtTest
@@ -4229,7 +4225,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             pruneOldKvPreambles(KV_PREAMBLE_KEEP)
         } catch (t: Throwable) {
             android.util.Log.w(
-                "ConversationViewModel",
+                TAG,
                 "applyPreambleCache failed (continuing without cache)", t
             )
             try { session.setPreambleCachePath("", "") } catch (_: Throwable) {}
@@ -4251,7 +4247,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
                 java.io.File(bin.absolutePath.removeSuffix(".bin") + ".json").delete()
             }
         } catch (t: Throwable) {
-            android.util.Log.w("ConversationViewModel", "pruneOldKvPreambles failed", t)
+            android.util.Log.w(TAG, "pruneOldKvPreambles failed", t)
         }
     }
 

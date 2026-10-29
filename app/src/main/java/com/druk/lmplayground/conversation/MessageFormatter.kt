@@ -106,7 +106,7 @@ private fun dedentThinking(text: String): String {
         } else {
             // Inside a fence: drop only the opening fence's own indent so the
             // code keeps its internal indentation.
-            out.add(line.substring(minOf(leading, fenceIndent!!)))
+            out.add(line.substring(minOf(leading, fenceIndent)))
             if (stripped.startsWith("```") || stripped.startsWith("~~~")) {
                 fenceIndent = null
             }

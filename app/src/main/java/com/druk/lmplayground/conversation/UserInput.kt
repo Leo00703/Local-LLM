@@ -201,11 +201,7 @@ fun UserInput(
     Surface(
         // Frosted: paint nothing of our own and let hazeEffect blur the chat
         // behind the whole dock. Otherwise keep the original tonal surface.
-        modifier = if (frosted) {
-            Modifier.fillMaxWidth().hazeEffect(hazeState!!, hazeStyle)
-        } else {
-            Modifier
-        },
+        modifier = hazeState?.let { Modifier.fillMaxWidth().hazeEffect(it, hazeStyle) } ?: Modifier,
         color = if (frosted) Color.Transparent else MaterialTheme.colorScheme.surface,
         tonalElevation = if (frosted || integrateWithSurface) 0.dp else 2.dp,
         contentColor = MaterialTheme.colorScheme.secondary

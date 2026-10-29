@@ -9,10 +9,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * AIDL-proxy view of a generation session.
  *
- * The legacy `external fun generate(callback): Int` (which sampled exactly
- * one token per call) is gone. Generation now runs entirely service-side
- * in a single AIDL round trip — see [generateAll]. The historic
- * [LlamaGenerationCallback.onFullResponse] contract is preserved by
+ * Generation runs entirely service-side in a single AIDL round trip — see
+ * [generateAll]. The [LlamaGenerationCallback.onFullResponse] contract is met by
  * accumulating deltas in this class.
  */
 class LlamaGenerationSession internal constructor(

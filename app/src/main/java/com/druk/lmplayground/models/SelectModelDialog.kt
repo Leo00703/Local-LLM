@@ -45,7 +45,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -178,9 +177,7 @@ fun SelectModelDialog(
             shadowElevation = 8.dp,
         ) {
             Box(
-                modifier = if (frosted) {
-                    Modifier.hazeEffect(hazeState!!, hazeStyle)
-                } else Modifier
+                modifier = hazeState?.let { Modifier.hazeEffect(it, hazeStyle) } ?: Modifier
             ) {
             LazyColumn {
                 // Remote servers, above the downloaded models: only the saved servers that answered

@@ -46,3 +46,7 @@ app/src/test/snapshots/
 
 # graphify output (rebuilt locally with `graphify update .`)
 graphify-out/
+
+# desloppify local state (scan history, plan, review packets)
+.desloppify/
+scorecard.png

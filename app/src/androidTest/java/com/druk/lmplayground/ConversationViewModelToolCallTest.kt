@@ -1,6 +1,5 @@
 package com.druk.lmplayground
 
-import android.app.Application
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData

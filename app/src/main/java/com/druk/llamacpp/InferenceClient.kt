@@ -14,16 +14,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 
 /**
- * Owns the binding to the in-process `LlamaService` (and, after step 5,
- * the `:llama` process service). Provides a [state] flow consumers can
- * observe to react to connection / crash transitions.
+ * Owns the binding to the `LlamaService`, which runs in the separate `:llama`
+ * process. Provides a [state] flow consumers can observe to react to
+ * connection / crash transitions.
  *
  * Design notes:
  * - `bind()` is fire-and-forget; consumers `await()` for the connected
  *   state if they need a synchronous handle.
- * - `linkToDeath` will be wired in step 5 when the service moves to
- *   `:llama`. In step 3 the service runs in-process and there is no
- *   binder death to detect.
+ * - A `linkToDeath` recipient moves the state to [InferenceState.Crashed]
+ *   when the `:llama` process dies; [InferenceState.Crashed] is sticky until
+ *   the crash is acknowledged.
  * - The class name of the service is supplied by the caller to avoid
  *   pulling the app module into the public llamacpp package.
  */
@@ -121,9 +121,9 @@ class InferenceClient(
      * == Connecting), throws if the service has crashed.
      *
      * Callers running on a coroutine should prefer [awaitConnected]
-     * (suspend, no blocking). This entry point exists for the legacy
-     * non-suspend proxy methods (`addMessage`, `probeModelMetadata`,
-     * `loadModel`) that are invoked from background dispatchers
+     * (suspend, no blocking). This entry point serves the non-suspend proxy
+     * methods (`addMessage`, `probeModelMetadata`, `loadModel`, via
+     * [withService]) that are invoked from background dispatchers
      * (Default / IO) where a short block is acceptable.
      *
      * @param waitForBindMs how long to block if state is Connecting

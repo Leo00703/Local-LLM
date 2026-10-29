@@ -5,16 +5,11 @@ import android.os.ParcelFileDescriptor
 /**
  * App-facing facade for the inference engine.
  *
- * Forwards calls over AIDL to the in-process `LlamaService` (and, after
- * the service moves to `:llama`, the inference process). Replaces the
- * previous direct-JNI `LlamaCpp` — that class moved to
- * [com.druk.llamacpp.jni.NativeLlamaCpp] and is only used by the service
- * implementation and the instrumented JNI tests.
+ * Forwards calls over AIDL to the `LlamaService` in the `:llama` process. The
+ * direct-JNI class is [com.druk.llamacpp.jni.NativeLlamaCpp], used only by the
+ * service implementation and the instrumented JNI tests.
  */
 class LlamaCpp(private val client: InferenceClient) {
-
-    /** No-op — the service runs `initBackend()` automatically on bind. */
-    fun init(): Int = 0
 
     fun systemInfo(): String = client.withService { it.systemInfo() }
 

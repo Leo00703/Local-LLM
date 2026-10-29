@@ -3,6 +3,7 @@ package com.druk.lmplayground.storage
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -20,6 +21,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
+
+private const val TAG = "StorageViewModel"
 
 /**
  * Represents download progress for a model
@@ -52,9 +55,7 @@ data class MigrationState(
     val isFromDownloads: Boolean = oldUri == null
 )
 
-/**
- * Represents migration progress
- */
+/** Which model of the migration is being copied, for the progress dialog. */
 data class MigrationProgress(
     val currentModel: String,
     val currentIndex: Int,
@@ -248,9 +249,7 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
         }
     }
     
-    /**
-     * User confirmed migration - copy models from old folder to new folder
-     */
+    /** Copies the pending migration's models into the new folder, then switches to it. */
     fun confirmMigration() {
         val migration = _pendingMigration.value ?: return
         _pendingMigration.value = null
@@ -292,10 +291,8 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
                             return@forEachIndexed
                         }
                         
-                        // Delete existing file in new location if any
                         newDocumentFile.findFile(modelFile.name)?.delete()
-                        
-                        // Create file in new location
+
                         val destFile = newDocumentFile.createFile("application/octet-stream", modelFile.name)
                         if (destFile == null) {
                             inputStream.close()
@@ -334,17 +331,16 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
 
                         successCount++
                     } catch (e: Exception) {
+                        Log.w(TAG, "migrating ${modelFile.name} failed", e)
                         failCount++
                     }
                 }
-                
+
                 _migrationProgress.postValue(null)
-                
-                // Set new folder
+
                 repository.setStorageFolder(migration.newUri)
                 _isStorageConfigured.postValue(true)
-                
-                // Show result
+
                 if (failCount == 0) {
                     showSnackbar("Migrated $successCount model(s)")
                 } else {
@@ -356,18 +352,13 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
         }
     }
     
-    /**
-     * User declined migration - just change to new folder without copying
-     */
+    /** Switches to the new folder without copying the old folder's models. */
     fun skipMigration() {
         val migration = _pendingMigration.value ?: return
         _pendingMigration.value = null
         setStorageFolderInternal(migration.newUri)
     }
     
-    /**
-     * User cancelled folder change
-     */
     fun cancelMigration() {
         _pendingMigration.value = null
     }

@@ -137,7 +137,7 @@ fun ChatItemBubble(
                 val thinkingText = stringResource(R.string.thinking)
                 val inputLabel = stringResource(R.string.tool_call_input)
                 val outputLabel = stringResource(R.string.tool_call_output)
-                for (toolCall in message.toolCalls!!) {
+                for (toolCall in message.toolCalls.orEmpty()) {
                     // This round's thinking, rendered immediately before its
                     // tool call so multi-step turns read in chronological order.
                     if (toolCall.precedingThinking.isNotEmpty()) {

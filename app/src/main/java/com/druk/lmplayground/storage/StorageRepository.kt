@@ -98,20 +98,14 @@ class StorageRepository(
 
         val documentFile = DocumentFile.fromTreeUri(context, treeUri)
         if (documentFile == null) {
-            Log.d(TAG, "getModelFiles() - DocumentFile.fromTreeUri returned null")
+            Log.w(TAG, "DocumentFile.fromTreeUri returned null")
             return emptyList()
         }
-        
-        Log.d(TAG, "getModelFiles() - DocumentFile exists: ${documentFile.exists()}, canRead: ${documentFile.canRead()}")
-        
-        val files = documentFile.listFiles()
-        Log.d(TAG, "getModelFiles() - found ${files.size} files total")
-        
-        return files
+
+        return documentFile.listFiles()
             .filter { it.name?.endsWith(".gguf") == true }
             .mapNotNull { file ->
                 val name = file.name ?: return@mapNotNull null
-                Log.d(TAG, "getModelFiles() - found model: $name")
                 ModelFile(
                     name = name,
                     displayName = ModelInfoProvider.getDisplayName(name),
@@ -183,50 +177,38 @@ class StorageRepository(
         val treeUri = prefs.modelStorageUri ?: return false
         val documentFile = DocumentFile.fromTreeUri(context, treeUri)
         val file = documentFile?.findFile(fileName)
-        val deleted = file?.delete() == true
-        Log.d(TAG, "deleteModel() - fileName: $fileName, deleted: $deleted")
-        return deleted
+        return file?.delete() == true
     }
 
     /**
-     * Result of opening a model file.
-     * Contains the "fd:N" path for native code and keeps the ParcelFileDescriptor alive.
-     * 
+     * Result of opening a model file: keeps the ParcelFileDescriptor alive.
+     *
      * IMPORTANT: The ParcelFileDescriptor MUST be kept alive while the model is loaded!
      * Native code uses dup() to create copies of the fd, but the original must stay open.
      * Call close() when done with the model.
      */
     class ModelFileHandle(
         /**
-         * Legacy `fd:N` path string referring to [pfd] in the *app* process.
-         * Still used by code paths that resolve the file in-process. Once the
-         * service moves to `:llama` (step 6) this string is no longer valid
-         * cross-process — pass [pfd] directly to AIDL instead.
-         */
-        val path: String,
-        /**
          * The open file descriptor for the model. Pass this across the
          * binder when calling the inference service so the service can
-         * dup the FD into its own process and build its own `fd:N` string.
+         * dup the FD into its own process and build its own `fd:N` string
+         * (which the native ggml_fopen/llama_open overrides resolve with
+         * dup() + fdopen()/open()).
          */
         val pfd: ParcelFileDescriptor,
     ) {
         fun close() {
             try {
                 pfd.close()
-                Log.d(TAG, "ModelFileHandle closed")
             } catch (e: Exception) {
                 Log.e(TAG, "ModelFileHandle.close() failed: ${e.message}")
             }
         }
     }
-    
+
     /**
-     * Open a model file and return a handle for native code.
-     * 
-     * Returns "fd:N" path format which our native ggml_fopen/llama_open overrides
-     * will handle using dup() + fdopen()/open().
-     * 
+     * Open a model file and return a handle that owns its file descriptor.
+     *
      * IMPORTANT: Keep the returned handle alive until the model is unloaded!
      */
     fun openModelFile(fileName: String): ModelFileHandle? {
@@ -250,11 +232,7 @@ class StorageRepository(
         return try {
             val pfd = context.contentResolver.openFileDescriptor(fileUri, "r")
             if (pfd != null) {
-                val fd = pfd.fd
-                val fdPath = "fd:$fd"
-                
-                Log.d(TAG, "openModelFile() - fileName: $fileName, fd: $fd, path: $fdPath")
-                ModelFileHandle(fdPath, pfd)
+                ModelFileHandle(pfd)
             } else {
                 Log.e(TAG, "openModelFile() - openFileDescriptor returned null")
                 null

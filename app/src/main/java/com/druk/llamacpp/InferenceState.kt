@@ -5,8 +5,8 @@ package com.druk.llamacpp
  * [InferenceClient.state]. The proxy classes refuse to operate when the
  * state is not [Connected].
  *
- * Step 5 will surface [Crashed] when the `:llama` process dies — at which
- * point the UI can show "Inference engine crashed — reload model" and
+ * [InferenceClient] sets [Crashed] when the `:llama` process dies — at which
+ * point the UI shows "Inference engine crashed — reload model" and
  * the next loadModel call gets a fresh service binding automatically.
  */
 sealed interface InferenceState {

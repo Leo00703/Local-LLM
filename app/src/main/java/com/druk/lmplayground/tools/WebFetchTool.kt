@@ -84,7 +84,7 @@ class WebFetchTool(
             // PDF / Office documents: extract text with the same pipeline as file
             // attachments, so a link to a document returns readable text.
             if (context != null && looksLikeDocument(contentType, url)) {
-                val text = extractDocument(context!!, bytes, contentType, url)
+                val text = extractDocument(context, bytes, contentType, url)
                 if (!text.isNullOrBlank()) {
                     val trimmed = if (text.length > maxLength) text.substring(0, maxLength) + "..." else text
                     return result.put("title", "").put("content", trimmed).put("length", trimmed.length).toString()
