@@ -54,6 +54,9 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.139", "Faster Qwen in long chats", listOf(
+        Change(ChangeType.IMPROVED, "Qwen 3 and Qwen 3.5 now answer faster in long conversations: the app keeps what it has already read instead of processing the whole chat again on every message."),
+    )),
     ChangelogEntry("1.9.138", "Stability fixes", listOf(
         Change(ChangeType.FIX, "Fixed a crash that could happen when you switched model or unloaded it while a message was still being prepared, especially with images on a slow phone."),
         Change(ChangeType.FIX, "The keyboard now closes when you open the model picker, so it no longer hides half of the list."),

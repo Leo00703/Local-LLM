@@ -291,6 +291,13 @@ void LlamaGenerationSession::init(llama_model *model, llama_model *drafter, cons
     chat_tmpls = tmpls;
     mctx = mmctx;
 
+    // Recurrent and hybrid memories refuse a partial llama_memory_seq_rm, and a
+    // sliding-window cache has already evicted the cells an older position
+    // needs, so for these a rollback must also restore a saved state.
+    memory_needs_state_snapshots = llama_model_is_recurrent(model) ||
+                                   llama_model_is_hybrid(model) ||
+                                   llama_model_n_swa(model) > 0;
+
     int n_threads = 1;
     int n_threads_batch = 1;
     plan_cpu_threads(n_threads, n_threads_batch);
@@ -511,6 +518,163 @@ void LlamaGenerationSession::clearKvCacheForFreshPrompt() {
     prev_len = 0;
     last_full_prompt.clear();
     last_prompt_end_pos = 0;
+    resetKvTokens();
+}
+
+void LlamaGenerationSession::resetKvTokens() {
+    kv_tokens.clear();
+    kv_tokens_valid = true;
+    kv_checkpoints.clear();
+}
+
+void LlamaGenerationSession::trackDecoded(const llama_token *tokens, int n) {
+    if (kv_tokens_valid && tokens != nullptr && n > 0) {
+        kv_tokens.insert(kv_tokens.end(), tokens, tokens + n);
+    }
+}
+
+void LlamaGenerationSession::forgetKvPast(int kv_pos) {
+    kv_checkpoints.erase(
+        std::remove_if(kv_checkpoints.begin(), kv_checkpoints.end(),
+                       [&](const KvCheckpoint &c) { return c.kv_pos > kv_pos; }),
+        kv_checkpoints.end());
+}
+
+bool LlamaGenerationSession::captureKvCheckpoint() {
+    if (!memory_needs_state_snapshots) return true;
+    const int kv_pos = (int)llama_memory_seq_pos_max(llama_get_memory(ctx), 0) + 1;
+    if (kv_pos <= 0) return true;
+    for (const auto &c : kv_checkpoints) {
+        if (c.kv_pos == kv_pos) return true;
+    }
+
+    KvCheckpoint cp;
+    cp.kv_pos = kv_pos;
+    const size_t size = llama_state_seq_get_size_ext(ctx, 0, LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY);
+    if (size == 0 || size > kMaxKvCheckpointBytes) {
+        LOGi("KV checkpoint at %d: state of %zu bytes not kept", kv_pos, size);
+        return false;
+    }
+    cp.state.resize(size);
+    const size_t written = llama_state_seq_get_data_ext(
+            ctx, cp.state.data(), cp.state.size(), 0, LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY);
+    if (written == 0) {
+        LOGi("KV checkpoint at %d: state copy failed", kv_pos);
+        return false;
+    }
+    cp.state.resize(written);
+
+    auto at = std::lower_bound(kv_checkpoints.begin(), kv_checkpoints.end(), kv_pos,
+                               [](const KvCheckpoint &c, int pos) { return c.kv_pos < pos; });
+    LOGi("KV checkpoint at %d: %zu KB", kv_pos, written / 1024);
+    kv_checkpoints.insert(at, std::move(cp));
+
+    size_t bytes = 0;
+    for (const auto &c : kv_checkpoints) bytes += c.state.size();
+    while (!kv_checkpoints.empty() &&
+           (kv_checkpoints.size() > kMaxKvCheckpoints || bytes > kMaxKvCheckpointBytes)) {
+        bytes -= kv_checkpoints.front().state.size();
+        kv_checkpoints.erase(kv_checkpoints.begin());
+    }
+    return true;
+}
+
+bool LlamaGenerationSession::truncateKvTo(int kv_pos) {
+    llama_memory_t mem = llama_get_memory(ctx);
+    const int cur = (int)llama_memory_seq_pos_max(mem, 0) + 1;
+    if (kv_pos < 0 || kv_pos > cur) return false;
+    if (kv_pos == 0) {
+        llama_memory_clear(mem, true);
+        resetKvTokens();
+        return true;
+    }
+    if (memory_needs_state_snapshots) {
+        const KvCheckpoint *cp = nullptr;
+        for (const auto &c : kv_checkpoints) {
+            if (c.kv_pos == kv_pos) cp = &c;
+        }
+        if (cp == nullptr) return false;
+        if (llama_state_seq_set_data_ext(ctx, cp->state.data(), cp->state.size(), 0,
+                                         LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY) == 0) {
+            // A failed read leaves the stateful part cleared: nothing left
+            // to keep.
+            LOGi("KV checkpoint at %d failed to restore", kv_pos);
+            llama_memory_clear(mem, true);
+            resetKvTokens();
+            return false;
+        }
+    }
+    if (!llama_memory_seq_rm(mem, 0, kv_pos, -1) ||
+        llama_memory_seq_pos_max(mem, 0) + 1 != kv_pos) {
+        LOGi("KV truncate to %d failed, clearing", kv_pos);
+        llama_memory_clear(mem, true);
+        resetKvTokens();
+        return false;
+    }
+    if (kv_tokens_valid && (int)kv_tokens.size() >= kv_pos) {
+        kv_tokens.resize(kv_pos);
+    } else {
+        kv_tokens.clear();
+        kv_tokens_valid = false;
+    }
+    forgetKvPast(kv_pos);
+    return true;
+}
+
+int LlamaGenerationSession::truncateKvAtMost(int kv_pos) {
+    const int cur = (int)llama_memory_seq_pos_max(llama_get_memory(ctx), 0) + 1;
+    if (kv_pos >= cur) return cur;
+    if (!memory_needs_state_snapshots) {
+        return truncateKvTo(kv_pos) ? kv_pos : -1;
+    }
+    // Newest checkpoint at or before the target; position 0 always works.
+    int best = 0;
+    for (const auto &c : kv_checkpoints) {
+        if (c.kv_pos <= kv_pos && c.kv_pos > best) best = c.kv_pos;
+    }
+    if (best == 0) return -1;
+    return truncateKvTo(best) ? best : -1;
+}
+
+bool LlamaGenerationSession::reuseKvPrefix(const std::string &full_prompt,
+                                           std::vector<llama_token> &tail) {
+    // A session with an MTP draft context keeps a second cache in step with
+    // this one; cutting only this one would leave the head out of sync.
+    if (ctx_dft != nullptr) return false;
+    const int cur = (int)llama_memory_seq_pos_max(llama_get_memory(ctx), 0) + 1;
+    if (!kv_tokens_valid || cur <= 0 || (int)kv_tokens.size() != cur) return false;
+
+    std::vector<llama_token> full = common_tokenize(vocab, full_prompt, /*add_special=*/true,
+                                                    /*parse_special=*/true);
+    size_t n = 0;
+    while (n < full.size() && n < kv_tokens.size() && full[n] == kv_tokens[n]) n++;
+    // At least one token must be decoded to get logits for sampling.
+    if (n >= full.size()) n = full.size() - 1;
+    if (n == 0) return false;
+
+    const int kept = truncateKvAtMost((int)n);
+    if (kept <= 0) return false;
+    tail.assign(full.begin() + kept, full.end());
+    LOGi("Prompt reuse by tokens: %d of %zu tokens kept (common prefix %zu, cache had %d)",
+         kept, full.size(), n, cur);
+    return true;
+}
+
+int LlamaGenerationSession::generationPromptSplit(const common_chat_params &result,
+                                                  const std::string &full_prompt) {
+    if (!memory_needs_state_snapshots || ctx_dft != nullptr ||
+        result.generation_prompt.empty() || prompt_tokens.empty()) {
+        return -1;
+    }
+    // The generation prompt (e.g. "<|im_start|>assistant\n") is where the
+    // reply starts; some templates render a reply differently once it stops
+    // being the latest one, so the next turn's prompt can diverge right
+    // after it. A checkpoint there lets that turn keep everything before.
+    const size_t at = full_prompt.rfind(result.generation_prompt);
+    if (at == std::string::npos) return -1;
+    const int n_gp = (int)common_tokenize(vocab, full_prompt.substr(at), false, true).size();
+    const int split = (int)prompt_tokens.size() - n_gp;
+    return split > 0 ? split : -1;
 }
 
 void LlamaGenerationSession::requestAbort() {
@@ -539,10 +703,10 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
 
     // Images don't reuse the incremental KV cache — start this turn from a clean
     // context and re-evaluate the full prompt through mtmd.
-    llama_memory_clear(llama_get_memory(ctx), true);
-    prev_len = 0;
-    last_full_prompt.clear();
-    last_prompt_end_pos = 0;
+    clearKvCacheForFreshPrompt();
+    // Image embeddings have no token ids: the cache can't be matched by tokens
+    // until the next clear.
+    kv_tokens_valid = false;
 
     // mtmd_tokenize is handed exactly ONE bitmap, so the rendered prompt must
     // contain exactly ONE media marker. Earlier image turns left theirs in
@@ -669,6 +833,7 @@ int LlamaGenerationSession::addImageMessage(const char *text, bool enableThinkin
         // The KV may hold a partial eval of this turn; wipe it so the pop'd
         // message can't leave stale tokens behind (next turn re-evals fresh).
         llama_memory_clear(llama_get_memory(ctx), true);
+        resetKvTokens();
         messages.pop_back();
         return 1;
     }
@@ -699,6 +864,7 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
     // leaves the session with nothing pending for generate().
     abort_requested.store(false);
     batch = {};
+    checkpoint_after = -1;
     // Fresh text turn: allow speculation (the per-turn gate still applies) and
     // clear any stale speculative-continuation flag from a previous turn.
     spec_disabled_this_turn = false;
@@ -799,11 +965,15 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
         bool prefix_match = (int)full_prompt.size() >= prev_len &&
                             full_prompt.compare(0, prev_len, prev_rendered_prompt) == 0;
         if (!prefix_match) {
-            LOGi("Prompt prefix mismatch, clearing KV cache");
-            llama_memory_clear(llama_get_memory(ctx), true);
+            size_t at = 0;
+            while (at < full_prompt.size() && at < prev_rendered_prompt.size() &&
+                   full_prompt[at] == prev_rendered_prompt[at]) at++;
+            const size_t from = at > 40 ? at - 40 : 0;
+            LOGi("Prompt prefix mismatch at byte %zu of %d\n  was: %s\n  now: %s",
+                 at, prev_len,
+                 prev_rendered_prompt.substr(from, 100).c_str(),
+                 full_prompt.substr(from, 100).c_str());
             prev_len = 0;
-            last_full_prompt.clear();
-            last_prompt_end_pos = 0;
         }
     }
 
@@ -814,25 +984,41 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
     // harmful: the conversation is duplicated in context, and the compaction
     // check below believes the window is empty, so it skips compaction and
     // generate() then rejects the batch and returns an empty reply.
+    //
+    // Some templates re-render earlier turns (Qwen3 drops the latest reply's
+    // empty think block once a new user turn follows), which breaks the string
+    // prefix every turn. Rather than start over, keep the longest token prefix
+    // the cache still shares with the new prompt. Anything it can't match is
+    // cleared.
+    std::vector<llama_token> reuse_tail;
+    bool token_reuse = false;
     if (prev_len == 0) {
         // -1 means empty; any position >= 0 is a leftover entry.
         const int stale = (int)llama_memory_seq_pos_max(llama_get_memory(ctx), 0);
         if (stale >= 0) {
-            LOGi("Re-sending full prompt with stale KV entries (last pos %d), clearing", stale);
-            clearKvCacheForFreshPrompt();
+            token_reuse = reuseKvPrefix(full_prompt, reuse_tail);
+            if (!token_reuse) {
+                LOGi("Re-sending the full prompt with stale KV entries (last pos %d), clearing", stale);
+                clearKvCacheForFreshPrompt();
+            }
+        } else {
+            // Empty cache: whatever invalidated the token mirror is gone.
+            resetKvTokens();
         }
     }
 
-    std::string prompt = full_prompt.substr(prev_len);
+    std::string prompt = token_reuse ? std::string() : full_prompt.substr(prev_len);
     response.clear();
 
-    bool is_first = (prev_len == 0);
+    bool is_first = !token_reuse && prev_len == 0;
     int n_ctx = llama_n_ctx(ctx);
     // seq_pos_max returns -1 on an empty cache; clamp so the compaction check
     // below sees the same occupancy generate() will measure.
     int n_ctx_used = std::max(0, (int)llama_memory_seq_pos_max(llama_get_memory(ctx), 0));
 
-    int n_prompt_tokens = -llama_tokenize(vocab, prompt.c_str(), prompt.size(), NULL, 0, is_first, true);
+    int n_prompt_tokens = token_reuse
+        ? (int)reuse_tail.size()
+        : -llama_tokenize(vocab, prompt.c_str(), prompt.size(), NULL, 0, is_first, true);
 
     bool compacted = false;
 
@@ -926,21 +1112,28 @@ int LlamaGenerationSession::addMessage(const char *string, bool enableThinking) 
 
     if (compacted) {
         LOGi("Context compacted, clearing KV cache and reprocessing (%d tokens)", n_prompt_tokens);
-        llama_memory_clear(llama_get_memory(ctx), true);
-        prev_len = 0;
-        last_full_prompt.clear();
-        last_prompt_end_pos = 0;
+        clearKvCacheForFreshPrompt();
         is_first = true;
+        // The cache the reused prefix pointed into is gone: tokenize the whole
+        // re-rendered prompt instead.
+        token_reuse = false;
     }
 
-    prompt_tokens.resize(n_prompt_tokens);
-    if (llama_tokenize(vocab, prompt.c_str(), prompt.size(), prompt_tokens.data(), prompt_tokens.size(), is_first, true) < 0) {
-        LOGe("failed to tokenize the prompt");
-        // Roll the turn back like every other failure above: left in [messages] it would
-        // be rendered again, as a dangling user message, into the next turn's prompt.
-        messages.pop_back();
-        return 1;
+    if (token_reuse) {
+        prompt_tokens = std::move(reuse_tail);
+    } else {
+        prompt_tokens.resize(n_prompt_tokens);
+        if (llama_tokenize(vocab, prompt.c_str(), prompt.size(), prompt_tokens.data(), prompt_tokens.size(), is_first, true) < 0) {
+            LOGe("failed to tokenize the prompt");
+            // Roll the turn back like every other failure above: left in [messages] it would
+            // be rendered again, as a dangling user message, into the next turn's prompt.
+            messages.pop_back();
+            return 1;
+        }
     }
+    // A stateful memory is checkpointed where the reply starts, so the next
+    // turn can keep everything before it.
+    checkpoint_after = generationPromptSplit(result, full_prompt);
 
     batch = llama_batch_get_one(prompt_tokens.data(), prompt_tokens.size());
 
@@ -1143,20 +1336,34 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
                 remaining -= chunk;
             }
         } else {
-            // Normal path (unchanged): only the last token needs an output row.
-            while (batch.n_tokens > n_batch_limit) {
-                llama_batch chunk = llama_batch_get_one(batch.token, n_batch_limit);
-                if (llama_decode(ctx, chunk)) {
-                    LOGe("failed to decode prompt chunk");
+            // Normal path: only the last token needs an output row. A stateful
+            // memory also stops at [checkpoint_after] (where the reply starts)
+            // to checkpoint the state there for the next turn's prefix reuse.
+            const int split = (checkpoint_after > 0 && checkpoint_after < batch.n_tokens &&
+                               batch.token == prompt_tokens.data()) ? checkpoint_after : -1;
+            checkpoint_after = -1;
+            const llama_token *tok = batch.token;
+            int remaining = batch.n_tokens;
+            int done = 0;
+            while (remaining > 0) {
+                int n = std::min(remaining, n_batch_limit);
+                if (split > 0 && done < split && done + n > split) n = split - done;
+                if (llama_decode(ctx, llama_batch_get_one(const_cast<llama_token *>(tok), n))) {
+                    LOGe("failed to decode the batch");
+                    // Keep the token mirror honest about whatever part of the
+                    // chunk stayed in the cache.
+                    const int pos = (int)llama_memory_seq_pos_max(llama_get_memory(ctx), 0) + 1;
+                    const int extra = pos - (int)kv_tokens.size();
+                    if (kv_tokens_valid && extra >= 0 && extra <= n) trackDecoded(tok, extra);
+                    else kv_tokens_valid = false;
                     finalizeResponse();
                     return 1;
                 }
-                batch = llama_batch_get_one(batch.token + n_batch_limit, batch.n_tokens - n_batch_limit);
-            }
-            if (llama_decode(ctx, batch)) {
-                LOGe("failed to decode the batch");
-                finalizeResponse();
-                return 1;
+                trackDecoded(tok, n);
+                tok += n;
+                remaining -= n;
+                done += n;
+                if (done == split) captureKvCheckpoint();
             }
         }
     }
@@ -1263,21 +1470,23 @@ int LlamaGenerationSession::generate(const ResponseCallback& callback) {
             // the tool-result delta. Saves a full prompt-eval pass on
             // every tool round (huge on phone CPU where prompt-eval
             // dominates wall time).
+            //
+            // Recurrent / hybrid memory (Qwen3.5, Granite hybrid, LFM2) cannot drop a
+            // tail that includes its final state, so truncateKvTo only succeeds when a
+            // checkpoint sits at that exact position. Otherwise the model's raw
+            // tool-call tokens stay in the cache: claiming a clean prompt-only prefix
+            // would feed the tool result after them and show the call to the model
+            // twice. prev_len stays 0, and submitToolResults then keeps the longest
+            // token prefix the cache shares (the checkpoint taken where the reply
+            // started) or starts from an empty cache.
+            prev_rendered_prompt.clear();
+            prev_len = 0;
             if (last_prompt_end_pos > 0 && !last_full_prompt.empty()) {
-                if (llama_memory_seq_rm(
-                        llama_get_memory(ctx), 0, last_prompt_end_pos, -1)) {
+                if (truncateKvTo(last_prompt_end_pos)) {
                     prev_rendered_prompt = last_full_prompt;
                     prev_len = (int)last_full_prompt.size();
                 } else {
-                    // Recurrent / hybrid memory (Qwen3.5, Granite hybrid, LFM2) cannot drop a
-                    // tail that includes its final state, so the model's raw tool-call tokens
-                    // are still in the cache. Claiming a clean prompt-only prefix would feed
-                    // the tool result after them and show the call to the model twice;
-                    // start the next prompt from an empty cache instead.
-                    LOGi("Tool-call rollback not possible on this memory; re-evaluating the prompt");
-                    llama_memory_clear(llama_get_memory(ctx), true);
-                    prev_rendered_prompt.clear();
-                    prev_len = 0;
+                    LOGi("Tool-call rollback not possible on this memory; re-evaluating from a shared prefix");
                     last_full_prompt.clear();
                     last_prompt_end_pos = 0;
                 }
@@ -1570,9 +1779,11 @@ void LlamaGenerationSession::replayHistory(const std::vector<std::pair<std::stri
     response.clear();
     last_full_prompt.clear();
     last_prompt_end_pos = 0;
+    checkpoint_after = -1;
     if (ctx != nullptr) {
         llama_memory_clear(llama_get_memory(ctx), true);
     }
+    resetKvTokens();
     LOGi("Replayed %zu turns of history", history.size());
 }
 
@@ -1737,6 +1948,8 @@ bool LlamaGenerationSession::tryPreambleCache(bool enableThinking) {
                 if (ok && n_loaded > 0) {
                     prev_rendered_prompt = preamble;
                     prev_len = (int)preamble.size();
+                    resetKvTokens();
+                    kv_tokens.assign(tokens.begin(), tokens.begin() + (long)n_loaded);
                     LOGi("Preamble cache HIT: loaded %zu tokens from %s",
                          n_loaded, bin_path.c_str());
                     return true;
@@ -1760,6 +1973,7 @@ bool LlamaGenerationSession::tryPreambleCache(bool enableThinking) {
         // llama_decode). The cache is meant to be empty here (prev_len == 0),
         // so start the prefill from a clean one.
         llama_memory_clear(llama_get_memory(ctx), true);
+        resetKvTokens();
     }
 
     // 3. Cache miss: prefill the preamble alone, then save.
@@ -1787,6 +2001,7 @@ bool LlamaGenerationSession::tryPreambleCache(bool enableThinking) {
         if (llama_decode(ctx, b) != 0) {
             LOGi("Preamble cache: decode failed at chunk %d, clearing KV", i);
             llama_memory_clear(llama_get_memory(ctx), true);
+            resetKvTokens();
             return false;
         }
     }
@@ -1795,6 +2010,8 @@ bool LlamaGenerationSession::tryPreambleCache(bool enableThinking) {
     // logic feeds only the user-message delta.
     prev_rendered_prompt = preamble;
     prev_len = (int)preamble.size();
+    resetKvTokens();
+    kv_tokens = tokens;
 
     // Save to disk. Best-effort: a save failure means no cache for next time
     // but the in-memory state is correct, so the current turn benefits anyway.
@@ -1915,38 +2132,42 @@ int LlamaGenerationSession::submitToolResults(const char *resultsJson, bool enab
     // we feed only the delta and skip re-tokenizing the conversation.
     // Mismatch can happen when the chat template re-renders earlier
     // turns differently for round 2 (e.g. enableThinking flipped, or
-    // the template inlines reasoning content into the assistant turn).
-    // Fall back to clearing the cache in that case — correctness over
-    // speed.
+    // the template inlines reasoning content into the assistant turn), or
+    // when a hybrid memory couldn't drop the tool-call tokens (prev_len is 0
+    // then). In both cases keep the longest token prefix the cache shares
+    // with the new prompt, and clear the cache when there is none —
+    // correctness over speed.
     bool prefix_match = false;
     if (prev_len > 0) {
         prefix_match = (int)full_prompt.size() >= prev_len &&
                        full_prompt.compare(0, prev_len, prev_rendered_prompt) == 0;
         if (!prefix_match) {
-            LOGi("submitToolResults: prefix mismatch, clearing KV cache");
-            llama_memory_clear(llama_get_memory(ctx), true);
+            LOGi("submitToolResults: prefix mismatch");
             prev_len = 0;
-            last_full_prompt.clear();
-            last_prompt_end_pos = 0;
         }
-    } else {
-        // No prefix to reuse (e.g. tool_call detection rolled back
-        // before any prompt was fed, or the session was truncated).
-        // Clear to be safe and feed everything from scratch.
-        llama_memory_clear(llama_get_memory(ctx), true);
-        last_full_prompt.clear();
-        last_prompt_end_pos = 0;
+    }
+    std::vector<llama_token> reuse_tail;
+    bool token_reuse = false;
+    if (prev_len == 0) {
+        if (llama_memory_seq_pos_max(llama_get_memory(ctx), 0) >= 0) {
+            token_reuse = reuseKvPrefix(full_prompt, reuse_tail);
+            if (!token_reuse) clearKvCacheForFreshPrompt();
+        } else {
+            // Empty cache: whatever invalidated the token mirror is gone.
+            resetKvTokens();
+        }
     }
 
-    std::string prompt = full_prompt.substr(prev_len);
-    bool is_first = (prev_len == 0);
+    std::string prompt = token_reuse ? std::string() : full_prompt.substr(prev_len);
+    bool is_first = !token_reuse && prev_len == 0;
 
     int n_ctx = llama_n_ctx(ctx);
     int n_ctx_used = is_first
         ? 0
         : (int)llama_memory_seq_pos_max(llama_get_memory(ctx), 0);
-    int n_prompt_tokens = -llama_tokenize(
-        vocab, prompt.c_str(), prompt.size(), NULL, 0, is_first, true);
+    int n_prompt_tokens = token_reuse
+        ? (int)reuse_tail.size()
+        : -llama_tokenize(vocab, prompt.c_str(), prompt.size(), NULL, 0, is_first, true);
 
     if (n_ctx_used + n_prompt_tokens > n_ctx) {
         LOGe("Context overflow in submitToolResults: %d + %d > %d",
@@ -1954,13 +2175,18 @@ int LlamaGenerationSession::submitToolResults(const char *resultsJson, bool enab
         return 1;
     }
 
-    prompt_tokens.resize(n_prompt_tokens);
-    if (llama_tokenize(vocab, prompt.c_str(), prompt.size(),
-                       prompt_tokens.data(), prompt_tokens.size(),
-                       is_first, true) < 0) {
-        LOGe("failed to tokenize prompt after tool results");
-        return 1;
+    if (token_reuse) {
+        prompt_tokens = std::move(reuse_tail);
+    } else {
+        prompt_tokens.resize(n_prompt_tokens);
+        if (llama_tokenize(vocab, prompt.c_str(), prompt.size(),
+                           prompt_tokens.data(), prompt_tokens.size(),
+                           is_first, true) < 0) {
+            LOGe("failed to tokenize prompt after tool results");
+            return 1;
+        }
     }
+    checkpoint_after = generationPromptSplit(result, full_prompt);
 
     batch = llama_batch_get_one(prompt_tokens.data(), prompt_tokens.size());
 

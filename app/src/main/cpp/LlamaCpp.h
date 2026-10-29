@@ -25,6 +25,12 @@
 void native_log_capture_begin();
 std::string native_log_capture_end();
 
+// KV checkpoints: copies of the state llama_memory_seq_rm can't truncate
+// (recurrent / hybrid / SWA memories), taken right before each generation
+// prompt. Bounded by count and bytes, lowest position evicted first.
+constexpr size_t kMaxKvCheckpoints = 12;
+constexpr size_t kMaxKvCheckpointBytes = 96u * 1024u * 1024u;
+
 // Vulkan CLIP crash sentinel (implemented in native-lib.cpp). A marker file is
 // written right before the crash-prone Vulkan vision-encoder init and removed
 // right after. If the marker is still present at the next process start, that
@@ -177,6 +183,48 @@ private:
     // Reset the incremental-prefix state and clear the KV cache: the next
     // prompt is fed from scratch.
     void clearKvCacheForFreshPrompt();
+
+    // State a stateful memory needs to resume from [kv_pos], read with
+    // LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY.
+    struct KvCheckpoint {
+        int kv_pos = 0;
+        std::vector<uint8_t> state;
+    };
+
+    // Checkpoint the current cache state (a no-op for memories that
+    // llama_memory_seq_rm can truncate). False when it couldn't be kept.
+    bool captureKvCheckpoint();
+    // Cut the cache back to exactly [kv_pos] positions. False (cache
+    // untouched) when that isn't possible.
+    bool truncateKvTo(int kv_pos);
+    // Cut the cache back to at most [kv_pos] positions: the longest
+    // restorable prefix. Returns the positions kept, or -1 when nothing
+    // could be kept (the cache is then untouched).
+    int truncateKvAtMost(int kv_pos);
+    // Drop checkpoints past [kv_pos]: their cache is gone.
+    void forgetKvPast(int kv_pos);
+    // Text path of addMessage / submitToolResults when the string prefix
+    // doesn't match: reuse the longest token prefix of [full_prompt] the
+    // cache already holds. On success [tail] holds the tokens still to feed.
+    bool reuseKvPrefix(const std::string &full_prompt, std::vector<llama_token> &tail);
+    // Tokens of [prompt_tokens] to decode before checkpointing (the start of
+    // the generation prompt), or -1.
+    int generationPromptSplit(const common_chat_params &result, const std::string &full_prompt);
+    // Append decoded tokens to [kv_tokens].
+    void trackDecoded(const llama_token *tokens, int n);
+    void resetKvTokens();
+
+    std::vector<KvCheckpoint> kv_checkpoints;
+    // Exactly the tokens in KV sequence 0, in position order, so a prompt can
+    // be matched against the cache token by token. Invalid after a vision turn
+    // (image embeddings have no token ids) until the next clear.
+    std::vector<llama_token> kv_tokens;
+    bool kv_tokens_valid = true;
+    // Checkpoint after this many tokens of the pending prompt batch (-1 none).
+    int checkpoint_after = -1;
+    // The memory has parts llama_memory_seq_rm can't truncate (recurrent,
+    // hybrid, sliding-window attention), so rollback needs checkpoints.
+    bool memory_needs_state_snapshots = false;
 
     // Persistent CPU worker pools attached to [ctx]. Without them ggml builds and tears
     // down a "disposable" pool (n_threads-1 pthread_create + join) for EVERY graph compute,
