@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Original LM Playground (Google Play version)
+    url: https://github.com/andriydruk/LMPlayground/issues
+    about: Bugs and requests for the upstream app go to its own repository.
+  - name: llama.cpp engine issues
+    url: https://github.com/ggml-org/llama.cpp/issues
+    about: Model-specific inference bugs that reproduce outside this app belong upstream in llama.cpp.

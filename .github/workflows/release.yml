@@ -1,0 +1,93 @@
+name: Release
+
+# Publishes a GitHub Release for a version tag (e.g. v1.9.139). It does NOT rebuild anything: it takes
+# the APKs that the "Build Debug APK" workflow already produced for the tagged commit, so the file people
+# download is exactly the one CI compiled and verified. Release notes come from the in-app changelog
+# (Changelog.kt) through .github/scripts/changelog.py.
+#
+# Usage:
+#   1. Push the commit and wait for "Build Debug APK" to go green on it.
+#   2. git tag v<version from version.properties> && git push origin v<version>
+#      (or run this workflow from the Actions tab with the tag name).
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release, e.g. v1.9.139'
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag || github.ref_name }}
+
+    steps:
+    - name: Checkout the tag
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.tag || github.ref }}
+
+    - name: Find the CI build of this commit
+      id: build
+      run: |
+        set -euo pipefail
+        SHA=$(git rev-parse HEAD)
+        RUN=$(gh run list --workflow build-debug-apk.yml --commit "$SHA" --status success \
+              --json databaseId --jq '.[0].databaseId // empty')
+        if [ -z "$RUN" ]; then
+          echo "::error title=No CI build::No successful 'Build Debug APK' run for commit $SHA. Push the commit, wait for CI, then tag it."
+          exit 1
+        fi
+        echo "run=$RUN" >> "$GITHUB_OUTPUT"
+        echo "Using CI run $RUN for $TAG ($SHA)"
+
+    - name: Download the APKs
+      run: |
+        set -euo pipefail
+        mkdir dist
+        gh run download "${{ steps.build.outputs.run }}" --name lmplayground-debug-apk --dir dist
+        # The sideload build is non-gating in CI, so its artifact may be absent.
+        gh run download "${{ steps.build.outputs.run }}" --name lmplayground-sideload-apk --dir dist \
+          || echo "::warning::No sideload APK in that CI run; releasing the debug APK only."
+        VERSION="${TAG#v}"
+        for f in dist/*.apk; do
+          mv "$f" "dist/local-llm-$VERSION-$(basename "$f" .apk | sed 's/^app-//').apk"
+        done
+        (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+        ls -l dist
+
+    - name: Write the release notes
+      run: |
+        set -euo pipefail
+        VERSION="${TAG#v}"
+        {
+          python3 .github/scripts/changelog.py --version "$VERSION" || echo "See the commit history for this version."
+          echo
+          echo "---"
+          echo
+          echo "**Install:** download \`local-llm-$VERSION-arm64-v8a-sideload.apk\` (smaller and smoother) or the"
+          echo "\`-debug\` one, allow installs from this source, and open it. It installs alongside the Play Store"
+          echo "LM Playground. arm64 phones only. Checksums are in \`SHA256SUMS.txt\`."
+          echo
+          echo "These builds are signed with the public debug key of this repository, so they update over each other"
+          echo "but do not prove authorship: only install APKs downloaded from this page."
+        } > notes.md
+        cat notes.md
+
+    - name: Create the release
+      run: |
+        set -euo pipefail
+        gh release create "$TAG" dist/* \
+          --title "Local LLM ${TAG#v}" \
+          --notes-file notes.md \
+          --verify-tag \
+          --latest

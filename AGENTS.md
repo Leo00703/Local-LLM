@@ -75,6 +75,10 @@ Staged features are marked in commit titles, e.g. `(parity build 1/2)`,
   `IMPROVED`, not `IMPROVEMENT` (a typo caused a failed CI build). Keep text
   short, plain English, no internal jargon. The file's own KDoc restates these
   rules.
+- **`CHANGELOG.md`** at the repo root is generated from `Changelog.kt`, never edited by hand:
+  `python .github/scripts/changelog.py > CHANGELOG.md` (the script exits non-zero when a version has no entry,
+  which is also how `release.yml` notices a forgotten changelog). Regenerate it when you add an entry, or at
+  release time.
 - **fastlane changelog files** (`fastlane/metadata/android/*/changelogs/`,
   named `{major*10000+minor*100+patch}.txt`, e.g. 1.5.0 → `10500.txt`): none
   have been added since 1.7.1 — recent releases rely on `default.txt` fallback
@@ -86,6 +90,7 @@ Staged features are marked in commit titles, e.g. `(parity build 1/2)`,
 |---|---|---|
 | `build-debug-apk.yml` | push to non-main (md/docs paths ignored) + manual | Builds debug APKs. The daily verification path. |
 | `pull-request-check.yml` | PR | Same native setup + KVM, runs `./gradlew app:mvdApi35Check` (Managed Virtual Device, Pixel API 35). |
+| `release.yml` | push of a `v*` tag, or manual with a tag name | Publishes a GitHub Release **without rebuilding**: downloads the APKs of the green `build-debug-apk.yml` run for the tagged commit, renames them `local-llm-<version>-arm64-v8a-{sideload,debug}.apk`, adds `SHA256SUMS.txt`, and takes the notes from `Changelog.kt` via `.github/scripts/changelog.py`. Flow: push, wait for CI, then `git tag v<version>` + `git push origin v<version>`. |
 | `deploy-internal.yml` | **manual only** — the fork has no Play secrets (auto-runs would burn a build then fail) | Release AAB + fastlane internal upload. `versionCode = BASE*1000 + GITHUB_RUN_NUMBER`. |
 | `update-listing.yml` | push to main touching `fastlane/metadata/**` (changelogs excluded) | Play listing sync; also secret-less. |
 

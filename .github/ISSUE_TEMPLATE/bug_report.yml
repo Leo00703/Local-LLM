@@ -1,0 +1,78 @@
+name: Bug report
+description: Something in the app crashes, misbehaves or is slower than it should be
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. The more precise the report, the faster it can be reproduced.
+        Problems with the **original** LM Playground from Google Play belong in the
+        [upstream repository](https://github.com/andriydruk/LMPlayground/issues).
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown in Settings, or in the APK file name / release you installed.
+      placeholder: "1.9.139"
+    validations:
+      required: true
+  - type: dropdown
+    id: build
+    attributes:
+      label: Build type
+      options:
+        - Release APK (GitHub Releases)
+        - Sideload APK (CI artifact)
+        - Debug APK (CI artifact)
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device, chipset and Android version
+      placeholder: "Pixel 9 Pro, Tensor G4, Android 16"
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Where does the model run?
+      options:
+        - On-device, CPU (llama.cpp)
+        - On-device, GPU (OpenCL)
+        - On-device, LiteRT (Gemma 4)
+        - Remote server (LM Studio)
+        - Remote server (Ollama)
+        - Remote server (llama.cpp llama-server)
+        - Remote server (other OpenAI-compatible)
+        - Not related to a model
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model and quantization
+      placeholder: "Qwen 3.5 4B, Q4_K_M"
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the model picker
+        2. Load ...
+        3. Send ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected and what happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: For a crash, `adb logcat` output around the crash is the most useful thing you can attach.
+      render: shell
