@@ -131,7 +131,7 @@ Most models use Q4_K_M quantization (Qwen 3.5 too: the GPU backend has kernels f
 ## Build from source
 
 Prerequisites:
-* Android Studio [2024.3.1+](https://developer.android.com/studio/releases)
+* Android Studio [Otter (2025.2.1) or newer](https://developer.android.com/studio/releases) (the project uses Android Gradle plugin 8.13) with JDK 21, which Android Studio bundles
 * NDK 27.2.12479018
 * CMake 3.31.5
 
@@ -139,11 +139,17 @@ Prerequisites:
 ```
 git clone --recurse-submodules https://github.com/Leo00703/Local-LLM.git
 ```
-2. Open the project in Android Studio: `File` > `Open` > Select the cloned repository.
-3. Connect an Android device or start an emulator.
-4. Run the application using `Run` > `Run 'app'` or the play button in Android Studio.
+2. Apply the Android patches to the llama.cpp submodule. CI does this on every build; a local checkout needs it once, and the native code does not compile without it (details in the [patches README](app/src/main/cpp/patches/llama.cpp/README.md)):
+```
+cd app/src/main/cpp/llama.cpp
+for p in ../patches/llama.cpp/*.patch; do git apply "$p"; done
+cd -
+```
+3. Open the project in Android Studio: `File` > `Open` > Select the cloned repository.
+4. Connect an Android device or start an emulator.
+5. Run the application using `Run` > `Run 'app'` or the play button in Android Studio.
 
-Or build the APK from the command line:
+Or build the APK from the command line (after step 2):
 ```
 ./gradlew assembleDebug    # output in app/build/outputs/apk/debug/
 ```

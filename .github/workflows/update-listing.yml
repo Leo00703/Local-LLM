@@ -1,12 +1,8 @@
 name: Update Play Store Listing
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'fastlane/metadata/android/**'
-      - '!fastlane/metadata/android/**/changelogs/**'
+  # Manual-only: this personal fork has no Google Play secrets, and development happens on
+  # main, so a push trigger on fastlane/metadata would fail at the upload on every edit.
   workflow_dispatch:
 
 jobs:

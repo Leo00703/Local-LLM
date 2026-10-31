@@ -15,11 +15,15 @@ By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Building
 
-You need Android Studio (or JDK 21 + the Android SDK), NDK `27.2.12479018` and CMake `3.31.5`. Clone with
-submodules, because llama.cpp is pinned as one:
+You need Android Studio Otter (2025.2.1) or newer (or JDK 21 + the Android SDK), NDK `27.2.12479018` and
+CMake `3.31.5`. Clone with submodules, because llama.cpp is pinned as one, and apply the Android patches to it
+once (CI does the same; without them the native code does not compile):
 
 ```bash
 git clone --recurse-submodules https://github.com/Leo00703/Local-LLM.git
+cd Local-LLM/app/src/main/cpp/llama.cpp
+for p in ../patches/llama.cpp/*.patch; do git apply "$p"; done
+cd ../../../../..
 ./gradlew assembleDebug -Pabis=arm64-v8a
 ```
 

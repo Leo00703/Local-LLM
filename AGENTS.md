@@ -12,8 +12,9 @@ with bundled llama.cpp, plus chatting with remote OpenAI-compatible servers
 green rebrand, name "Local LLM".
 
 - `origin` = `Leo00703/Local-LLM` (SSH), `upstream` = `andriydruk/LMPlayground`.
-- **Not published to the Play Store.** Distribution = GitHub Actions debug
-  APKs, sideloaded onto the phone (installs alongside the Play version via
+- **Not published to the Play Store.** Distribution = GitHub Releases (`release.yml`,
+  tagged `v<version>`) with the APKs CI built, and the Actions artifacts for the
+  daily loop, sideloaded onto the phone (installs alongside the Play version via
   the `.debug` applicationIdSuffix).
 - Development happens on `main`, which is the default branch. (It used to live on
   `feature/remote-tools`; that branch was merged and deleted.)
@@ -92,10 +93,10 @@ Staged features are marked in commit titles, e.g. `(parity build 1/2)`,
 | `pull-request-check.yml` | PR | Same native setup + KVM, runs `./gradlew app:mvdApi35Check` (Managed Virtual Device, Pixel API 35). |
 | `release.yml` | push of a `v*` tag, or manual with a tag name | Publishes a GitHub Release **without rebuilding**: downloads the APKs of the green `build-debug-apk.yml` run for the tagged commit, renames them `local-llm-<version>-arm64-v8a-{sideload,debug}.apk`, adds `SHA256SUMS.txt`, and takes the notes from `Changelog.kt` via `.github/scripts/changelog.py`. Flow: push, wait for CI, then `git tag v<version>` + `git push origin v<version>`. |
 | `deploy-internal.yml` | **manual only** — the fork has no Play secrets (auto-runs would burn a build then fail) | Release AAB + fastlane internal upload. `versionCode = BASE*1000 + GITHUB_RUN_NUMBER`. |
-| `update-listing.yml` | push to main touching `fastlane/metadata/**` (changelogs excluded) | Play listing sync; also secret-less. |
+| `update-listing.yml` | **manual only**, for the same reason as `deploy-internal.yml` (it used to run on pushes to `main` touching `fastlane/metadata/**`, which now would fail at the Play upload) | Play listing sync; secret-less. |
 
 `build-debug-apk.yml` does, in order: checkout with recursive submodules →
-**mtmd fork patch** (below) → Java 21 (Zulu) + Android SDK → install pinned
+**llama.cpp patches** (below) → Java 21 (Zulu) + Android SDK → install pinned
 NDK 27.2.12479018 + CMake 3.31.5 → **OpenCL toolchain** (below) →
 ccache restore → `./gradlew assembleDebug -Pabis=arm64-v8a` → (non-gating)
 `./gradlew assembleSideload -Pabis=arm64-v8a` → upload `lmplayground-debug-apk`,
