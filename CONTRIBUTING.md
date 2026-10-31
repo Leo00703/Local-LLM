@@ -11,7 +11,7 @@ By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
   discussion saves you writing code that does not fit.
 - **Security problem?** Do not open an issue, see [SECURITY.md](SECURITY.md).
 - **Problem in the original Google Play app?** Report it to [upstream](https://github.com/andriydruk/LMPlayground/issues).
-- Work from the branch that is currently developed (`feature/remote-tools`); `main` can be well behind it.
+- Branch from `main`, which is always the current state of the app.
 
 ## Building
 

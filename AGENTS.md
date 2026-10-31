@@ -15,8 +15,8 @@ green rebrand, name "Local LLM".
 - **Not published to the Play Store.** Distribution = GitHub Actions debug
   APKs, sideloaded onto the phone (installs alongside the Play version via
   the `.debug` applicationIdSuffix).
-- All current development happens on `feature/remote-tools` (the branch is far
-  ahead of `main`; do not assume `main` is current).
+- Development happens on `main`, which is the default branch. (It used to live on
+  `feature/remote-tools`; that branch was merged and deleted.)
 - Git identity: `Leonardo Galli <leogalli00703@gmail.com>`.
 
 ## The build/verify loop (read this first)
@@ -31,9 +31,9 @@ GitHub Actions build is the real compiler check. The loop that works:
    - `git diff` review.
    - (Optional) standalone `kotlinc` parse check — expect unresolved-reference
      errors without a classpath; only syntax errors matter.
-2. Commit (see conventions below), push to `feature/remote-tools`.
+2. Commit (see conventions below), push to `main`.
 3. The `Build Debug APK` workflow runs automatically (~13–17 min). Watch it:
-   `gh run list -R Leo00703/Local-LLM --branch feature/remote-tools` and
+   `gh run list -R Leo00703/Local-LLM --branch main` and
    `gh run watch -R Leo00703/Local-LLM <run-id> --exit-status`.
 4. On failure, read the annotations (no log download needed): the workflow
    surfaces Gradle's "What went wrong" and CMake errors as `::error`
@@ -88,7 +88,7 @@ Staged features are marked in commit titles, e.g. `(parity build 1/2)`,
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `build-debug-apk.yml` | push to non-main (md/docs paths ignored) + manual | Builds debug APKs. The daily verification path. |
+| `build-debug-apk.yml` | every push (md, docs, issue-template and release-file paths ignored) + manual | Builds debug APKs. The daily verification path. |
 | `pull-request-check.yml` | PR | Same native setup + KVM, runs `./gradlew app:mvdApi35Check` (Managed Virtual Device, Pixel API 35). |
 | `release.yml` | push of a `v*` tag, or manual with a tag name | Publishes a GitHub Release **without rebuilding**: downloads the APKs of the green `build-debug-apk.yml` run for the tagged commit, renames them `local-llm-<version>-arm64-v8a-{sideload,debug}.apk`, adds `SHA256SUMS.txt`, and takes the notes from `Changelog.kt` via `.github/scripts/changelog.py`. Flow: push, wait for CI, then `git tag v<version>` + `git push origin v<version>`. |
 | `deploy-internal.yml` | **manual only** — the fork has no Play secrets (auto-runs would burn a build then fail) | Release AAB + fastlane internal upload. `versionCode = BASE*1000 + GITHUB_RUN_NUMBER`. |

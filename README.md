@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/Leo00703/Local-LLM/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Leo00703/Local-LLM?include_prereleases&sort=semver&color=2ea043"/></a>
-  <a href="https://github.com/Leo00703/Local-LLM/actions/workflows/build-debug-apk.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/Leo00703/Local-LLM/build-debug-apk.yml?branch=feature%2Fremote-tools&label=build"/></a>
+  <a href="https://github.com/Leo00703/Local-LLM/actions/workflows/build-debug-apk.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/Leo00703/Local-LLM/build-debug-apk.yml?branch=main&label=build"/></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/Leo00703/Local-LLM?color=blue"/></a>
   <img alt="Android 11+" src="https://img.shields.io/badge/Android-11%2B-3DDC84?logo=android&logoColor=white"/>
   <img alt="llama.cpp b11971" src="https://img.shields.io/badge/llama.cpp-b11971-orange"/>
@@ -57,7 +57,9 @@ and allow installs from your browser or file manager.
 - **On-device inference**: no cloud, no API keys, fully offline
 - **Rich markdown** in chat responses: headers, code blocks, lists, and more
 - **Reasoning model support**: thinking steps from models like GPT-OSS, DeepSeek R1, and Nemotron are shown in a styled section
-- **Tool calling**: capable models can search the web, fetch a page, and run JavaScript in an on-device sandbox
+- **Tool calling**: capable models can search the web and Wikipedia, fetch a page, run JavaScript in an on-device sandbox, and use a calculator, unit converter, date and time, device info, location and a memory
+- **Image input**: attach a photo to models with vision (Qwen 3.5, Gemma 3 4B, Gemma 4 E2B/E4B, Ministral 3, LFM2.5-VL); the small image add-on downloads the first time you need it
+- **GPU and speculative decoding**: OpenCL GPU backend on arm64, and an optional, experimental MTP speculative-decoding switch for Qwen 3.5 and Gemma 4
 - **Reliable background downloads**: custom download engine with OkHttp and WorkManager, progress notifications with speed and ETA, automatic resume on network interruptions
 - **Storage management**: choose where to keep multi-GB model files with Android's Storage Access Framework
 - **ARM optimized**: KleidiAI kernels and OpenMP for faster generation on arm64 devices
@@ -105,10 +107,11 @@ See the [changelog](CHANGELOG.md) for the full version history.
 | LFM2.5-VL | 450M, 1.6B, 3B | Liquid AI |
 | SmolLM3 | 3B | Hugging Face |
 | MiniCPM5 | 1B, 2B | OpenBMB |
+| LFM3 | 1.7B | Liquid AI |
+| Spark-X2.6 | 1.7B, 4B | XHToken |
 | Spark-X2.5 | 1.7B, 4B | XHToken |
 | Ministral 3 | 3B, 8B (Instruct & Reasoning) | Mistral |
 | Llama 3.2 | 1B, 3B | Meta |
-| Llama 3.1 | 8B | Meta |
 
 <details>
 <summary>Legacy models</summary>
@@ -118,11 +121,12 @@ See the [changelog](CHANGELOG.md) for the full version history.
 | Qwen 2.5 | 0.5B, 1.5B | Alibaba |
 | Phi 3.5 mini | 3.8B | Microsoft |
 | Mistral v0.3 | 7B | Mistral |
+| Llama 3.1 | 8B | Meta |
 | Gemma 2 | 9B | Google |
 
 </details>
 
-Most models use Q4_K_M quantization; Qwen 3.5 uses Q4_K_M as well (the GPU backend has kernels for Q4_K but none for Q3_K), and GPT-OSS ships in its native MXFP4 format. See [`ModelInfoProvider.kt`](app/src/main/java/com/druk/lmplayground/models/ModelInfoProvider.kt) for the full list.
+Most models use Q4_K_M quantization (Qwen 3.5 too: the GPU backend has kernels for Q4_K but none for Q3_K). Gemma 4 uses Google's official QAT Q4_0 builds, and GPT-OSS ships in its native MXFP4 format. See [`ModelInfoProvider.kt`](app/src/main/java/com/druk/lmplayground/models/ModelInfoProvider.kt) for the full list.
 
 ## Build from source
 

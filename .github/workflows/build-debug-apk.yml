@@ -2,12 +2,10 @@ name: Build Debug APK
 
 # Builds an installable, debug-signed APK and uploads it as a downloadable
 # artifact so it can be sideloaded onto a device without a local Android
-# toolchain. Runs on every push to a non-main branch (main is handled by
-# deploy-internal.yml) and can also be triggered manually from the Actions tab.
+# toolchain. Runs on every push (main included; deploy-internal.yml is manual-only)
+# and can also be triggered manually from the Actions tab.
 on:
   push:
-    branches-ignore:
-      - main
     paths-ignore:
       - '**.md'
       - 'docs/**'
