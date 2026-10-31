@@ -202,8 +202,9 @@ app/src/main/java/com/druk/
   servers that report capabilities (Ollama, llama.cpp) gate on them.
 - **Strings**: `app/src/main/res/values/strings.xml` (English is source of
   truth); ~28 locale dirs are partial and fall back to English.
-- `docs/` is the GitHub Pages project website — changes there skip the APK
-  build (`paths-ignore`).
+- `docs/` only holds the images the README uses (`banner.png`, `social-preview.png`). Upstream's
+  GitHub Pages website that used to live there was removed (it described the Play Store app);
+  changes under `docs/` skip the APK build (`paths-ignore`).
 
 ## Known traps (learned the hard way)
 
