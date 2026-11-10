@@ -395,6 +395,8 @@ class SettingsFragment : Fragment() {
         val savedServers by remoteServerViewModel.servers.observeAsState(emptyList())
         val editingId by remoteServerViewModel.editingId.observeAsState(null)
         val saving by remoteServerViewModel.saving.observeAsState(false)
+        val mergeProposal by remoteServerViewModel.mergeProposal.observeAsState(null)
+        val duplicateCount by remoteServerViewModel.duplicateCount.observeAsState(0)
         RemoteServerContent(
             serverName = serverName,
             serverUrl = serverUrl,
@@ -415,6 +417,10 @@ class SettingsFragment : Fragment() {
             onEditServer = { remoteServerViewModel.edit(it) },
             onDeleteServer = { remoteServerViewModel.delete(it) },
             onNewServer = { remoteServerViewModel.newServer() },
+            mergeProposal = mergeProposal,
+            onMergeAnswer = { remoteServerViewModel.answerMerge(it) },
+            duplicateCount = duplicateCount,
+            onMergeDuplicates = { remoteServerViewModel.mergeDuplicates() },
         )
     }
 

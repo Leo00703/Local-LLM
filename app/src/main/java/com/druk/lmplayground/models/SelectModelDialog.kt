@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.druk.lmplayground.R
 import com.druk.lmplayground.remote.RemoteServerSection
+import com.druk.lmplayground.remote.ServerIdentity
 import com.druk.lmplayground.remote.SavedServers
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
@@ -217,7 +218,12 @@ fun SelectModelDialog(
                             RemoteServerHeader(
                                 label = section.server.label,
                                 serverType = section.server.type,
-                                address = SavedServers.hostOf(section.server.url),
+                                // The address in use, with its kind (a server can have several).
+                                address = ServerIdentity.describeAddress(
+                                    section.activeUrl,
+                                    stringResource(R.string.address_wifi),
+                                    stringResource(R.string.address_tailscale),
+                                ),
                                 expanded = expanded,
                                 onClick = { expandedByUser[serverId] = !expanded }
                             )

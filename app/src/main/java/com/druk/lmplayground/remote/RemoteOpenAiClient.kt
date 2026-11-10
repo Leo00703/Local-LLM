@@ -185,6 +185,16 @@ class RemoteOpenAiClient(
         false
     }
 
+    /**
+     * What identifies the machine behind this server ([ServerIdentity.fingerprint]): its llama.cpp-style
+     * `/props` (model file path and alias) and its model list. "" when it does not answer. Used to
+     * notice that two saved addresses are the same server.
+     */
+    suspend fun identityFingerprint(): String = withContext(Dispatchers.IO) {
+        val props = controlGet("$base/props")?.let { runCatching { JSONObject(it) }.getOrNull() }
+        ServerIdentity.fingerprint(props, probeModels().orEmpty())
+    }
+
     /** True when the server identifies as llama.cpp (`owned_by: "llamacpp"` on /v1/models). */
     private fun isLlamaCpp(): Boolean =
         (controlGet("$base/v1/models") ?: "").contains("\"llamacpp\"")

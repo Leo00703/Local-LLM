@@ -53,6 +53,11 @@ private data class ChangelogEntry(
 
 // Newest first.
 private val CHANGELOG = listOf(
+    ChangelogEntry("1.9.141", "One entry per server", listOf(
+        Change(ChangeType.NEW, "A server can now have several addresses, for example Wi-Fi at home and Tailscale away from home. The model picker tries them all together and uses the best one that answers, the local network first, and shows which one it is using."),
+        Change(ChangeType.IMPROVED, "When you save a server that is the same machine as one you already saved (at another address), the app asks whether to add it as another address instead of listing the server twice."),
+        Change(ChangeType.IMPROVED, "Servers you had already saved twice are detected: Remote server settings offers to merge them in one tap."),
+    )),
     ChangelogEntry("1.9.140", "The right context for your servers", listOf(
         Change(ChangeType.FIX, "Models on LM Studio, llama.cpp and Ollama servers now show the context they are really running with, not the model's maximum (which could be 10 to 100 times larger). The context ring and the limits are now correct."),
         Change(ChangeType.NEW, "Strata servers are recognised: the app finds them on the network (port 8095 too), shows their real context window and detects vision and tool support."),

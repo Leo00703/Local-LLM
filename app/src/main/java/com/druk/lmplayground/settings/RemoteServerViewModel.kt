@@ -7,11 +7,25 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.druk.lmplayground.remote.FoundServer
 import com.druk.lmplayground.remote.LocalServerScanner
+import com.druk.lmplayground.remote.RemoteOpenAiClient
 import com.druk.lmplayground.remote.SavedServer
 import com.druk.lmplayground.remote.SavedServers
 import com.druk.lmplayground.storage.StoragePreferences
 import kotlinx.coroutines.launch
 import java.util.UUID
+
+/**
+ * A server about to be saved that looks like one already saved, reached at another address: the
+ * user is asked whether it is the same machine ([existing]) before it becomes a second entry.
+ */
+data class MergeProposal(
+    val existing: SavedServer,
+    val name: String,
+    val url: String,
+    val apiKey: String?,
+    val type: String,
+    val fingerprint: String,
+)
 
 /**
  * Backs Settings → Remote server. Holds the list of saved servers (each a display name, an
@@ -52,6 +66,17 @@ class RemoteServerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _foundServers = MutableLiveData<List<FoundServer>>(emptyList())
     val foundServers: LiveData<List<FoundServer>> = _foundServers
+
+    private val _mergeProposal = MutableLiveData<MergeProposal?>(null)
+    val mergeProposal: LiveData<MergeProposal?> = _mergeProposal
+
+    /** How many saved servers are certainly the same machine as another (strong fingerprint). */
+    private val _duplicateCount = MutableLiveData(SavedServers.duplicateGroups(prefs.savedRemoteServers()).sumOf { it.size - 1 })
+    val duplicateCount: LiveData<Int> = _duplicateCount
+
+    init {
+        backfillFingerprints()
+    }
 
     // Server software reported by a scan result that filled the form; applied on Save so the
     // scan's answer is not asked again. Cleared as soon as the address is edited by hand.
@@ -135,7 +160,17 @@ class RemoteServerViewModel(app: Application) : AndroidViewModel(app) {
                 previous != null && SavedServers.sameEndpoint(previous.url, url) && previous.type.isNotEmpty() -> previous.type
                 else -> scanner.identify(url, key).orEmpty()
             }
-            val list = SavedServers.save(before, editing, UUID.randomUUID().toString(), name, url, key, type)
+            // Who is behind this address: the same machine may already be saved at another one.
+            val fingerprint = RemoteOpenAiClient(url, key).identityFingerprint()
+            if (editing == null && previous == null) {
+                val same = SavedServers.findSameServer(before, fingerprint, url)
+                if (same != null) {
+                    _mergeProposal.value = MergeProposal(same, name, url, key, type, fingerprint)
+                    _saving.value = false
+                    return@launch
+                }
+            }
+            val list = SavedServers.save(before, editing, UUID.randomUUID().toString(), name, url, key, type, fingerprint)
             persist(list)
             // The first server saved switches the feature on: otherwise it would sit in the
             // list and never appear in the model picker.
@@ -145,8 +180,46 @@ class RemoteServerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** The answer to a [MergeProposal]: add the address to the existing server, or keep a separate one. */
+    fun answerMerge(merge: Boolean) {
+        val proposal = _mergeProposal.value ?: return
+        _mergeProposal.value = null
+        val before = _servers.value.orEmpty()
+        val list = if (merge) {
+            SavedServers.addAddress(before, proposal.existing.id, proposal.url, proposal.fingerprint)
+        } else {
+            SavedServers.save(before, null, UUID.randomUUID().toString(), proposal.name, proposal.url, proposal.apiKey, proposal.type, proposal.fingerprint)
+        }
+        persist(list)
+        newServer()
+    }
+
+    /** Merge the servers that are certainly the same machine (the banner's button). */
+    fun mergeDuplicates() {
+        persist(SavedServers.mergeDuplicates(_servers.value.orEmpty()))
+    }
+
+    /**
+     * Servers saved before fingerprints existed have none: read it from the ones that answer, so
+     * doubles already in the list can be found. Quiet and best-effort.
+     */
+    private fun backfillFingerprints() {
+        val missing = _servers.value.orEmpty().filter { it.fingerprint.isEmpty() }
+        if (missing.isEmpty()) return
+        viewModelScope.launch {
+            val found = missing.associate { it.id to RemoteOpenAiClient(it.url, it.apiKey).identityFingerprint() }
+            // The list may have changed while the servers were asked: apply to what is there now.
+            val updated = _servers.value.orEmpty().map { s ->
+                val fp = found[s.id]
+                if (s.fingerprint.isEmpty() && !fp.isNullOrEmpty()) s.copy(fingerprint = fp) else s
+            }
+            persist(updated)
+        }
+    }
+
     private fun persist(list: List<SavedServer>) {
         prefs.setSavedRemoteServers(list)
         _servers.value = list
+        _duplicateCount.value = SavedServers.duplicateGroups(list).sumOf { it.size - 1 }
     }
 }

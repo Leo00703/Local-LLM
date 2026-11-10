@@ -618,4 +618,14 @@
     <string name="debug_crash_engine_not_connected" translatable="false">Inference engine isn\'t connected.</string>
     <string name="debug_crash_engine_done" translatable="false">Crash injected. Check the chat for the recovery message.</string>
 
+
+    <!-- Remote servers: one machine reached at several addresses -->
+    <string name="address_wifi">Wi-Fi</string>
+    <string name="address_tailscale">Tailscale</string>
+    <string name="merge_server_title">Same server?</string>
+    <string name="merge_server_message">This looks like the same server as \u201c%1$s\u201d, reached at another address (for example Wi-Fi and Tailscale). Add it as another address of \u201c%1$s\u201d?</string>
+    <string name="merge_server_yes">Merge</string>
+    <string name="merge_server_no">Keep separate</string>
+    <string name="duplicate_servers_found">%1$d saved servers look like the same machine reached at another address.</string>
+    <string name="server_addresses_count">%1$d addresses</string>
 </resources>

@@ -35,6 +35,8 @@ class RemoteServerFragment : Fragment() {
                 val savedServers by viewModel.servers.observeAsState(emptyList())
                 val editingId by viewModel.editingId.observeAsState(null)
                 val saving by viewModel.saving.observeAsState(false)
+                val mergeProposal by viewModel.mergeProposal.observeAsState(null)
+                val duplicateCount by viewModel.duplicateCount.observeAsState(0)
                 RemoteServerScreen(
                     serverName = serverName,
                     serverUrl = serverUrl,
@@ -56,6 +58,10 @@ class RemoteServerFragment : Fragment() {
                     onDeleteServer = { viewModel.delete(it) },
                     onNewServer = { viewModel.newServer() },
                     onBackClick = { findNavController().popBackStack() },
+                    mergeProposal = mergeProposal,
+                    onMergeAnswer = { viewModel.answerMerge(it) },
+                    duplicateCount = duplicateCount,
+                    onMergeDuplicates = { viewModel.mergeDuplicates() },
                 )
             }
         }

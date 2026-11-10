@@ -75,6 +75,10 @@ fun RemoteServerScreen(
     onDeleteServer: (SavedServer) -> Unit,
     onNewServer: () -> Unit,
     onBackClick: () -> Unit,
+    mergeProposal: MergeProposal? = null,
+    onMergeAnswer: (Boolean) -> Unit = {},
+    duplicateCount: Int = 0,
+    onMergeDuplicates: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -111,6 +115,10 @@ fun RemoteServerScreen(
             onEditServer = onEditServer,
             onDeleteServer = onDeleteServer,
             onNewServer = onNewServer,
+            mergeProposal = mergeProposal,
+            onMergeAnswer = onMergeAnswer,
+            duplicateCount = duplicateCount,
+            onMergeDuplicates = onMergeDuplicates,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
@@ -140,7 +148,26 @@ fun RemoteServerContent(
     onDeleteServer: (SavedServer) -> Unit,
     onNewServer: () -> Unit,
     modifier: Modifier = Modifier,
+    mergeProposal: MergeProposal? = null,
+    onMergeAnswer: (Boolean) -> Unit = {},
+    duplicateCount: Int = 0,
+    onMergeDuplicates: () -> Unit = {},
 ) {
+    // A server being saved that looks like one already saved: the same machine at another address?
+    mergeProposal?.let { proposal ->
+        AlertDialog(
+            onDismissRequest = { onMergeAnswer(false) },
+            title = { Text(stringResource(R.string.merge_server_title)) },
+            text = { Text(stringResource(R.string.merge_server_message, proposal.existing.label)) },
+            confirmButton = {
+                TextButton(onClick = { onMergeAnswer(true) }) { Text(stringResource(R.string.merge_server_yes)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { onMergeAnswer(false) }) { Text(stringResource(R.string.merge_server_no)) }
+            },
+        )
+    }
+
     // The server awaiting a "remove it?" answer.
     var pendingDelete by remember { mutableStateOf<SavedServer?>(null) }
     pendingDelete?.let { server ->
@@ -193,6 +220,23 @@ fun RemoteServerContent(
 
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
+        // Doubles already saved (the same machine at its Wi-Fi and its Tailscale address).
+        if (duplicateCount > 0) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 8.dp, top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.duplicate_servers_found, duplicateCount + 1),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onMergeDuplicates) { Text(stringResource(R.string.merge_server_yes)) }
+            }
+        }
+
         // The servers saved so far; tapping one loads it into the form below.
         if (savedServers.isNotEmpty()) {
             Text(
@@ -204,7 +248,12 @@ fun RemoteServerContent(
             savedServers.forEach { server ->
                 val selected = server.id == editingId
                 // The software and the address, leaving out whichever the title already shows.
-                val subtitle = listOf(server.type, SavedServers.hostOf(server.url))
+                val extraAddresses = server.alternates.size
+                val subtitle = listOf(
+                    server.type,
+                    SavedServers.hostOf(server.url),
+                    if (extraAddresses > 0) stringResource(R.string.server_addresses_count, extraAddresses + 1) else "",
+                )
                     .filter { it.isNotBlank() && it != server.label }
                     .joinToString(" · ")
                 Row(

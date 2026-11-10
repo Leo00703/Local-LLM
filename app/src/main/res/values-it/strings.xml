@@ -531,4 +531,14 @@
     <!-- Novità -->
     <string name="whats_new_tools">Ricerca web, caricamento pagina ed esecuzione di JavaScript</string>
     <string name="whats_new_cache">Risposte più veloci con prompt &amp; strumenti in cache</string>
+
+    <!-- Server remoti: una macchina raggiunta con più indirizzi -->
+    <string name="address_wifi">Wi-Fi</string>
+    <string name="address_tailscale">Tailscale</string>
+    <string name="merge_server_title">Stesso server?</string>
+    <string name="merge_server_message">Sembra lo stesso server di \u201c%1$s\u201d, raggiunto con un altro indirizzo (per esempio Wi-Fi e Tailscale). Lo aggiungo come altro indirizzo di \u201c%1$s\u201d?</string>
+    <string name="merge_server_yes">Unisci</string>
+    <string name="merge_server_no">Tieni separati</string>
+    <string name="duplicate_servers_found">%1$d server salvati sembrano la stessa macchina raggiunta con un altro indirizzo.</string>
+    <string name="server_addresses_count">%1$d indirizzi</string>
 </resources>

@@ -13,13 +13,30 @@ data class SavedServer(
     val apiKey: String? = null,
     /** Detected server software: "LM Studio", "Ollama", "llama.cpp", "OpenAI", or "" if unknown. */
     val type: String = "",
+    /**
+     * Other addresses of the same machine (its Wi-Fi and its Tailscale address, say), tried together
+     * with [url] when the model picker opens. See [ServerIdentity].
+     */
+    val alternates: List<String> = emptyList(),
+    /** What identifies the machine behind the server ([ServerIdentity.fingerprint]); "" if unknown. */
+    val fingerprint: String = "",
 ) {
     /** What lists show: the user's name, else the address. */
     val label: String get() = name.ifBlank { SavedServers.hostOf(url) }
+
+    /** [url] and the [alternates]: every address this server answers at. */
+    val addresses: List<String> get() = listOf(url) + alternates
 }
 
-/** A saved server that answered when the model picker opened, with the models it offers. */
-data class RemoteServerSection(val server: SavedServer, val models: List<String>)
+/**
+ * A saved server that answered when the model picker opened, with the models it offers.
+ * [activeUrl] is the address that answered (the preferred one when several did).
+ */
+data class RemoteServerSection(
+    val server: SavedServer,
+    val models: List<String>,
+    val activeUrl: String = server.url,
+)
 
 /**
  * The rules for the list of saved servers, kept free of Android so they can be unit-tested
@@ -70,12 +87,70 @@ object SavedServers {
         url: String,
         apiKey: String?,
         type: String,
+        fingerprint: String = "",
     ): List<SavedServer> {
         val clash = list.firstOrNull { sameEndpoint(it.url, url) && it.id != editingId }
         val id = editingId ?: clash?.id ?: newId
         val base = if (editingId != null && clash != null) remove(list, clash.id) else list
-        return upsert(base, SavedServer(id, name.trim(), url, apiKey?.trim()?.ifEmpty { null }, type))
+        // Editing keeps what the form does not show: the other addresses, and the fingerprint when
+        // the new one could not be read (an unreachable server).
+        val old = base.firstOrNull { it.id == id }
+        return upsert(
+            base,
+            SavedServer(
+                id, name.trim(), url, apiKey?.trim()?.ifEmpty { null }, type,
+                alternates = old?.alternates.orEmpty().filterNot { sameEndpoint(it, url) },
+                fingerprint = fingerprint.ifEmpty { old?.fingerprint.orEmpty() },
+            )
+        )
     }
+
+    /**
+     * The saved server that [fingerprint] says is the same machine as one already in the list, when
+     * it is reached at a different address; null when there is none (or no fingerprint).
+     */
+    fun findSameServer(list: List<SavedServer>, fingerprint: String, url: String, exceptId: String? = null): SavedServer? {
+        if (fingerprint.isEmpty()) return null
+        return list.firstOrNull {
+            it.id != exceptId && it.fingerprint == fingerprint && it.addresses.none { a -> sameEndpoint(a, url) }
+        }
+    }
+
+    /** Add [url] as another address of the server [id] (and its [fingerprint] if it had none). */
+    fun addAddress(list: List<SavedServer>, id: String, url: String, fingerprint: String = ""): List<SavedServer> =
+        list.map {
+            if (it.id != id) it
+            else it.copy(
+                alternates = (it.alternates + url).distinctBy { a -> a.trim().trimEnd('/').lowercase() }
+                    .filterNot { a -> sameEndpoint(a, it.url) },
+                fingerprint = it.fingerprint.ifEmpty { fingerprint },
+            )
+        }
+
+    /** Fold [absorbId] into [keepId]: it becomes one more address of it. */
+    fun merge(list: List<SavedServer>, keepId: String, absorbId: String): List<SavedServer> {
+        val absorbed = list.firstOrNull { it.id == absorbId } ?: return list
+        if (keepId == absorbId || list.none { it.id == keepId }) return list
+        var out = list
+        for (address in absorbed.addresses) out = addAddress(out, keepId, address, absorbed.fingerprint)
+        return remove(out, absorbId)
+    }
+
+    /**
+     * Groups of saved servers that are certainly one machine: they share a *strong* fingerprint
+     * (see [ServerIdentity.fingerprint]). Weak matches are only asked about when a server is saved.
+     */
+    fun duplicateGroups(list: List<SavedServer>): List<List<SavedServer>> =
+        list.filter { ServerIdentity.isStrong(it.fingerprint) }
+            .groupBy { it.fingerprint }
+            .values
+            .filter { it.size > 1 }
+
+    /** Merge every [duplicateGroups] group into its first server. */
+    fun mergeDuplicates(list: List<SavedServer>): List<SavedServer> =
+        duplicateGroups(list).fold(list) { acc, group ->
+            group.drop(1).fold(acc) { inner, dup -> merge(inner, group.first().id, dup.id) }
+        }
 
     /** The single server from before several could be saved, if one was set. */
     fun fromLegacy(id: String, name: String?, url: String?, apiKey: String?, type: String?): SavedServer? {
@@ -94,6 +169,8 @@ object SavedServers {
                     .put("url", it.url)
                     .put("apiKey", it.apiKey.orEmpty())
                     .put("type", it.type)
+                    .put("alternates", JSONArray(it.alternates))
+                    .put("fingerprint", it.fingerprint)
             )
         }
         return arr.toString()
@@ -108,7 +185,16 @@ object SavedServers {
                 val id = o.optString("id")
                 val url = o.optString("url")
                 if (id.isBlank() || url.isBlank()) continue
-                add(SavedServer(id, o.optString("name"), url, o.optString("apiKey").ifBlank { null }, o.optString("type")))
+                val alternates = o.optJSONArray("alternates")?.let { a ->
+                    (0 until a.length()).mapNotNull { j -> a.optString(j).ifBlank { null } }
+                }.orEmpty()
+                add(
+                    SavedServer(
+                        id, o.optString("name"), url, o.optString("apiKey").ifBlank { null }, o.optString("type"),
+                        alternates = alternates,
+                        fingerprint = o.optString("fingerprint"),
+                    )
+                )
             }
         }
     } catch (_: Exception) {

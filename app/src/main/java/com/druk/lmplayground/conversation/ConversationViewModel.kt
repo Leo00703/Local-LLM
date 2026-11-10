@@ -23,6 +23,7 @@ import com.druk.lmplayground.remote.RemoteOpenAiBackend
 import com.druk.lmplayground.remote.RemoteOpenAiClient
 import com.druk.lmplayground.remote.RemoteOpenAiModel
 import com.druk.lmplayground.remote.RemoteServerSection
+import com.druk.lmplayground.remote.ServerIdentity
 import com.druk.lmplayground.remote.ServerModelDetails
 import com.druk.llamacpp.PayloadTooLargeException
 import com.druk.lmplayground.App
@@ -73,6 +74,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -574,9 +576,18 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             kotlinx.coroutines.coroutineScope {
                 for (server in servers) {
                     launch {
-                        val models = RemoteOpenAiClient(server.url, server.apiKey).probeModels()
-                        if (models != null) {
-                            online[server.id] = RemoteServerSection(server, models)
+                        // One machine can have several addresses (Wi-Fi, Tailscale): ask them all
+                        // together and use the best one that answers (the local network first).
+                        val answers = kotlinx.coroutines.coroutineScope {
+                            ServerIdentity.orderAddresses(server.addresses).map { address ->
+                                async { address to RemoteOpenAiClient(address, server.apiKey).probeModels() }
+                            }.awaitAll()
+                        }
+                        val best = answers.firstOrNull { it.second != null }
+                        val models = best?.second
+                        if (best != null && models != null) {
+                            remoteActiveUrls[server.id] = best.first
+                            online[server.id] = RemoteServerSection(server, models, best.first)
                             // Keep the order the servers were saved in as the answers trickle in.
                             _remoteSections.postValue(servers.mapNotNull { online[it.id] })
                         }
@@ -600,7 +611,8 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             )
             return
         }
-        val url = server.url
+        // The address that answered when the picker opened (a server can have several).
+        val url = remoteActiveUrls[serverId]?.takeIf { it in server.addresses } ?: server.url
         val apiKey = server.apiKey
         viewModelScope.launch {
           // Serialize teardown+load under the same lock as the GGUF path so two
@@ -2381,6 +2393,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
 
     /** The remote model in use, kept so its context window can be re-read later. */
     private class RemoteContextTarget(val url: String, val apiKey: String?, val modelId: String)
+
+    /** For each saved server, the address that answered the last time the model picker opened. */
+    private val remoteActiveUrls = mutableMapOf<String, String>()
 
     private var remoteContextTarget: RemoteContextTarget? = null
     private var remoteContextCheckedAt = 0L

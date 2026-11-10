@@ -2,6 +2,12 @@
 
 Generated from the in-app changelog (`Changelog.kt`) by `.github/scripts/changelog.py`; do not edit by hand.
 
+## 1.9.141 · One entry per server
+
+- ✨ A server can now have several addresses, for example Wi-Fi at home and Tailscale away from home. The model picker tries them all together and uses the best one that answers, the local network first, and shows which one it is using.
+- ⚡ When you save a server that is the same machine as one you already saved (at another address), the app asks whether to add it as another address instead of listing the server twice.
+- ⚡ Servers you had already saved twice are detected: Remote server settings offers to merge them in one tap.
+
 ## 1.9.140 · The right context for your servers
 
 - 🐛 Models on LM Studio, llama.cpp and Ollama servers now show the context they are really running with, not the model's maximum (which could be 10 to 100 times larger). The context ring and the limits are now correct.
