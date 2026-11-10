@@ -629,8 +629,12 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
             // so the context ring and the details card are accurate.
             val details = RemoteOpenAiClient(url, apiKey).fetchModelDetails(modelId)
             _serverModelDetails.postValue(details)
-            val maxContext = details?.maxContext?.takeIf { it > 0 }
+            // The context the server really runs with (never the model's training maximum, which
+            // can be 10-100x larger); the default when the server does not say.
+            val maxContext = details?.contextWindow?.takeIf { it > 0 }
                 ?: RemoteOpenAiModel.DEFAULT_CONTEXT
+            remoteContextTarget = RemoteContextTarget(url, apiKey, modelId)
+            remoteContextCheckedAt = System.currentTimeMillis()
 
             // Shown as the model's source: the name the user gave the server (else its address).
             val host = server.label
@@ -2375,6 +2379,34 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         return s.take(50)
     }
 
+    /** The remote model in use, kept so its context window can be re-read later. */
+    private class RemoteContextTarget(val url: String, val apiKey: String?, val modelId: String)
+
+    private var remoteContextTarget: RemoteContextTarget? = null
+    private var remoteContextCheckedAt = 0L
+
+    /**
+     * A server's context window is not a constant: LM Studio loads a model with whatever size the
+     * user picked (and JIT-loads it on first use), llama-server can be restarted with another
+     * --ctx-size. Re-read it, at most every [REMOTE_CONTEXT_REFRESH_MS], so the context ring and the
+     * limits follow the server instead of the value it had when the model was selected.
+     */
+    private fun refreshRemoteContext() {
+        val target = remoteContextTarget ?: return
+        val now = System.currentTimeMillis()
+        if (now - remoteContextCheckedAt < REMOTE_CONTEXT_REFRESH_MS) return
+        remoteContextCheckedAt = now
+        viewModelScope.launch {
+            val details = RemoteOpenAiClient(target.url, target.apiKey).fetchModelDetails(target.modelId)
+                ?: return@launch
+            val fresh = details.contextWindow
+            if (fresh > 0 && fresh != _maxContextSize.value) {
+                _maxContextSize.postValue(fresh)
+                _serverModelDetails.postValue(details)
+            }
+        }
+    }
+
     @MainThread
     fun addMessage(message: Message) {
         val enableThinking = _thinkingEnabled.value == true
@@ -2418,6 +2450,7 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
         }
 
         _isGenerating.postValue(true)
+        if (isRemoteModel) refreshRemoteContext()
         // Marker on the assistant placeholder we just added — used by the
         // cleanup path below to confirm the still-active message in
         // uiState is OURS and not a placeholder for some later turn the
@@ -4300,6 +4333,9 @@ class ConversationViewModel(val app: Application) : AndroidViewModel(app) {
     )
 
     private companion object {
+        // How often a remote model's context window is re-read from its server.
+        private const val REMOTE_CONTEXT_REFRESH_MS = 20_000L
+
         // Number of preamble cache files to retain (LRU by mtime). Each
         // file is small relative to the model itself but scales with
         // (system_prompt + tools_description) token count — typically a

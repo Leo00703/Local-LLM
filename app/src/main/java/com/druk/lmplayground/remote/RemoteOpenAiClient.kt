@@ -21,8 +21,15 @@ data class ServerModelDetails(
     val type: String? = null,
     val format: String? = null,
     val publisher: String? = null,
+    /** The model's training maximum: an upper bound, NOT what the server runs with. */
     val maxContext: Int = 0,
     val loadedContext: Int = 0,
+    /**
+     * The context the server really runs this model with (tokens), or 0 when it does not say.
+     * Never the training maximum: see [ServerContexts].
+     */
+    val contextWindow: Int = 0,
+    val contextSource: ContextSource = ContextSource.UNKNOWN,
     // Ollama/llama.cpp: parameter count (e.g. "7.6B") and capabilities the
     // server reports (e.g. "tools", "vision", "thinking"). Empty/null for LM Studio.
     val parameterSize: String? = null,
@@ -197,14 +204,19 @@ class RemoteOpenAiClient(
                     for (i in 0 until arr.length()) {
                         val m = arr.optJSONObject(i) ?: continue
                         if (m.optString("id") == modelId) {
+                            val maxCtx = m.optInt("max_context_length", 0)
+                            val loadedCtx = m.optInt("loaded_context_length", 0)
+                            val ctx = ServerContexts.lmStudio(m.optString("state"), loadedCtx, maxCtx)
                             return@withContext ServerModelDetails(
                                 quantization = m.optString("quantization").ifBlank { null },
                                 architecture = m.optString("arch").ifBlank { null },
                                 type = m.optString("type").ifBlank { null },
                                 format = m.optString("compatibility_type").ifBlank { null },
                                 publisher = m.optString("publisher").ifBlank { null },
-                                maxContext = m.optInt("max_context_length", 0),
-                                loadedContext = m.optInt("loaded_context_length", 0),
+                                maxContext = maxCtx,
+                                loadedContext = loadedCtx,
+                                contextWindow = if (ctx.exact) ctx.tokens else 0,
+                                contextSource = ctx.source,
                             )
                         }
                     }
@@ -221,6 +233,8 @@ class RemoteOpenAiClient(
                     info.keys().asSequence().firstOrNull { it.endsWith(".context_length") }
                         ?.let { info.optInt(it, 0) }
                 } ?: 0
+                // /api/show only has the model's maximum; /api/ps has the context a running model uses.
+                val running = ServerContexts.ollama(controlGet("$base/api/ps"), modelId, ctx)
                 val caps = o.optJSONArray("capabilities")?.let { a ->
                     (0 until a.length()).mapNotNull { a.optString(it).ifBlank { null } }
                 } ?: emptyList()
@@ -231,6 +245,8 @@ class RemoteOpenAiClient(
                     format = det?.optString("format")?.ifBlank { null },
                     publisher = null,
                     maxContext = ctx,
+                    contextWindow = if (running.exact) running.tokens else 0,
+                    contextSource = running.source,
                     parameterSize = det?.optString("parameter_size")?.ifBlank { null },
                     capabilities = caps,
                 )
@@ -240,22 +256,25 @@ class RemoteOpenAiClient(
     }
 
     /**
-     * llama.cpp branch of [fetchModelDetails]. Identified by `owned_by:
-     * "llamacpp"` on the standard /v1/models endpoint, whose per-model `meta`
-     * already carries the quantization (`ftype`), runtime context (`n_ctx`)
-     * and parameter count (`n_params`) — no vendor endpoint needed. GET /props
-     * (best-effort) adds the vision and tool-call capabilities for feature
-     * gating. Null when the server is not llama.cpp or the lookup fails.
+     * llama.cpp branch of [fetchModelDetails], also used for Strata (same dialect). A server counts
+     * as llama.cpp-compatible when `/props` has llama-server's shape, or the model list says
+     * `owned_by: "llamacpp"`. The context comes from [ServerContexts.llamaModel]: the per-slot
+     * `/props` n_ctx of a single-model server, `meta.n_ctx` of a loaded model, or the `--ctx-size`
+     * a router will launch the model with. `/v1/models` `context_length` is the training context
+     * and is never taken for what the server runs. GET /props also adds the vision and tool-call
+     * capabilities for feature gating. Null when the server is not llama.cpp-compatible.
      */
     private fun fetchLlamaCppDetails(modelId: String): ServerModelDetails? {
         val listBody = controlGet("$base/v1/models") ?: return null
         val data = runCatching { JSONObject(listBody).optJSONArray("data") }.getOrNull() ?: return null
+        val props = controlGet("$base/props")?.let { runCatching { JSONObject(it) }.getOrNull() }
+        val llamaLike = ServerContexts.isLlamaProps(props)
         var entry: JSONObject? = null
-        var firstLlamaCpp: JSONObject? = null
+        var firstCandidate: JSONObject? = null
         for (i in 0 until data.length()) {
             val m = data.optJSONObject(i) ?: continue
-            if (m.optString("owned_by") != "llamacpp") continue
-            if (firstLlamaCpp == null) firstLlamaCpp = m
+            if (!llamaLike && m.optString("owned_by") != "llamacpp") continue
+            if (firstCandidate == null) firstCandidate = m
             if (m.optString("id") == modelId) {
                 entry = m
                 break
@@ -264,25 +283,26 @@ class RemoteOpenAiClient(
         // The request `model` field is advisory on llama.cpp — if the stored id
         // no longer matches (server restarted with another GGUF), use the entry
         // the server actually reports rather than failing the whole lookup.
-        val model = entry ?: firstLlamaCpp ?: return null
+        val model = entry ?: firstCandidate ?: return null
         val meta = model.optJSONObject("meta")
-        val capabilities = controlGet("$base/props")?.let { body ->
-            runCatching {
-                val props = JSONObject(body)
-                buildList {
-                    if (props.optJSONObject("modalities")?.optBoolean("vision") == true) add("vision")
-                    if (props.optJSONObject("chat_template_caps")?.optBoolean("supports_tool_calls") == true) add("tools")
-                }
-            }.getOrDefault(emptyList())
+        val capabilities = props?.let { p ->
+            buildList {
+                if (p.optJSONObject("modalities")?.optBoolean("vision") == true) add("vision")
+                if (p.optJSONObject("chat_template_caps")?.optBoolean("supports_tool_calls") == true) add("tools")
+            }
         } ?: emptyList()
+        val ctx = ServerContexts.llamaModel(model, props)
+        val training = meta?.optInt("n_ctx_train", 0)?.takeIf { it > 0 } ?: model.optInt("context_length", 0)
         return ServerModelDetails(
             quantization = meta?.optString("ftype")?.ifBlank { null },
             architecture = null,
             type = null,
             format = null,
-            publisher = "llama.cpp",
-            maxContext = meta?.optInt("n_ctx", 0) ?: 0,
+            publisher = if (ServerContexts.isStrata(props)) "Strata" else "llama.cpp",
+            maxContext = training,
             loadedContext = 0,
+            contextWindow = if (ctx.exact) ctx.tokens else 0,
+            contextSource = ctx.source,
             parameterSize = formatParamCount(meta?.optLong("n_params", 0L) ?: 0L),
             capabilities = capabilities,
         )

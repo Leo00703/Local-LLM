@@ -274,7 +274,12 @@ fun GenerationParamsSheet(
                 // Remote models: also show the server's metadata (quant / arch /
                 // context / capabilities) as info pills under the name.
                 if (isRemote) {
-                    ServerInfoHeader(details = serverDetails, maxContext = maxContextSize)
+                    ServerInfoHeader(
+                        details = serverDetails,
+                        maxContext = maxContextSize,
+                        // The server said what it runs with, or this is the app's 8K guess ("~").
+                        contextVerified = (serverDetails?.contextWindow ?: 0) > 0,
+                    )
                 }
                 // Separate the header (name + optional server pills) from the sliders.
                 if (modelName.isNotBlank() || isRemote) {
@@ -798,7 +803,7 @@ fun GenerationParamsSheet(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ServerInfoHeader(details: ServerModelDetails?, maxContext: Int) {
+private fun ServerInfoHeader(details: ServerModelDetails?, maxContext: Int, contextVerified: Boolean) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -809,7 +814,10 @@ private fun ServerInfoHeader(details: ServerModelDetails?, maxContext: Int) {
         details?.architecture?.let { Pill(it) }
         details?.type?.takeIf { it.isNotBlank() }?.let { Pill(it.uppercase()) }
         details?.format?.takeIf { it.isNotBlank() }?.let { Pill(it.uppercase()) }
-        if (maxContext > 0) Pill(stringResource(R.string.context_pill, formatTokens(maxContext)))
+        if (maxContext > 0) {
+            val size = formatTokens(maxContext)
+            Pill(stringResource(R.string.context_pill, if (contextVerified) size else "~$size"))
+        }
         details?.publisher?.let { Pill(it) }
     }
 

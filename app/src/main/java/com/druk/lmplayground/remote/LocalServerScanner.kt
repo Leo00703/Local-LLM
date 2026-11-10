@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
  * @param label short human label, e.g. `192.168.1.42:1234`
  * @param modelCount number of models the server advertised via `/v1/models`
  * @param firstModel id of the first advertised model, or null
- * @param serverType detected server software: "LM Studio", "Ollama", "llama.cpp", or "OpenAI"
+ * @param serverType detected server software: "LM Studio", "Ollama", "llama.cpp", "Strata", or "OpenAI"
  */
 data class FoundServer(
     val url: String,
@@ -35,7 +35,7 @@ data class FoundServer(
 /**
  * Discovers OpenAI-compatible inference servers on the phone's WiFi subnet by
  * actively probing the well-known ports (LM Studio 1234, Ollama 11434,
- * llama.cpp 8080 and the 9931 port llama.cpp is moving to) with a
+ * llama.cpp 8080 and the 9931 port llama.cpp is moving to, Strata 8095) with a
  * short-timeout `GET /v1/models`. mDNS/NSD is not used because none of the
  * three advertise themselves over Bonjour by default.
  *
@@ -117,10 +117,13 @@ class LocalServerScanner {
     private fun detectType(host: String, port: Int, modelsBody: String, http: OkHttpClient): String {
         return when {
             modelsBody.contains("\"llamacpp\"") -> "llama.cpp"
+            // Strata speaks llama.cpp's dialect and says who it is in /props.build_info.
+            isStrata("$host/props", http) -> "Strata"
             getJsonHasArray("$host/api/v0/models", "data", http) ||
                 getJsonHasArray("$host/api/v1/models", "data", http) -> "LM Studio"
             getJsonHasArray("$host/api/tags", "models", http) -> "Ollama"   // Ollama native
             port == 11434 -> "Ollama"
+            port == 8095 -> "Strata"   // Strata's own default port
             port == 8080 || port == 9931 -> "llama.cpp"
             port == 1234 -> "LM Studio"
             else -> "OpenAI"
@@ -134,7 +137,7 @@ class LocalServerScanner {
         .build()
 
     /**
-     * Which server software answers at [baseUrl] ("LM Studio", "Ollama", "llama.cpp" or
+     * Which server software answers at [baseUrl] ("LM Studio", "Ollama", "llama.cpp", "Strata" or
      * "OpenAI"), or null when nothing answers /v1/models there. Used when a server is saved
      * with a hand-typed address, so it gets the right logo without needing a network scan.
      */
@@ -150,6 +153,16 @@ class LocalServerScanner {
         } ?: return@withContext null
         val port = runCatching { java.net.URI(base).port }.getOrDefault(-1)
         detectType(base, port, body, identifyClient)
+    }
+
+    /** True when GET [url] is a llama.cpp-style /props whose build_info starts with "Strata". */
+    private fun isStrata(url: String, http: OkHttpClient): Boolean = try {
+        http.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
+            val body = response.body?.string()
+            response.isSuccessful && body != null && ServerContexts.isStrata(JSONObject(body))
+        }
+    } catch (_: Exception) {
+        false
     }
 
     /** True when GET [url] returns 2xx with a JSON object holding a non-null
@@ -186,6 +199,7 @@ class LocalServerScanner {
         const val MAX_CONCURRENT = 64
         // 8080 is llama.cpp's current default port; 9931 is the port its
         // source warns will become the default in a future release.
-        val KNOWN_PORTS = intArrayOf(1234, 11434, 8080, 9931)
+        // 8095 is where Strata's own server starts when no --port is given.
+        val KNOWN_PORTS = intArrayOf(1234, 11434, 8080, 9931, 8095)
     }
 }

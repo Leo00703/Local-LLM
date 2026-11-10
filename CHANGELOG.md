@@ -2,6 +2,12 @@
 
 Generated from the in-app changelog (`Changelog.kt`) by `.github/scripts/changelog.py`; do not edit by hand.
 
+## 1.9.140 · The right context for your servers
+
+- 🐛 Models on LM Studio, llama.cpp and Ollama servers now show the context they are really running with, not the model's maximum (which could be 10 to 100 times larger). The context ring and the limits are now correct.
+- ✨ Strata servers are recognised: the app finds them on the network (port 8095 too), shows their real context window and detects vision and tool support.
+- ⚡ If you restart a server or reload a model with another context size, the app notices it when you send the next message. A context shown with ~ is only the app's estimate, because the server did not say.
+
 ## 1.9.139 · Faster Qwen in long chats
 
 - ⚡ Qwen 3 and Qwen 3.5 now answer faster in long conversations: the app keeps what it has already read instead of processing the whole chat again on every message.
